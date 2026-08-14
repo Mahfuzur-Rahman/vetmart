@@ -25,9 +25,9 @@ const envSchema = z.object({
 
   // Demo
   DEMO_MODE: z
-    .string()
-    .transform((v) => v === 'true')
-    .default('false'),
+    .union([z.boolean(), z.string()])
+    .transform((v) => v === true || v === 'true')
+    .default('true'),
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
