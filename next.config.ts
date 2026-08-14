@@ -4,7 +4,8 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts');
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // Use standalone only for local Docker/VPS builds; Vercel natively handles serverless outputs
+  ...(process.env.VERCEL ? {} : { output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined }),
   images: {
     formats: ['image/avif', 'image/webp'],
   },
