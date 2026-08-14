@@ -1,0 +1,49 @@
+{
+  "common": {
+    "appName": "VetMart",
+    "home": "হোম",
+    "search": "অনুসন্ধান",
+    "cart": "কার্ট",
+    "account": "অ্যাকাউন্ট",
+    "species": "প্রজাতি",
+    "login": "লগইন",
+    "logout": "লগআউট",
+    "addToCart": "কার্টে যোগ করুন",
+    "buyNow": "এখনই কিনুন",
+    "outOfStock": "স্টকে নেই",
+    "price": "মূল্য",
+    "quantity": "পরিমাণ",
+    "total": "মোট",
+    "subtotal": "সাবটোটাল",
+    "shipping": "ডেলিভারি চার্জ",
+    "vat": "ভ্যাট",
+    "orderNow": "অর্ডার করুন",
+    "cashOnDelivery": "ক্যাশ অন ডেলিভারি",
+    "loading": "লোড হচ্ছে...",
+    "error": "একটি সমস্যা হয়েছে",
+    "retry": "আবার চেষ্টা করুন"
+  },
+  "species": {
+    "cattle": "গরু",
+    "buffalo": "মহিষ",
+    "goat_sheep": "ছাগল/ভেড়া",
+    "poultry": "পোল্ট্রি",
+    "fish": "মাছ",
+    "dog": "কুকুর",
+    "cat": "বিড়াল",
+    "pigeon": "কবুতর"
+  },
+  "product": {
+    "genericName": "জেনেরিক নাম",
+    "manufacturer": "প্রস্তুতকারক",
+    "batchNo": "ব্যাচ নম্বর",
+    "expiryDate": "মেয়াদ শেষের তারিখ",
+    "dosageForm": "ডোজ ফর্ম",
+    "packSize": "প্যাক সাইজ",
+    "strength": "শক্তি",
+    "withdrawalMeat": "মাংসে প্রত্যাহার সময়",
+    "withdrawalMilk": "দুধে প্রত্যাহার সময়",
+    "storageCondition": "সংরক্ষণ অবস্থা",
+    "dgdaRegNo": "ডিজিডিএ রেজিস্ট্রেশন নম্বর"
+  }
+}

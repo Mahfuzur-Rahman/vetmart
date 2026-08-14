@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@theme {
+  --breakpoint-xs: 360px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  --font-sans: var(--font-inter), var(--font-hind-siliguri), system-ui, sans-serif;
+  --font-display: var(--font-outfit), var(--font-inter), system-ui, sans-serif;
+  --font-bangla: var(--font-hind-siliguri), system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Brand palette — warm emerald, desaturated for premium feel */
+  --color-vetmart-50: #f0faf4;
+  --color-vetmart-100: #d8f3e4;
+  --color-vetmart-200: #b3e6cb;
+  --color-vetmart-300: #7dd4a8;
+  --color-vetmart-400: #4cba80;
+  --color-vetmart-500: #2a9d64;
+  --color-vetmart-600: #1e7f4f;
+  --color-vetmart-700: #1a6641;
+  --color-vetmart-800: #175236;
+  --color-vetmart-900: #14432d;
+  --color-vetmart-950: #0a2618;
+}
+
+/* ─── Light Mode: Warm off-white ─── */
+:root {
+  --background: #fafaf8;
+  --foreground: #1a1d1a;
+  --card: #ffffff;
+  --card-foreground: #1a1d1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1d1a;
+  --primary: #1e7f4f;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2ee;
+  --secondary-foreground: #1a1d1a;
+  --muted: #f2f2ee;
+  --muted-foreground: #6b6e6b;
+  --accent: #f2f2ee;
+  --accent-foreground: #1a1d1a;
+  --destructive: #dc4545;
+  --destructive-foreground: #fafafa;
+  --border: #e2e3de;
+  --input: #e2e3de;
+  --ring: #1e7f4f;
+  --radius: 0.625rem;
+}
+
+/* ─── Dark Mode: Forest-tinted ─── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c0f0a;
+    --foreground: #e8ebe6;
+    --card: #141916;
+    --card-foreground: #e8ebe6;
+    --popover: #141916;
+    --popover-foreground: #e8ebe6;
+    --primary: #4cba80;
+    --primary-foreground: #0a2618;
+    --secondary: #1e241e;
+    --secondary-foreground: #e8ebe6;
+    --muted: #1e241e;
+    --muted-foreground: #8a8e88;
+    --accent: #1e241e;
+    --accent-foreground: #e8ebe6;
+    --destructive: #7f1d1d;
+    --destructive-foreground: #fafafa;
+    --border: #252c25;
+    --input: #252c25;
+    --ring: #4cba80;
+  }
+}
+
+/* ─── Bangla typography rules (§15.5) ─── */
+[lang="bn"] {
+  line-height: 1.8;
+  font-family: var(--font-hind-siliguri), system-ui, sans-serif;
+}
+
+[lang="bn"] body {
+  font-size: max(15px, 1rem);
+}
+
+/* ─── Base ─── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  min-height: 100dvh;
+}
+
+/* ─── Display typography utility ─── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ─── Admin warm dark overrides ─── */
+.admin-dark {
+  --admin-bg: #0f1210;
+  --admin-surface: #161b18;
+  --admin-surface-hover: #1c221e;
+  --admin-border: #232a26;
+  --admin-border-subtle: #1e2520;
+  --admin-text: #e0e4dd;
+  --admin-text-muted: #7d8379;
+  --admin-accent: #3da96c;
+}
+
+/* ─── Subtle noise texture (optional overlay) ─── */
+.noise-overlay::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}

@@ -1,0 +1,48 @@
+{
+  "name": "vetmart",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:seed:demo": "tsx scripts/seed-demo.ts",
+    "db:reset:demo": "tsx scripts/reset-demo.ts",
+    "jobs": "tsx lib/jobs/worker.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5",
+    "drizzle-orm": "^0.44",
+    "ioredis": "^5.6",
+    "next": "16.3.0",
+    "next-auth": "5.0.0-beta.32",
+    "next-intl": "^4",
+    "postgres": "^3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "^0.34",
+    "zod": "^3.25"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "cloudinary": "^2.10.0",
+    "drizzle-kit": "^0.31",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "tailwindcss": "^4",
+    "tsx": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
+  },
+  "packageManager": "pnpm@11.21.0"
+}

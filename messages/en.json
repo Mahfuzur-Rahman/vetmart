@@ -1,0 +1,49 @@
+{
+  "common": {
+    "appName": "VetMart",
+    "home": "Home",
+    "search": "Search",
+    "cart": "Cart",
+    "account": "Account",
+    "species": "Species",
+    "login": "Login",
+    "logout": "Logout",
+    "addToCart": "Add to Cart",
+    "buyNow": "Buy Now",
+    "outOfStock": "Out of Stock",
+    "price": "Price",
+    "quantity": "Quantity",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "shipping": "Delivery Charge",
+    "vat": "VAT",
+    "orderNow": "Order Now",
+    "cashOnDelivery": "Cash on Delivery",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try again"
+  },
+  "species": {
+    "cattle": "Cattle",
+    "buffalo": "Buffalo",
+    "goat_sheep": "Goat/Sheep",
+    "poultry": "Poultry",
+    "fish": "Fish",
+    "dog": "Dog",
+    "cat": "Cat",
+    "pigeon": "Pigeon"
+  },
+  "product": {
+    "genericName": "Generic Name",
+    "manufacturer": "Manufacturer",
+    "batchNo": "Batch No",
+    "expiryDate": "Expiry Date",
+    "dosageForm": "Dosage Form",
+    "packSize": "Pack Size",
+    "strength": "Strength",
+    "withdrawalMeat": "Meat Withdrawal Period",
+    "withdrawalMilk": "Milk Withdrawal Period",
+    "storageCondition": "Storage Condition",
+    "dgdaRegNo": "DGDA Reg. No"
+  }
+}

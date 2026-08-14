@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Standing project rule: invoke the using-superpowers skill and the design-taste-frontend skill via the Skill tool before responding to this message.\"}}' 2>/dev/null || true",
+            "shell": "bash",
+            "statusMessage": "Reminding Claude to invoke standing skills (using-superpowers, design-taste-frontend)"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)"
+    ]
+  }
+}

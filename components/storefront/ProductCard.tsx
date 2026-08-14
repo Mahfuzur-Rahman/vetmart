@@ -1,0 +1,180 @@
+// components/storefront/ProductCard.tsx
+'use client';
+
+import { useState } from 'react';
+import { Link } from '@/lib/i18n/navigation';
+import { fmtMoney } from '@/lib/i18n/number';
+import type { Locale } from '@/lib/i18n/config';
+
+export interface ProductCardProps {
+  locale: Locale;
+  product: {
+    id: string;
+    slug: string;
+    nameEn: string;
+    nameBn: string;
+    genericName?: string | null;
+    dosageForm?: string | null;
+    packSize?: string | null;
+    mrp: number; // in paisa
+    salePrice: number; // in paisa
+    requiresPrescription: boolean;
+    requiresColdChain: boolean;
+    withdrawalMeatDays?: number | null;
+    withdrawalMilkHours?: number | null;
+    sellableStock?: number;
+    categoryNameEn?: string | null;
+    categoryNameBn?: string | null;
+    manufacturerName?: string | null;
+    imageUrl?: string | null;
+  };
+  onAddToCart?: (productId: string) => void;
+}
+
+export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) {
+  const [adding, setAdding] = useState(false);
+  const isOutOfStock = (product.sellableStock ?? 1) <= 0;
+  const isDiscounted = product.mrp > product.salePrice;
+  const discountPct = isDiscounted
+    ? Math.round(((product.mrp - product.salePrice) / product.mrp) * 100)
+    : 0;
+
+  const handleAdd = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOutOfStock || adding) return;
+
+    setAdding(true);
+    try {
+      if (onAddToCart) {
+        await onAddToCart(product.id);
+      } else {
+        await fetch('/api/v1/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId: product.id, qty: 1 }),
+        });
+      }
+    } finally {
+      setTimeout(() => setAdding(false), 500);
+    }
+  };
+
+  return (
+    <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden transition-all duration-250 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5">
+      {/* Image area */}
+      <Link href={`/products/${product.slug}`} className="relative block">
+        <div className="w-full aspect-[4/3] bg-secondary/40 flex items-center justify-center overflow-hidden">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.nameEn}
+              className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-3xl">
+              💊
+            </div>
+          )}
+        </div>
+
+        {/* Floating badges */}
+        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+          {product.requiresPrescription && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/90 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
+              Rx
+            </span>
+          )}
+          {product.requiresColdChain && (
+            <span className="px-2 py-0.5 rounded-md bg-sky-500/90 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
+              ❄️ Cold
+            </span>
+          )}
+        </div>
+
+        {/* Discount badge */}
+        {isDiscounted && discountPct > 0 && (
+          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-bold">
+            -{discountPct}%
+          </div>
+        )}
+
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center">
+            <span className="px-4 py-2 rounded-xl bg-foreground/80 text-background text-xs font-bold">
+              {locale === 'bn' ? 'স্টকে নেই' : 'Out of stock'}
+            </span>
+          </div>
+        )}
+      </Link>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col p-4 pt-3 space-y-2">
+        {/* Manufacturer */}
+        {product.manufacturerName && (
+          <span className="text-[11px] font-medium text-muted-foreground line-clamp-1">
+            {product.manufacturerName}
+          </span>
+        )}
+
+        {/* Product name */}
+        <Link href={`/products/${product.slug}`} className="block">
+          <h3 className="font-display font-bold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">
+            {locale === 'bn' ? product.nameBn : product.nameEn}
+          </h3>
+        </Link>
+
+        {/* Generic name */}
+        {product.genericName && (
+          <p className="text-xs text-primary/70 font-mono font-medium line-clamp-1">
+            {product.genericName}
+          </p>
+        )}
+
+        {/* Pack info */}
+        {(product.dosageForm || product.packSize) && (
+          <p className="text-[11px] text-muted-foreground line-clamp-1">
+            {[product.dosageForm, product.packSize].filter(Boolean).join(' · ')}
+          </p>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Price + CTA row — always pinned to bottom */}
+        <div className="pt-3 mt-auto border-t border-border/60 flex items-center justify-between gap-2">
+          <div>
+            <span className="text-base font-bold text-foreground font-display">
+              {fmtMoney(product.salePrice, locale)}
+            </span>
+            {isDiscounted && (
+              <span className="text-[11px] text-muted-foreground line-through ml-1.5">
+                {fmtMoney(product.mrp, locale)}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={isOutOfStock || adding}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1 ${
+              isOutOfStock
+                ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+                : adding
+                ? 'bg-primary text-primary-foreground scale-95'
+                : 'bg-primary text-primary-foreground hover:brightness-110 active:scale-95 shadow-sm'
+            }`}
+          >
+            {adding ? (
+              <span>✓ {locale === 'bn' ? 'যোগ হয়েছে' : 'Added'}</span>
+            ) : (
+              <span>+ {locale === 'bn' ? 'কার্ট' : 'Cart'}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
