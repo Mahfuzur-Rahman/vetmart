@@ -1,5 +1,4 @@
-// app/[locale]/layout.tsx
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -7,6 +6,12 @@ import { routing } from '@/lib/i18n/navigation';
 import { inter, outfit, hindSiliguri } from '@/app/fonts';
 import { TopProgressBar } from '@/components/TopProgressBar';
 import '@/app/globals.css';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: {

@@ -95,6 +95,15 @@ export function Footer({ locale }: FooterProps) {
                     {locale === 'bn' ? 'গরু ও গবাদিপশু' : 'Cattle & livestock'}
                   </Link>
                 </li>
+                <li className="pt-1">
+                  <Link
+                    href="/admin"
+                    className="hover:text-primary transition-colors inline-flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    <span>🔐</span>
+                    <span>{locale === 'bn' ? 'স্টাফ ও অ্যাডমিন লগইন' : 'Staff & Admin Login'}</span>
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -118,7 +127,17 @@ export function Footer({ locale }: FooterProps) {
           </div>
 
           <div className="border-t border-border mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-4">
-            <p>© {new Date().getFullYear()} VetMart BD. All rights reserved.</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <p>© {new Date().getFullYear()} VetMart BD. All rights reserved.</p>
+              <span className="hidden sm:inline text-border">•</span>
+              <Link
+                href="/admin"
+                className="text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 hover:underline"
+              >
+                <span>🛡️</span>
+                <span>{locale === 'bn' ? 'স্টাফ পোর্টাল (/admin)' : 'Staff Portal (/admin)'}</span>
+              </Link>
+            </div>
             <div className="flex items-center gap-4">
               <span>{locale === 'bn' ? 'পেমেন্ট: ক্যাশ অন ডেলিভারি / বিকাশ / এসএসএলকমার্জ' : 'Payment: COD / bKash / SSLCommerz'}</span>
             </div>

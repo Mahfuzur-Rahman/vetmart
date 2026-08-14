@@ -317,36 +317,36 @@ export function HeroCarousel({ locale }: HeroCarouselProps) {
       ))}
 
       {/* Hero Content Area */}
-      <div className="relative z-20 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
-        <div className="max-w-2xl space-y-6">
+      <div className="relative z-20 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-24">
+        <div className="max-w-2xl space-y-4 sm:space-y-6">
           
           {/* Top Badge & Slide Indicator Counter */}
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-emerald-200 text-xs font-semibold tracking-wide shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-emerald-200 text-[11px] sm:text-xs font-semibold tracking-wide shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{isBn ? slide.badge.bn : slide.badge.en}</span>
             </div>
 
-            <span className="text-xs font-extrabold text-emerald-300 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-500/30">
+            <span className="text-[11px] sm:text-xs font-extrabold text-emerald-300 bg-emerald-950/60 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full border border-emerald-500/30">
               {current + 1} / {HERO_SLIDES.length}
             </span>
           </div>
 
           {/* Dynamic Animated Title */}
-          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold text-white leading-[1.12] tracking-tight transition-all duration-500">
+          <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-[1.15] tracking-tight transition-all duration-500 break-words">
             {isBn ? slide.title.bn : slide.title.en}
           </h1>
 
           {/* Dynamic Animated Subhead */}
-          <p className="text-base sm:text-lg text-emerald-100/80 leading-relaxed max-w-xl transition-all duration-500">
+          <p className="text-sm sm:text-base md:text-lg text-emerald-100/80 leading-relaxed max-w-xl transition-all duration-500">
             {isBn ? slide.description.bn : slide.description.en}
           </p>
 
           {/* Dynamic Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3.5 pt-2">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5 pt-2">
             <Link
               href={slide.primaryCta.href}
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-sm transition-all shadow-lg shadow-emerald-950/50 hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
+              className="inline-flex items-center justify-center gap-2 px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-950/50 hover:shadow-emerald-800/50 hover:-translate-y-0.5 active:translate-y-0"
             >
               <span>{isBn ? slide.primaryCta.text.bn : slide.primaryCta.text.en}</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -356,7 +356,7 @@ export function HeroCarousel({ locale }: HeroCarouselProps) {
 
             <Link
               href={slide.secondaryCta.href}
-              className="px-7 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm border border-white/20 backdrop-blur-md transition-all hover:-translate-y-0.5"
+              className="inline-flex items-center justify-center px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs sm:text-sm border border-white/20 backdrop-blur-md transition-all hover:-translate-y-0.5"
             >
               {isBn ? slide.secondaryCta.text.bn : slide.secondaryCta.text.en}
             </Link>

@@ -66,33 +66,33 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
     >
       {/* ═══ TIER 1: Top Benefit Strip & Helpline ═══ */}
       <div className="bg-[#14432d] dark:bg-[#0c2317] text-white border-b border-emerald-900/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between text-xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-1 sm:py-1.5 flex items-center justify-between text-xs gap-2">
           {/* Left Highlights */}
-          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto scrollbar-hide py-0.5">
-            <div className="flex items-center gap-1.5 shrink-0 font-medium">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto scrollbar-hide py-0.5 min-w-0">
+            <div className="flex items-center gap-1.5 shrink-0 font-medium text-[11px] sm:text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{locale === 'bn' ? '১০০% ডিজিডিএ নিবন্ধিত ওষুধ' : '100% DGDA-Approved Vet Medicines'}</span>
+              <span>{locale === 'bn' ? '১০০% ডিজিডিএ ওষুধ' : '100% DGDA-Approved'}</span>
             </div>
             <span className="hidden md:inline text-emerald-400/50">•</span>
-            <div className="hidden md:flex items-center gap-1.5 shrink-0 text-emerald-100">
+            <div className="hidden md:flex items-center gap-1.5 shrink-0 text-emerald-100 text-xs">
               <span>❄️</span>
-              <span>{locale === 'bn' ? 'কোল্ড-চেইন ভ্যাকসিন ডেলিভারি' : 'Cold-Chain Assured Delivery'}</span>
+              <span>{locale === 'bn' ? 'কোল্ড-চেইন ভ্যাকসিন' : 'Cold-Chain Assured'}</span>
             </div>
             <span className="hidden lg:inline text-emerald-400/50">•</span>
-            <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-emerald-100">
+            <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-emerald-100 text-xs">
               <span>🚚</span>
-              <span>{locale === 'bn' ? 'সারাদেশে ক্যাশ অন ডেলিভারি' : 'Nationwide Cash on Delivery'}</span>
+              <span>{locale === 'bn' ? 'সারাদেশে ক্যাশ অন ডেলিভারি' : 'Nationwide COD'}</span>
             </div>
           </div>
 
           {/* Right Support & Language */}
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0 font-medium">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0 font-medium text-xs">
             <a
               href="tel:16624"
-              className="flex items-center gap-1.5 text-emerald-200 hover:text-white transition-colors"
+              className="flex items-center gap-1 sm:gap-1.5 text-emerald-200 hover:text-white transition-colors text-[11px] sm:text-xs"
               title="24/7 Helpline"
             >
-              <span className="w-4 h-4 rounded-full bg-emerald-700/80 flex items-center justify-center text-[10px]">
+              <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-700/80 flex items-center justify-center text-[9px] sm:text-[10px]">
                 📞
               </span>
               <span className="font-bold tracking-wide">16624</span>
@@ -104,11 +104,11 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
             <span className="text-emerald-600 hidden sm:inline">|</span>
 
             {/* Language Switcher */}
-            <div className="inline-flex items-center bg-emerald-950/70 dark:bg-emerald-950 rounded-lg p-0.5 border border-emerald-700/40 text-[11px]">
+            <div className="inline-flex items-center bg-emerald-950/70 dark:bg-emerald-950 rounded-lg p-0.5 border border-emerald-700/40 text-[10px] sm:text-[11px]">
               <Link
                 href="/"
                 locale="bn"
-                className={`px-2 py-0.5 font-bold rounded transition-colors ${
+                className={`px-1.5 sm:px-2 py-0.5 font-bold rounded transition-colors ${
                   locale === 'bn'
                     ? 'bg-emerald-500 text-white shadow-xs'
                     : 'text-emerald-200/80 hover:text-white'
@@ -119,7 +119,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
               <Link
                 href="/"
                 locale="en"
-                className={`px-2 py-0.5 font-bold rounded transition-colors ${
+                className={`px-1.5 sm:px-2 py-0.5 font-bold rounded transition-colors ${
                   locale === 'en'
                     ? 'bg-emerald-500 text-white shadow-xs'
                     : 'text-emerald-200/80 hover:text-white'
@@ -134,27 +134,27 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
 
       {/* ═══ TIER 2: Main Brand, Search & Actions ═══ */}
       <div className="bg-white dark:bg-[#141916] border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-6">
           
           {/* Brand Logo with Custom Emblem */}
-          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 text-white flex items-center justify-center shadow-sm ring-1 ring-emerald-500/30 group-hover:scale-105 group-hover:shadow-md transition-all">
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 text-white flex items-center justify-center shadow-sm ring-1 ring-emerald-500/30 group-hover:scale-105 group-hover:shadow-md transition-all shrink-0">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 {/* Medical Cross + Leaf Emblem */}
                 <path d="M12 4v16m-8-8h16" />
                 <path d="M12 12c2.5-2.5 5-2 6 0s-.5 4.5-3 5-3.5-.5-3-5z" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="1.5" />
               </svg>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1 leading-none">
-                <span className="font-display text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                <span className="font-display text-lg sm:text-2xl font-bold tracking-tight text-foreground">
                   VetMart
                 </span>
-                <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white font-extrabold text-[10px] tracking-wider uppercase">
+                <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md bg-emerald-500 text-white font-extrabold text-[9px] sm:text-[10px] tracking-wider uppercase">
                   BD
                 </span>
               </div>
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium block mt-0.5">
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden sm:block mt-0.5 truncate">
                 {locale === 'bn' ? 'ভেটেরিনারি ই-ফার্মেসি ও খামার সেবা' : 'Veterinary Pharmacy & Livestock Care'}
               </span>
             </div>
@@ -190,9 +190,9 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
           </div>
 
           {/* Right Action Icons & Badges */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             
-            {/* Quick Prescription Upload Button (High Value Action) */}
+            {/* Quick Prescription Upload Button (High Value Action - Desktop only) */}
             <Link
               href="/products"
               className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-600/20 hover:border-emerald-600/40 transition-all shadow-xs"
@@ -209,13 +209,14 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
               <div className="relative group">
                 <button
                   type="button"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/80 hover:bg-secondary border border-border text-foreground text-xs font-semibold transition-all"
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-secondary/80 hover:bg-secondary border border-border text-foreground text-xs font-semibold transition-all shrink-0"
+                  title={customer.name}
                 >
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-bold shadow-xs shrink-0">
                     {customer.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="hidden sm:inline max-w-[90px] truncate">{customer.name.split(' ')[0]}</span>
-                  <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span className="hidden sm:inline max-w-[80px] truncate">{customer.name.split(' ')[0]}</span>
+                  <svg className="w-3 h-3 text-muted-foreground hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
@@ -249,22 +250,23 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
             ) : (
               <Link
                 href="/login"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-foreground bg-secondary/60 hover:bg-secondary border border-border transition-all"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold text-foreground bg-secondary/60 hover:bg-secondary border border-border transition-all shrink-0"
+                title={locale === 'bn' ? 'লগইন' : 'Sign In'}
               >
-                <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                <span>{locale === 'bn' ? 'লগইন' : 'Sign In'}</span>
+                <span className="hidden sm:inline">{locale === 'bn' ? 'লগইন' : 'Sign In'}</span>
               </Link>
             )}
 
             {/* Cart Button */}
             <Link
               href="/cart"
-              className="relative flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all"
+              className="relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all shrink-0"
               title={locale === 'bn' ? 'কার্ট দেখুন' : 'View Cart'}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -274,7 +276,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
               </svg>
               <span className="hidden sm:inline">{locale === 'bn' ? 'কার্ট' : 'Cart'}</span>
               {cartCount > 0 && (
-                <span className="bg-white text-emerald-800 text-[11px] font-extrabold px-1.5 py-0.2 rounded-full flex items-center justify-center shadow-xs">
+                <span className="bg-white text-emerald-800 text-[10px] sm:text-[11px] font-extrabold px-1.5 py-0.2 rounded-full flex items-center justify-center shadow-xs">
                   {cartCount}
                 </span>
               )}
@@ -284,7 +286,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-foreground hover:bg-secondary border border-border md:hidden transition-colors"
+              className="p-1.5 sm:p-2 rounded-xl text-foreground hover:bg-secondary border border-border md:hidden transition-colors shrink-0"
               aria-label="Toggle navigation menu"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

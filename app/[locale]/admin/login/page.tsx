@@ -17,9 +17,20 @@ export default async function AdminLoginPage({ params }: Props) {
   setRequestLocale(loc);
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-[#F7F6F3] p-4 relative">
-      {/* Language Toggle */}
-      <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
+    <div className="min-h-dvh flex flex-col justify-between bg-[#F7F6F3] p-3 sm:p-6 relative">
+      
+      {/* Top Header Row with Back to Storefront button & Language Toggle */}
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-between pt-1 sm:pt-2 gap-2">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white hover:bg-emerald-50 border border-[#EAEAEA] hover:border-emerald-300 text-[#2F3437] font-semibold text-xs transition-all shadow-xs group shrink-0"
+          title={loc === 'bn' ? 'স্টোরফ্রন্ট হোমপেজে ফিরে যান' : 'Back to Storefront Home'}
+        >
+          <span className="group-hover:-translate-x-0.5 transition-transform text-sm">←</span>
+          <span>{loc === 'bn' ? 'মূল ওয়েবসাইট' : 'Storefront'}</span>
+        </Link>
+
+        {/* Language Toggle */}
         <div className="flex items-center bg-white rounded-lg p-0.5 border border-[#EAEAEA] shadow-sm">
           <Link
             href="/admin/login"
@@ -46,15 +57,20 @@ export default async function AdminLoginPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="w-full max-w-md space-y-8">
+      {/* Center Login Box */}
+      <div className="w-full max-w-md mx-auto space-y-8 my-auto py-6">
         {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-extrabold text-3xl mx-auto shadow-lg shadow-emerald-600/20">
-            V
-          </div>
+          <Link href="/" className="inline-block group" title={loc === 'bn' ? 'হোম পেজে ফিরে যান' : 'Go to Homepage'}>
+            <div className="w-16 h-16 rounded-2xl bg-emerald-600 group-hover:scale-105 flex items-center justify-center text-white font-extrabold text-3xl mx-auto shadow-lg shadow-emerald-600/20 transition-transform">
+              V
+            </div>
+          </Link>
           <div>
             <h1 className="text-2xl font-extrabold text-[#2F3437] tracking-tight">
-              VetMart<span className="text-emerald-600">BD</span> Admin
+              <Link href="/" className="hover:text-emerald-700 transition-colors">
+                VetMart<span className="text-emerald-600">BD</span> Admin
+              </Link>
             </h1>
             <p className="text-sm text-[#787774] mt-1">
               {loc === 'bn'
@@ -76,6 +92,11 @@ export default async function AdminLoginPage({ params }: Props) {
           </p>
           <p className="text-[#A9A9A9]">Admin session is segregated from customer sessions (§14.1)</p>
         </div>
+      </div>
+
+      {/* Bottom spacer for balance */}
+      <div className="pb-2 text-center text-[11px] text-[#A9A9A9]">
+        VetMart BD Security Infrastructure & RBAC
       </div>
     </div>
   );

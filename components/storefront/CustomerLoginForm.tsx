@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from '@/lib/i18n/navigation';
+import { useRouter, Link } from '@/lib/i18n/navigation';
 import { MOCK_CUSTOMER_ACCOUNT, setMockCustomerSession } from '@/lib/mock-data/auth';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -119,6 +119,21 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
   return (
     <div className="w-full space-y-6">
       
+      {/* Back to Home Breadcrumb */}
+      <div className="flex items-center justify-between pb-1">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
+        >
+          <span className="group-hover:-translate-x-1 transition-transform">←</span>
+          <span>{isBn ? 'মূল দোকানে ফিরে যান' : 'Back to Storefront'}</span>
+        </Link>
+
+        <span className="text-[11px] text-muted-foreground bg-secondary/70 px-2 py-0.5 rounded-md font-medium border border-border/50">
+          {isBn ? 'নিরাপদ লগইন' : 'Secure Login'}
+        </span>
+      </div>
+
       {/* Top Header */}
       <div className="space-y-2">
         <h2 className="text-3xl font-extrabold font-display tracking-tight text-foreground">
