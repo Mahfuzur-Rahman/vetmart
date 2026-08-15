@@ -8,6 +8,8 @@ import { getProductBySlug as getMockProductBySlug } from '@/lib/mock-data/produc
 import { isDemoMode } from '@/lib/demo';
 import { fmtMoney } from '@/lib/i18n/number';
 import { getSpeciesName } from '@/lib/services/species';
+import { ProductDetailAddToCart } from '@/components/storefront/ProductDetailAddToCart';
+import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +53,7 @@ export default async function ProductDetailPage({ params }: Props) {
     isAntimicrobial: p.isAntimicrobial,
     isOutOfStock: (p.stockQty ?? p.stock ?? 1) <= 0,
     stock: p.stockQty ?? p.stock ?? 100,
+    sellableStock: p.stockQty ?? p.stock ?? 100,
     withdrawalMeatDays: p.withdrawalMeatDays || 0,
     withdrawalMilkHours: p.withdrawalMilkHours || 0,
     targetSpecies: p.targetSpecies || [],
@@ -70,7 +73,7 @@ export default async function ProductDetailPage({ params }: Props) {
     <div className="min-h-dvh flex flex-col bg-background text-foreground">
       <Header locale={loc} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
         {/* Main Product Info Card */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 rounded-3xl border border-border bg-card p-6 sm:p-10 shadow-xs">
           {/* Left: Product Image & Badges */}
@@ -117,8 +120,27 @@ export default async function ProductDetailPage({ params }: Props) {
                 {loc === 'bn' ? product.nameBn : product.nameEn}
               </h1>
 
+              {/* Star Rating Quick Preview */}
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                <a
+                  href="#customer-reviews"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                >
+                  <span className="flex items-center text-amber-400 text-xs sm:text-sm">★★★★★</span>
+                  <span className="font-extrabold text-foreground">4.9</span>
+                  <span>•</span>
+                  <span className="underline underline-offset-2">
+                    {loc === 'bn' ? 'ক্রেতাদের রিভিউ দেখুন' : 'Customer Reviews'}
+                  </span>
+                </a>
+                <span className="text-muted-foreground/50 hidden sm:inline">•</span>
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                  ✓ {loc === 'bn' ? '১০০% অরিজিনাল ওষুধ' : '100% DGDA Genuine'}
+                </span>
+              </div>
+
               {product.genericName && (
-                <p className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
+                <p className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400 mt-2">
                   Generic: {product.genericName}
                 </p>
               )}
@@ -161,6 +183,9 @@ export default async function ProductDetailPage({ params }: Props) {
                 </span>
               </div>
             </div>
+
+            {/* Interactive Multi-Quantity Selector & Add to Cart Controller */}
+            <ProductDetailAddToCart locale={loc} product={product} />
 
             {/* Withdrawal Period Safety Box (§5.2, §11) */}
             {(product.withdrawalMeatDays! > 0 || product.withdrawalMilkHours! > 0) && (
@@ -232,6 +257,14 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Customer Reviews & Rating Hub */}
+        <ProductReviewsSection
+          locale={loc}
+          productId={product.id}
+          productSlug={product.slug}
+          productName={loc === 'bn' ? product.nameBn : product.nameEn}
+        />
       </main>
 
       <Footer locale={loc} />

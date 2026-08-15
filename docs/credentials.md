@@ -51,6 +51,8 @@ These demo accounts are configured in the mock / seed database for testing:
 - **Email:** `admin@vetmart.bd`
 - **Role:** Inventory Manager
 
-### 🛒 Demo Customer (DB-backed)
-- **Phone:** `01711000000`
-- **Tier:** Verified Vet (`isVerifiedVet: true`)
+### 🛒 Demo Customer (Direct Email / Password)
+- **Email:** `anisur.vet@gmail.com`
+- **Password:** `VetPass123!`
+- **Phone:** `01711000000` *(Stored in profile for invoices/delivery; SMS OTP parked until SMS gateway purchase)*
+- **Tier:** Verified Vet (`isVerifiedVet: true`, BVC-REG-10492)

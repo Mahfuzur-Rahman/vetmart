@@ -1,9 +1,8 @@
-// components/storefront/ProductCard.tsx
 'use client';
 
-import { useState } from 'react';
 import { Link } from '@/lib/i18n/navigation';
-import { fmtMoney } from '@/lib/i18n/number';
+import { fmtMoney, fmtNumber } from '@/lib/i18n/number';
+import { useCart } from '@/lib/context/CartContext';
 import type { Locale } from '@/lib/i18n/config';
 
 export interface ProductCardProps {
@@ -32,32 +31,34 @@ export interface ProductCardProps {
 }
 
 export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) {
-  const [adding, setAdding] = useState(false);
+  const { getItemQty, addToCart, updateQty } = useCart();
+  const cartQty = getItemQty(product.id);
   const isOutOfStock = (product.sellableStock ?? 1) <= 0;
+  const maxStock = product.sellableStock ?? 999;
   const isDiscounted = product.mrp > product.salePrice;
   const discountPct = isDiscounted
     ? Math.round(((product.mrp - product.salePrice) / product.mrp) * 100)
     : 0;
 
-  const handleAdd = async (e: React.MouseEvent) => {
+  const handleAddFirst = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOutOfStock || adding) return;
+    if (isOutOfStock) return;
+    addToCart(product, 1);
+    if (onAddToCart) onAddToCart(product.id);
+  };
 
-    setAdding(true);
-    try {
-      if (onAddToCart) {
-        await onAddToCart(product.id);
-      } else {
-        await fetch('/api/v1/cart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId: product.id, qty: 1 }),
-        });
-      }
-    } finally {
-      setTimeout(() => setAdding(false), 500);
-    }
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (cartQty >= maxStock) return;
+    updateQty(product.id, cartQty + 1);
+  };
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    updateQty(product.id, cartQty - 1);
   };
 
   return (
@@ -155,24 +156,52 @@ export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) 
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={isOutOfStock || adding}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1 ${
-              isOutOfStock
-                ? 'bg-secondary text-muted-foreground cursor-not-allowed'
-                : adding
-                ? 'bg-primary text-primary-foreground scale-95'
-                : 'bg-primary text-primary-foreground hover:brightness-110 active:scale-95 shadow-sm'
-            }`}
-          >
-            {adding ? (
-              <span>✓ {locale === 'bn' ? 'যোগ হয়েছে' : 'Added'}</span>
-            ) : (
+          {/* Dynamic Add to Cart / Multi-Quantity Stepper */}
+          {cartQty > 0 ? (
+            <div
+              className="flex items-center rounded-xl bg-emerald-600 text-white shadow-sm overflow-hidden border border-emerald-500/40 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleDecrement}
+                aria-label={locale === 'bn' ? 'পরিমাণ কমান' : 'Decrease quantity'}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-sm sm:text-base hover:bg-emerald-700 active:scale-90 transition-all cursor-pointer"
+              >
+                −
+              </button>
+              <span className="min-w-[24px] sm:min-w-[28px] text-center font-extrabold text-xs sm:text-sm font-mono tracking-tight px-0.5 select-none text-white">
+                {fmtNumber(cartQty, locale)}
+              </span>
+              <button
+                type="button"
+                onClick={handleIncrement}
+                disabled={cartQty >= maxStock}
+                aria-label={locale === 'bn' ? 'পরিমাণ বাড়ান' : 'Increase quantity'}
+                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-sm sm:text-base hover:bg-emerald-700 active:scale-90 transition-all cursor-pointer ${
+                  cartQty >= maxStock ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : ''
+                }`}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleAddFirst}
+              disabled={isOutOfStock}
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1 shadow-xs ${
+                isOutOfStock
+                  ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+                  : 'bg-primary text-primary-foreground hover:brightness-110 active:scale-95 cursor-pointer'
+              }`}
+            >
               <span>+ {locale === 'bn' ? 'কার্ট' : 'Cart'}</span>
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
     </div>

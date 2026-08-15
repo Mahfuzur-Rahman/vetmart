@@ -45,6 +45,8 @@ export const MOCK_ADMIN_ACCOUNTS = [
 ];
 
 export const MOCK_CUSTOMER_ACCOUNT = {
+  email: 'anisur.vet@gmail.com',
+  password: 'VetPass123!',
   phone: '01711000000',
   otp: '123456',
   name: 'Dr. Anisur Rahman',

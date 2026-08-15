@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/lib/i18n/navigation';
 import { inter, outfit, hindSiliguri } from '@/app/fonts';
 import { TopProgressBar } from '@/components/TopProgressBar';
+import { CartProvider } from '@/lib/context/CartContext';
 import '@/app/globals.css';
 
 export const viewport: Viewport = {
@@ -44,8 +45,10 @@ export default async function LocaleLayout({ children, params }: Props) {
     <html lang={locale} className={`${inter.variable} ${outfit.variable} ${hindSiliguri.variable} antialiased`} suppressHydrationWarning>
       <body className="min-h-dvh flex flex-col font-sans bg-background text-foreground selection:bg-emerald-500 selection:text-white">
         <NextIntlClientProvider messages={messages}>
-          <TopProgressBar />
-          {children}
+          <CartProvider>
+            <TopProgressBar />
+            {children}
+          </CartProvider>
         </NextIntlClientProvider>
       </body>
     </html>

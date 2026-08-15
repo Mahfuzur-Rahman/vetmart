@@ -12,81 +12,47 @@ interface CustomerLoginFormProps {
 
 export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
   const router = useRouter();
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email'>('phone');
-  const [step, setStep] = useState<'input' | 'otp'>('input');
   
   // Form State
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const isBn = locale === 'bn';
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    if (phone.length < 11) {
-      setError(isBn ? '১১ সংখ্যার সঠিক মোবাইল নম্বর দিন' : 'Enter a valid 11-digit mobile number');
-      return;
-    }
-
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep('otp');
-    }, 500);
-  };
-
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!email.includes('@')) {
-      setError(isBn ? 'সঠিক ইমেইল ঠিকানা দিন' : 'Enter a valid email address');
+    if (!email || !email.includes('@')) {
+      setError(isBn ? 'সঠিক ইমেইল ঠিকানা দিন' : 'Please enter a valid email address');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError(isBn ? 'কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন' : 'Password must be at least 6 characters');
       return;
     }
 
     setLoading(true);
     setTimeout(() => {
+      // Login with Demo account or dynamically create session for user
+      const isDemoAccount = email.toLowerCase() === MOCK_CUSTOMER_ACCOUNT.email.toLowerCase();
+
       setMockCustomerSession({
-        phone: '01711000000',
-        name: email.split('@')[0] || 'Dr. Anisur Rahman',
-        tier: 'vet',
-        isVerifiedVet: true,
-        bvcRegNo: 'BVC-REG-10492',
+        phone: isDemoAccount ? MOCK_CUSTOMER_ACCOUNT.phone : '01700000000',
+        name: isDemoAccount ? MOCK_CUSTOMER_ACCOUNT.name : (email.split('@')[0] || 'Registered Customer'),
+        tier: isDemoAccount ? MOCK_CUSTOMER_ACCOUNT.tier : 'customer',
+        isVerifiedVet: isDemoAccount ? MOCK_CUSTOMER_ACCOUNT.isVerifiedVet : false,
+        bvcRegNo: isDemoAccount ? MOCK_CUSTOMER_ACCOUNT.bvcRegNo : undefined,
         isLoggedIn: true,
       });
       router.push('/');
       router.refresh();
     }, 600);
-  };
-
-  const handleOtpSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    if (phone === MOCK_CUSTOMER_ACCOUNT.phone && otp === MOCK_CUSTOMER_ACCOUNT.otp) {
-      setLoading(true);
-      setTimeout(() => {
-        setMockCustomerSession({
-          phone: MOCK_CUSTOMER_ACCOUNT.phone,
-          name: MOCK_CUSTOMER_ACCOUNT.name,
-          tier: MOCK_CUSTOMER_ACCOUNT.tier,
-          isVerifiedVet: MOCK_CUSTOMER_ACCOUNT.isVerifiedVet,
-          bvcRegNo: MOCK_CUSTOMER_ACCOUNT.bvcRegNo,
-          isLoggedIn: true,
-        });
-        router.push('/');
-        router.refresh();
-      }, 500);
-    } else {
-      setError(isBn ? 'ভুল ওটিপি (OTP), সঠিক কোডটি দিন (ডেমো কোড: ১২৩৪৫৬)' : 'Invalid OTP. Please use code 123456');
-    }
   };
 
   const handleGoogleLogin = () => {
@@ -106,14 +72,9 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
   };
 
   const handleQuickDemoFill = () => {
-    if (authMethod === 'phone') {
-      setPhone(MOCK_CUSTOMER_ACCOUNT.phone);
-      setOtp(MOCK_CUSTOMER_ACCOUNT.otp);
-      setStep('otp');
-    } else {
-      setEmail('anisur.vet@gmail.com');
-      setPassword('VetPass123!');
-    }
+    setEmail(MOCK_CUSTOMER_ACCOUNT.email);
+    setPassword(MOCK_CUSTOMER_ACCOUNT.password);
+    setError('');
   };
 
   return (
@@ -163,7 +124,7 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
         <button
           type="button"
           onClick={handleQuickDemoFill}
-          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
+          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
         >
           <span>⚡</span>
           <span>{isBn ? 'অটো-ফিল' : 'Auto Fill'}</span>
@@ -175,7 +136,7 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
         type="button"
         onClick={handleGoogleLogin}
         disabled={loading}
-        className="w-full py-3.5 px-4 rounded-2xl border border-border bg-card hover:bg-accent text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow active:scale-[0.99]"
+        className="w-full py-3.5 px-4 rounded-2xl border border-border bg-card hover:bg-accent text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow active:scale-[0.99] cursor-pointer"
       >
         <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
           <path
@@ -204,34 +165,8 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
           <div className="w-full border-t border-border" />
         </div>
         <span className="relative bg-background px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {isBn ? 'অথবা' : 'or continue with'}
+          {isBn ? 'অথবা ইমেইল দিয়ে সাইন ইন' : 'or sign in with email'}
         </span>
-      </div>
-
-      {/* Method Tabs */}
-      <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-secondary/60 rounded-2xl border border-border text-xs font-bold">
-        <button
-          type="button"
-          onClick={() => { setAuthMethod('phone'); setStep('input'); setError(''); }}
-          className={`py-2.5 rounded-xl transition-all ${
-            authMethod === 'phone'
-              ? 'bg-card text-foreground shadow border border-border/60'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          📱 {isBn ? 'মোবাইল নম্বর (ওটিপি)' : 'Mobile Phone OTP'}
-        </button>
-        <button
-          type="button"
-          onClick={() => { setAuthMethod('email'); setStep('input'); setError(''); }}
-          className={`py-2.5 rounded-xl transition-all ${
-            authMethod === 'email'
-              ? 'bg-card text-foreground shadow border border-border/60'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          ✉️ {isBn ? 'ইমেইল ও পাসওয়ার্ড' : 'Email & Password'}
-        </button>
       </div>
 
       {error && (
@@ -243,127 +178,71 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
         </div>
       )}
 
-      {/* Dynamic Form */}
-      {authMethod === 'phone' ? (
-        <form onSubmit={step === 'input' ? handlePhoneSubmit : handleOtpSubmit} className="space-y-4">
-          {step === 'input' ? (
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isBn ? 'মোবাইল নম্বর (বাংলাদেশ)' : 'Mobile Number (BD)'}
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-foreground font-semibold text-sm border-r border-border pr-3">
-                  <span className="text-base">🇧🇩</span>
-                  <span>+88</span>
-                </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                  placeholder="01711000000"
-                  required
-                  className="w-full pl-28 pr-4 py-3.5 rounded-2xl bg-card border border-input text-foreground font-semibold text-base focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all placeholder:text-muted-foreground/40 shadow-sm"
-                />
-              </div>
+      {/* Direct Email & Password Form */}
+      <form onSubmit={handleEmailSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            {isBn ? 'ইমেইল ঠিকানা' : 'Email Address'}
+          </label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+              ✉️
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {isBn ? '৬ সংখ্যার ওটিপি কোড' : '6-Digit OTP Code'}
-                </label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  required
-                  className="w-full px-4 py-3.5 text-center tracking-[0.6em] rounded-2xl bg-card border border-input text-foreground font-extrabold text-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{isBn ? 'কোড পাননি?' : "Didn't get code?"}</span>
-                <button
-                  type="button"
-                  onClick={() => setOtp('123456')}
-                  className="font-bold text-primary hover:underline"
-                >
-                  {isBn ? 'পুনরায় কোড পাঠান (123456)' : 'Resend OTP (123456)'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-            ) : (
-              <span>{step === 'input' ? (isBn ? 'ওটিপি কোড পাঠান' : 'Send OTP Code') : (isBn ? 'যাচাই করে সাইন ইন করুন' : 'Verify & Sign In')}</span>
-            )}
-          </button>
-
-          {step === 'otp' && (
-            <button
-              type="button"
-              onClick={() => setStep('input')}
-              className="w-full text-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors pt-1"
-            >
-              ← {isBn ? 'মোবাইল নম্বর পরিবর্তন করুন' : 'Change mobile number'}
-            </button>
-          )}
-        </form>
-      ) : (
-        <form onSubmit={handleEmailSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              {isBn ? 'ইমেইল ঠিকানা' : 'Email Address'}
-            </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="doctor@example.com"
+              placeholder="anisur.vet@gmail.com"
               required
-              className="w-full px-4 py-3.5 rounded-2xl bg-card border border-input text-foreground font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all placeholder:text-muted-foreground/40 shadow-sm"
+              className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-card border border-input text-foreground font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all placeholder:text-muted-foreground/40 shadow-sm"
             />
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isBn ? 'পাসওয়ার্ড' : 'Password'}
-              </label>
-              <a href="#" onClick={(e) => e.preventDefault()} className="text-xs font-semibold text-primary hover:underline">
-                {isBn ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot password?'}
-              </a>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {isBn ? 'পাসওয়ার্ড' : 'Password'}
+            </label>
+            <a href="#" onClick={(e) => e.preventDefault()} className="text-xs font-semibold text-primary hover:underline">
+              {isBn ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot password?'}
+            </a>
+          </div>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+              🔒
             </div>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full px-4 py-3.5 rounded-2xl bg-card border border-input text-foreground font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
+              className="w-full pl-11 pr-12 py-3.5 rounded-2xl bg-card border border-input text-foreground font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? '👁️' : '🙈'}
+            </button>
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-            ) : (
-              <span>{isBn ? 'সাইন ইন করুন' : 'Sign In'}</span>
-            )}
-          </button>
-        </form>
-      )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+        >
+          {loading ? (
+            <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+          ) : (
+            <span>{isBn ? 'সাইন ইন করুন' : 'Sign In'}</span>
+          )}
+        </button>
+      </form>
 
       {/* Footer */}
       <div className="pt-2 text-center text-xs text-muted-foreground">
@@ -371,7 +250,7 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
         <button
           type="button"
           onClick={handleQuickDemoFill}
-          className="font-bold text-primary hover:underline"
+          className="font-bold text-primary hover:underline cursor-pointer"
         >
           {isBn ? 'এখানে রেজিস্টার করুন' : 'Sign up now'}
         </button>
@@ -380,3 +259,4 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
     </div>
   );
 }
+

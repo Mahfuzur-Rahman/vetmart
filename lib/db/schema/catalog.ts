@@ -2,7 +2,7 @@
 // Product catalog, batches, and immutable stock ledger (§5, §6)
 import { pgTable, text, timestamp, boolean, integer, numeric, jsonb, uuid, index, pgEnum, customType } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { admins } from './auth';
+import { users, admins } from './auth';
 
 // Product Classification (§5.1)
 export const productTypeEnum = pgEnum('product_type', [
@@ -155,4 +155,29 @@ export const stockLedger = pgTable('stock_ledger', {
 }, (t) => [
   index('stock_ledger_product_batch_idx').on(t.productId, t.batchId),
   index('stock_ledger_at_idx').on(t.at),
+]);
+
+// 7. Product Reviews — Verified Farmer & Vet Ratings (§5, §6)
+export const productReviews = pgTable('product_reviews', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  authorName: text('author_name').notNull(),
+  authorRole: text('author_role').notNull().default('dairy_farmer'), // dairy_farmer, poultry_farmer, vet_dvm, pet_owner, farmer
+  location: text('location'),
+  rating: integer('rating').notNull(), // 1 to 5
+  title: text('title'),
+  comment: text('comment').notNull(),
+  speciesTreated: text('species_treated'), // cattle, poultry, goat, aqua, pet
+  isVerifiedPurchase: boolean('is_verified_purchase').notNull().default(true),
+  isVetRecommended: boolean('is_vet_recommended').notNull().default(false),
+  helpfulCount: integer('helpful_count').notNull().default(0),
+  isApproved: boolean('is_approved').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('product_reviews_product_idx').on(t.productId),
+  index('product_reviews_user_idx').on(t.userId),
+  index('product_reviews_rating_idx').on(t.rating),
+  index('product_reviews_created_at_idx').on(t.createdAt),
 ]);

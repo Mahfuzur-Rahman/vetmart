@@ -1,0 +1,234 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
+
+export interface CartProduct {
+  id: string;
+  slug: string;
+  nameEn: string;
+  nameBn: string;
+  genericName?: string | null;
+  dosageForm?: string | null;
+  packSize?: string | null;
+  packUnit?: string | null;
+  mrp: number;
+  salePrice: number;
+  requiresPrescription?: boolean;
+  requiresColdChain?: boolean;
+  coldChain?: boolean;
+  imageUrl?: string | null;
+  sellableStock?: number;
+  stock?: number;
+}
+
+export interface CartItem {
+  product: CartProduct;
+  qty: number;
+}
+
+interface CartContextType {
+  items: CartItem[];
+  itemCount: number;
+  subtotal: number;
+  hasColdChain: boolean;
+  coldChainFee: number;
+  estDeliveryFee: number;
+  grandTotal: number;
+  addToCart: (product: CartProduct, qty?: number) => void;
+  updateQty: (productId: string, qty: number) => void;
+  removeFromCart: (productId: string) => void;
+  getItemQty: (productId: string) => number;
+  clearCart: () => void;
+  isHydrated: boolean;
+}
+
+const STORAGE_KEY = 'vetmart_cart_v1';
+
+// Initial sample cart items for great out-of-the-box demo experience
+const INITIAL_DEMO_ITEMS: CartItem[] = [
+  {
+    product: {
+      id: MOCK_PRODUCTS[0].id,
+      slug: MOCK_PRODUCTS[0].slug,
+      nameEn: MOCK_PRODUCTS[0].nameEn,
+      nameBn: MOCK_PRODUCTS[0].nameBn,
+      genericName: MOCK_PRODUCTS[0].genericName,
+      dosageForm: MOCK_PRODUCTS[0].dosageForm,
+      packSize: MOCK_PRODUCTS[0].packSize,
+      packUnit: MOCK_PRODUCTS[0].packUnit,
+      mrp: MOCK_PRODUCTS[0].mrp,
+      salePrice: MOCK_PRODUCTS[0].salePrice,
+      requiresPrescription: MOCK_PRODUCTS[0].requiresPrescription,
+      requiresColdChain: MOCK_PRODUCTS[0].requiresColdChain,
+      coldChain: MOCK_PRODUCTS[0].requiresColdChain,
+      imageUrl: MOCK_PRODUCTS[0].imageUrl,
+    },
+    qty: 2,
+  },
+  {
+    product: {
+      id: MOCK_PRODUCTS[1].id,
+      slug: MOCK_PRODUCTS[1].slug,
+      nameEn: MOCK_PRODUCTS[1].nameEn,
+      nameBn: MOCK_PRODUCTS[1].nameBn,
+      genericName: MOCK_PRODUCTS[1].genericName,
+      dosageForm: MOCK_PRODUCTS[1].dosageForm,
+      packSize: MOCK_PRODUCTS[1].packSize,
+      packUnit: MOCK_PRODUCTS[1].packUnit,
+      mrp: MOCK_PRODUCTS[1].mrp,
+      salePrice: MOCK_PRODUCTS[1].salePrice,
+      requiresPrescription: MOCK_PRODUCTS[1].requiresPrescription,
+      requiresColdChain: MOCK_PRODUCTS[1].requiresColdChain,
+      coldChain: MOCK_PRODUCTS[1].requiresColdChain,
+      imageUrl: MOCK_PRODUCTS[1].imageUrl,
+    },
+    qty: 5,
+  },
+];
+
+const CartContext = createContext<CartContextType | undefined>(undefined);
+
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Load from localStorage on client mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setItems(parsed);
+        } else {
+          setItems(INITIAL_DEMO_ITEMS);
+        }
+      } else {
+        setItems(INITIAL_DEMO_ITEMS);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DEMO_ITEMS));
+      }
+    } catch {
+      setItems(INITIAL_DEMO_ITEMS);
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  // Save to localStorage on changes after hydration
+  useEffect(() => {
+    if (!isHydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch (e) {
+      console.error('Failed to persist cart to localStorage', e);
+    }
+  }, [items, isHydrated]);
+
+  const addToCart = useCallback((product: CartProduct, qtyToAdd: number = 1) => {
+    if (qtyToAdd <= 0) return;
+    setItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.product.id === product.id);
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        const newQty = updated[existingIndex].qty + qtyToAdd;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          qty: newQty,
+          // Merge latest product info
+          product: { ...updated[existingIndex].product, ...product },
+        };
+        return updated;
+      } else {
+        return [...prev, { product, qty: qtyToAdd }];
+      }
+    });
+
+    // Fire background API sync non-blockingly
+    try {
+      fetch('/api/v1/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id, qty: qtyToAdd }),
+      }).catch(() => {});
+    } catch {
+      // Ignore background sync errors
+    }
+  }, []);
+
+  const updateQty = useCallback((productId: string, newQty: number) => {
+    setItems((prev) => {
+      if (newQty <= 0) {
+        return prev.filter((item) => item.product.id !== productId);
+      }
+      return prev.map((item) => {
+        if (item.product.id === productId) {
+          return { ...item, qty: newQty };
+        }
+        return item;
+      });
+    });
+  }, []);
+
+  const removeFromCart = useCallback((productId: string) => {
+    setItems((prev) => prev.filter((item) => item.product.id !== productId));
+  }, []);
+
+  const getItemQty = useCallback(
+    (productId: string) => {
+      const found = items.find((item) => item.product.id === productId);
+      return found ? found.qty : 0;
+    },
+    [items]
+  );
+
+  const clearCart = useCallback(() => {
+    setItems([]);
+  }, []);
+
+  const itemCount = useMemo(() => {
+    return items.reduce((sum, item) => sum + item.qty, 0);
+  }, [items]);
+
+  const subtotal = useMemo(() => {
+    return items.reduce((sum, item) => sum + item.product.salePrice * item.qty, 0);
+  }, [items]);
+
+  const hasColdChain = useMemo(() => {
+    return items.some((item) => item.product.requiresColdChain || item.product.coldChain);
+  }, [items]);
+
+  const coldChainFee = hasColdChain ? 3000 : 0; // ৳30.00
+  const estDeliveryFee = 7000; // ৳70.00 Inside Dhaka
+  const grandTotal = subtotal + coldChainFee + estDeliveryFee;
+
+  return (
+    <CartContext.Provider
+      value={{
+        items,
+        itemCount,
+        subtotal,
+        hasColdChain,
+        coldChainFee,
+        estDeliveryFee,
+        grandTotal,
+        addToCart,
+        updateQty,
+        removeFromCart,
+        getItemQty,
+        clearCart,
+        isHydrated,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+}

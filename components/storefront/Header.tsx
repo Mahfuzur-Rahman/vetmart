@@ -4,6 +4,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from '@/lib/i18n/navigation';
 import { SPECIES } from '@/lib/services/species';
+import { fmtNumber } from '@/lib/i18n/number';
+import { useCart } from '@/lib/context/CartContext';
 import { getMockCustomerSession, clearMockCustomerSession, type MockCustomerSession } from '@/lib/mock-data/auth';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -29,6 +31,8 @@ const SERVICES_LINKS = [
 ];
 
 export function Header({ locale, cartCount = 0 }: HeaderProps) {
+  const { itemCount } = useCart();
+  const effectiveCartCount = cartCount > 0 ? cartCount : itemCount;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [customer, setCustomer] = useState<MockCustomerSession | null>(null);
@@ -275,9 +279,9 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                 />
               </svg>
               <span className="hidden sm:inline">{locale === 'bn' ? 'কার্ট' : 'Cart'}</span>
-              {cartCount > 0 && (
+              {effectiveCartCount > 0 && (
                 <span className="bg-white text-emerald-800 text-[10px] sm:text-[11px] font-extrabold px-1.5 py-0.2 rounded-full flex items-center justify-center shadow-xs">
-                  {cartCount}
+                  {fmtNumber(effectiveCartCount, locale)}
                 </span>
               )}
             </Link>
