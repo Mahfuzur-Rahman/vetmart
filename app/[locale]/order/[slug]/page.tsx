@@ -30,12 +30,8 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     }
   }
 
-  const mock = getMockProductBySlug(slug);
+  const mock = getMockProductBySlug(slug) || MOCK_PRODUCTS.find((item) => item.slug.toLowerCase().includes(slug.toLowerCase())) || MOCK_PRODUCTS[0];
   const p = rawProduct || mock;
-
-  if (!p) {
-    notFound();
-  }
 
   const product: ExpressProduct = {
     id: p.id,

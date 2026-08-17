@@ -318,10 +318,50 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     dosageEn: 'For clinical use by certified AI technicians and registered veterinarians.',
     dosageBn: 'শুধুমাত্র নিবন্ধিত ভেটেরিনারি সার্জন ও সার্টিফাইড এআই টেকনিশিয়ানদের ব্যবহারের জন্য।',
   },
+  {
+    id: 'prod-8',
+    slug: 'beximco-cal-d-mag-plus-vet-liquid-1l',
+    sku: 'BEX-CALDMAG-1L',
+    nameEn: 'Beximco Cal-D-Mag Plus Vet Liquid 1L',
+    nameBn: 'বেক্সিমকো ক্যাল-ডি-ম্যাগ প্লাস ভেট লিকুইড ১ লিটার',
+    genericName: 'Calcium, Magnesium, Zinc & Vitamin D3',
+    categorySlug: 'vitamins-minerals',
+    categoryNameEn: 'Vitamins & Mineral Premix',
+    categoryNameBn: 'ভিটামিন ও খনিজ',
+    manufacturerName: 'Beximco Pharmaceuticals Ltd (Vet Division)',
+    strength: 'Ionic Liquid Calcium + Magnesium Fortified',
+    dosageForm: 'Oral Solution',
+    packSize: '1 Liter Bottle',
+    packUnit: 'bottle',
+    targetSpecies: ['cattle', 'poultry', 'goat-sheep'],
+    mrp: 52000, // ৳520.00
+    salePrice: 47500, // ৳475.00
+    vetPrice: 44000, // ৳440.00
+    requiresPrescription: false,
+    requiresColdChain: false,
+    isAntimicrobial: false,
+    coldChain: false,
+    dgdaRegNo: 'DAR-012-441-098',
+    batchNo: 'B-BEX-9042',
+    mfgDate: '2026-01-10',
+    expiryDate: '2028-06-30',
+    stockQty: 320,
+    imageUrl: createProductSvg('CAL-D-MAG', '#8b5cf6', 'Dairy Calcium', '1 Liter Fortified Liquid'),
+    banglishKeywords: 'beximco cal d mag calcium magnesium dudh barano milk fever dairy tonic',
+    descriptionEn: 'High-absorption liquid calcium and magnesium formula with Vitamin D3 to maximize milk production, strengthen bones, and prevent hypocalcemia.',
+    descriptionBn: 'দুগ্ধবতী গাভীর দুধের ঘাটতি পূরণ, মিল্ক ফিভার প্রতিরোধ এবং হাড়ের সুরক্ষায় উচ্চ ক্ষমতাসম্পন্ন তরল ক্যালসিয়াম ও ম্যাগনেসিয়াম ফর্মুলা।',
+    dosageEn: 'Cattle: 100-150 ml daily for 7-10 days; Sheep/Goat: 20-30 ml daily.',
+    dosageBn: 'গাভী: ১০০-১৫০ মি.লি. দৈনিক ৭-১০ দিন; ছাগল/ভেড়া: ২০-৩০ মি.লি. দৈনিক।',
+  },
 ];
 
 export function getProductBySlug(slug: string): MockProduct | undefined {
-  return MOCK_PRODUCTS.find((p) => p.slug === slug);
+  if (!slug) return undefined;
+  const normalized = slug.toLowerCase().trim();
+  return (
+    MOCK_PRODUCTS.find((p) => p.slug.toLowerCase() === normalized || p.id.toLowerCase() === normalized) ||
+    MOCK_PRODUCTS.find((p) => p.slug.toLowerCase().includes(normalized) || normalized.includes(p.slug.toLowerCase()))
+  );
 }
 
 export function searchProducts(query: string): MockProduct[] {
