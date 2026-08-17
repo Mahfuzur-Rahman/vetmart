@@ -137,6 +137,27 @@ export function AdminProductsTable({ locale }: Props) {
         </div>
       )}
 
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#2F3437] tracking-tight font-display">
+            {isBn ? 'পণ্য ব্যবস্থাপনা' : 'Product Management'}
+          </h1>
+          <p className="text-sm text-[#787774] mt-0.5">
+            {isBn ? 'DGDA নিবন্ধিত ওষুধ ও পশু স্বাস্থ্য পণ্য পরিচালনা' : 'Manage DGDA-registered drugs and animal health products'}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsEnrollOpen(true)}
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+        >
+          <span className="text-base font-black">+</span>
+          <span>{isBn ? 'নতুন পণ্য যোগ করুন' : 'Add New Product'}</span>
+        </button>
+      </div>
+
       {/* Action & Filter Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-[#EAEAEA] bg-white shadow-xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
@@ -158,15 +179,6 @@ export function AdminProductsTable({ locale }: Props) {
             <option value="cold">❄️ Cold Chain</option>
           </select>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setIsEnrollOpen(true)}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
-        >
-          <span className="text-base font-black">+</span>
-          <span>{isBn ? 'নতুন পণ্য যোগ করুন' : 'Enroll New Item'}</span>
-        </button>
       </div>
 
       {/* Products Table */}
