@@ -112,6 +112,15 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
         </button>
       </div>
 
+      {/* Mobile Backdrop */}
+      {collapsed && (
+        <div
+          onClick={() => setCollapsed(false)}
+          className="lg:hidden fixed inset-0 z-35 bg-black/50 backdrop-blur-xs transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 bottom-0 z-40 w-64 flex flex-col transition-transform duration-250 ease-out bg-[#FBFBFA] border-r border-[#EAEAEA] ${

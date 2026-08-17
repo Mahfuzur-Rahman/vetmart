@@ -48,11 +48,8 @@ export default async function AdminLayout({ children, params }: Props) {
         permissions={permissionKeys}
       />
 
-      <main className="flex-1 ml-0 lg:ml-64 min-h-dvh">
-        {/* Top bar */}
-        <div className="sticky top-0 z-20 h-14 lg:h-0 pointer-events-none" />
-
-        <div className="p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden ml-0 lg:ml-64 min-h-dvh pt-14 lg:pt-0">
+        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {children}
         </div>
       </main>

@@ -138,19 +138,19 @@ export function AdminProductsTable({ locale }: Props) {
       )}
 
       {/* Action & Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-[#EAEAEA] bg-white shadow-xs">
-        <div className="flex flex-wrap items-center gap-3 flex-1">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-[#EAEAEA] bg-white shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={isBn ? 'SKU, নাম বা জেনেরিক নাম দিয়ে খুঁজুন...' : 'Search SKU, name or generic...'}
-            className="flex-1 min-w-48 px-3.5 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] placeholder:text-[#9AA0A6] text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 font-mono"
+            className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] placeholder:text-[#9AA0A6] text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 font-mono"
           />
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+            className="px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer"
           >
             <option value="all">{isBn ? 'সকল ধরন' : 'All Products'} ({products.length})</option>
             <option value="rx">Rx Required</option>
@@ -162,17 +162,17 @@ export function AdminProductsTable({ locale }: Props) {
         <button
           type="button"
           onClick={() => setIsEnrollOpen(true)}
-          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
-          <span>+</span>
+          <span className="text-base font-black">+</span>
           <span>{isBn ? 'নতুন পণ্য যোগ করুন' : 'Enroll New Item'}</span>
         </button>
       </div>
 
       {/* Products Table */}
       <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto w-full max-w-full touch-pan-x">
+          <table className="min-w-[850px] w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
                 <th className="px-5 py-3.5 font-semibold">SKU</th>
@@ -259,23 +259,68 @@ export function AdminProductsTable({ locale }: Props) {
 
       {/* Enroll New Item Modal */}
       {isEnrollOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-[#EAEAEA] pb-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-2xl w-full p-4 sm:p-8 space-y-4 sm:space-y-6 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#EAEAEA] pb-3 sm:pb-4">
               <div>
-                <h3 className="text-xl font-bold text-[#2F3437]">
+                <h3 className="text-base sm:text-xl font-bold text-[#2F3437]">
                   {isBn ? 'নতুন ভেটেরিনারি পণ্য তালিকাভুক্ত করুন' : 'Enroll New Veterinary Product'}
                 </h3>
-                <p className="text-xs text-[#787774] mt-0.5">
+                <p className="text-[11px] sm:text-xs text-[#787774] mt-0.5">
                   DGDA Compliance: Batch, Expiry & Temperature Chain (§2 rule 4)
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEnrollOpen(false)}
-                className="text-[#787774] hover:text-[#2F3437] text-base font-bold p-2 rounded-xl hover:bg-[#F7F6F3]"
+                className="text-[#787774] hover:text-[#2F3437] text-base font-bold p-2 rounded-xl hover:bg-[#F7F6F3] cursor-pointer"
               >
                 ✕
+              </button>
+            </div>
+
+            {/* Quick Demo Pre-fill Pill Bar */}
+            <div className="flex items-center gap-2 flex-wrap pb-1">
+              <span className="text-[11px] font-bold text-[#5F6368]">
+                {isBn ? 'দ্রুত ডেমো ডেটা পূরণ:' : 'Quick Fill:'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setNameEn('Renata Promin Vet Liquid 500ml');
+                  setNameBn('রেনাটা প্রোমিন ভেট লিকুইড ৫০০মি.লি.');
+                  setGenericName('Amino Acids + Multivitamins + Minerals');
+                  setCategory('vitamins-minerals');
+                  setManufacturer('Renata Animal Health');
+                  setMrp('380');
+                  setSalePrice('345');
+                  setBatchNo('B-RPM-7701');
+                  setInitialStock('120');
+                  setRequiresRx(false);
+                  setColdChain(false);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold border border-emerald-200 transition-colors cursor-pointer"
+              >
+                ⚡ Renata Promin 500ml
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNameEn('Square Tilmo-Vet Oral Solution 100ml');
+                  setNameBn('স্কয়ার টিলমো-ভেট ওরাল সলিউশন ১০০মি.লি.');
+                  setGenericName('Tilmicosin 250 mg/ml');
+                  setCategory('antibiotics');
+                  setManufacturer('Square Pharmaceuticals Ltd');
+                  setMrp('650');
+                  setSalePrice('590');
+                  setBatchNo('B-SQT-9011');
+                  setInitialStock('75');
+                  setRequiresRx(true);
+                  setColdChain(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-semibold border border-purple-200 transition-colors cursor-pointer"
+              >
+                ⚡ Square Tilmo-Vet 100ml
               </button>
             </div>
 

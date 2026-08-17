@@ -134,11 +134,11 @@ export function AdminOrdersBoard({ locale }: Props) {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 flex-nowrap sm:flex-wrap w-full max-w-full touch-pan-x">
         <button
           type="button"
           onClick={() => setActiveFilter('all')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'all'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -149,7 +149,7 @@ export function AdminOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveFilter('pending')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'pending'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -160,7 +160,7 @@ export function AdminOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveFilter('pharmacist_review')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'pharmacist_review'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -171,7 +171,7 @@ export function AdminOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveFilter('dispatched')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'dispatched'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -182,7 +182,7 @@ export function AdminOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveFilter('delivered')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'delivered'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -195,7 +195,7 @@ export function AdminOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveFilter('incomplete_leads')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeFilter === 'incomplete_leads'
               ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
               : 'bg-rose-50/70 text-rose-800 border-rose-200 hover:bg-rose-100'
@@ -215,8 +215,8 @@ export function AdminOrdersBoard({ locale }: Props) {
       ) : (
         /* Standard Orders Table */
         <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto w-full max-w-full touch-pan-x">
+            <table className="min-w-[850px] w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
 

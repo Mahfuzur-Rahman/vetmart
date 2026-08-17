@@ -221,11 +221,11 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 flex-nowrap sm:flex-wrap w-full max-w-full touch-pan-x">
         <button
           type="button"
           onClick={() => setActiveStatusFilter('all')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeStatusFilter === 'all'
               ? 'bg-zinc-800 text-white border-zinc-800 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
@@ -236,7 +236,7 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveStatusFilter('incomplete')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeStatusFilter === 'incomplete'
               ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
               : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
@@ -247,7 +247,7 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveStatusFilter('contacted')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeStatusFilter === 'contacted'
               ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
               : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
@@ -258,7 +258,7 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveStatusFilter('converted')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeStatusFilter === 'converted'
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
               : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
@@ -269,7 +269,7 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
         <button
           type="button"
           onClick={() => setActiveStatusFilter('discarded')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeStatusFilter === 'discarded'
               ? 'bg-zinc-600 text-white border-zinc-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:bg-[#F7F6F3]'
@@ -281,8 +281,8 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
 
       {/* Leads Table */}
       <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto w-full max-w-full touch-pan-x">
+          <table className="min-w-[850px] w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
                 <th className="px-5 py-3.5 font-semibold">{isBn ? 'গ্রাহক ও মোবাইল' : 'Customer & Phone'}</th>
