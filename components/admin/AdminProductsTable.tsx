@@ -15,6 +15,10 @@ export function AdminProductsTable({ locale }: Props) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
+  const [campaignModalProduct, setCampaignModalProduct] = useState<MockProduct | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | 'tiktok' | 'whatsapp' | 'youtube'>('facebook');
+  const [campaignName, setCampaignName] = useState('poultry_boost_august');
+  const [isCopied, setIsCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form states
@@ -179,6 +183,7 @@ export function AdminProductsTable({ locale }: Props) {
                 <th className="px-5 py-3.5 font-semibold text-center">{isBn ? 'স্টক' : 'Stock'}</th>
                 <th className="px-5 py-3.5 font-semibold text-center">{isBn ? 'ব্যাচ ও মেয়াদ' : 'Batch & Exp'}</th>
                 <th className="px-5 py-3.5 font-semibold text-center">{isBn ? 'ফ্ল্যাগ' : 'Flags'}</th>
+                <th className="px-5 py-3.5 font-semibold text-right">{isBn ? 'সোশ্যাল ক্যাম্পেইন' : 'Campaign Link'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAEAEA]">
@@ -233,12 +238,24 @@ export function AdminProductsTable({ locale }: Props) {
                       )}
                     </div>
                   </td>
+                  <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setCampaignModalProduct(prod)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                      title={isBn ? 'সোশ্যাল মিডিয়া ক্যাম্পেইন লিঙ্ক কপি করুন' : 'Generate & Copy Campaign Order Link'}
+                    >
+                      <span>🔗</span>
+                      <span>{isBn ? 'ক্যাম্পেইন লিঙ্ক' : 'Campaign Link'}</span>
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
 
       {/* Enroll New Item Modal */}
       {isEnrollOpen && (
@@ -434,7 +451,149 @@ export function AdminProductsTable({ locale }: Props) {
           </div>
         </div>
       )}
+
+      {/* Campaign Link Generator Modal */}
+      {campaignModalProduct && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between border-b border-[#EAEAEA] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-xl font-bold">
+                  🔗
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#2F3437]">
+                    {isBn ? 'সোশ্যাল মিডিয়া ক্যাম্পেইন অর্ডার লিঙ্ক' : 'Campaign Express Order Link'}
+                  </h3>
+                  <p className="text-xs text-[#787774]">
+                    {isBn ? campaignModalProduct.nameBn : campaignModalProduct.nameEn}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCampaignModalProduct(null)}
+                className="text-[#787774] hover:text-[#2F3437] text-base font-bold p-2 rounded-xl hover:bg-[#F7F6F3] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Platform Selector Tabs */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-[#2F3437]">
+                {isBn ? '১. প্ল্যাটফর্ম বেছে নিন (UTM ট্র্যাকিং):' : '1. Select Social Platform (UTM Tracking):'}
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: 'facebook', label: 'Facebook Ad', icon: '📘' },
+                  { id: 'instagram', label: 'Instagram', icon: '📸' },
+                  { id: 'tiktok', label: 'TikTok', icon: '🎵' },
+                  { id: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+                  { id: 'youtube', label: 'YouTube', icon: '▶️' },
+                ].map((plat) => (
+                  <button
+                    key={plat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlatform(plat.id as any);
+                      setIsCopied(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                      selectedPlatform === plat.id
+                        ? 'border-purple-600 bg-purple-50 text-purple-900 shadow-xs'
+                        : 'border-[#EAEAEA] hover:border-purple-300 text-[#5F6368]'
+                    }`}
+                  >
+                    <div className="text-base">{plat.icon}</div>
+                    <div className="mt-1">{plat.label}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Campaign Tag/Name input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#2F3437]">
+                {isBn ? '২. ক্যাম্পেইনের নাম (ঐচ্ছিক):' : '2. Campaign Name Tag (Optional):'}
+              </label>
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => {
+                  setCampaignName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '_'));
+                  setIsCopied(false);
+                }}
+                placeholder="poultry_boost_august"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-xs font-mono text-[#2F3437] focus:ring-2 focus:ring-purple-500/30 outline-hidden"
+              />
+            </div>
+
+            {/* Generated Public Link Box with 1-Click Copy */}
+            {(() => {
+              const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+              const publicUrl = `${origin}/${locale}/order/${campaignModalProduct.slug}?utm_source=${selectedPlatform}&utm_campaign=${campaignName || 'direct'}&utm_medium=social_ad`;
+
+              const handleCopy = () => {
+                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  navigator.clipboard.writeText(publicUrl);
+                  setIsCopied(true);
+                  setTimeout(() => setIsCopied(false), 3000);
+                }
+              };
+
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#2F3437]">
+                      {isBn ? '৩. প্রস্তুতকৃত পাবলিক লিঙ্ক:' : '3. Generated Public Landing Link:'}
+                    </label>
+                    {isCopied && (
+                      <span className="text-xs font-bold text-emerald-600 animate-fade-in">
+                        ✓ {isBn ? 'ক্লিপবোর্ডে কপি হয়েছে!' : 'Copied to Clipboard!'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-[#F7F6F3] border border-[#EAEAEA] flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs text-purple-900 break-all select-all font-semibold">
+                      {publicUrl}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs shrink-0 shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>📋</span>
+                      <span>{isCopied ? (isBn ? 'কপি হয়েছে' : 'Copied') : (isBn ? 'কপি করুন' : 'Copy Link')}</span>
+                    </button>
+                  </div>
+
+                  {/* Open & Test in New Tab */}
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-[11px] text-[#787774]">
+                      {isBn
+                        ? '👉 ফেসবুক বিজ্ঞাপনের "Website URL" বা মেসেজে এই লিঙ্কটি পেস্ট করুন।'
+                        : '👉 Paste this link in Facebook Ads Manager "Website URL" or social posts.'}
+                    </p>
+                    <a
+                      href={publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1"
+                    >
+                      <span>🌐</span>
+                      <span>{isBn ? 'লিঙ্ক টেস্ট করুন →' : 'Test Link →'}</span>
+                    </a>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
