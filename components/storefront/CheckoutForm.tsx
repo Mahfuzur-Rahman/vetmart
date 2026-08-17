@@ -35,6 +35,57 @@ export function CheckoutForm({ locale }: Props) {
       setIsPlacing(false);
       const generatedOrderNo = `VM-BD-${Math.floor(90000 + Math.random() * 9999)}`;
       setPlacedOrder(generatedOrderNo);
+
+      // Persist to mock orders storage for admin board
+      try {
+        const newOrder = {
+          id: `ord-${Date.now()}`,
+          orderNumber: generatedOrderNo,
+          customerName: name,
+          customerPhone: phone,
+          customerType: 'vet',
+          recipientAddress: address,
+          district: district,
+          division: division,
+          status: 'pending',
+          items: [
+            {
+              productId: 'prod-1',
+              productSlug: 'renaflox-100ml',
+              productNameEn: 'Renaflox 100ml Oral Solution',
+              productNameBn: 'রেনাফ্লক্স ১০০মি.লি. ওরাল সলিউশন',
+              unitPrice: 16500,
+              quantity: 1,
+              totalPrice: 16500,
+              batchNo: 'B-REN-8912',
+            },
+            {
+              productId: 'prod-2',
+              productSlug: 'rena-ws-100g',
+              productNameEn: 'Rena-WS 100g Soluble Powder',
+              productNameBn: 'রেনা-ডব্লিউএস ১০০গ্রাম পাউডার',
+              unitPrice: 11000,
+              quantity: 1,
+              totalPrice: 11000,
+              batchNo: 'B-RWS-4410',
+            },
+          ],
+          subtotal,
+          deliveryFee,
+          totalAmount,
+          paymentMethod,
+          paymentStatus: paymentMethod === 'cod' ? 'unpaid' : 'paid',
+          requiresRx: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const existing = localStorage.getItem('vetmart_mock_orders');
+        const ordersList = existing ? JSON.parse(existing) : [];
+        localStorage.setItem('vetmart_mock_orders', JSON.stringify([newOrder, ...ordersList]));
+      } catch (err) {
+        console.error('Failed to save order to localStorage', err);
+      }
     }, 600);
   };
 

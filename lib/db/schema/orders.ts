@@ -188,3 +188,30 @@ export const invoices = pgTable('invoices', {
   index('invoices_order_idx').on(t.orderId),
   index('invoices_invoice_no_idx').on(t.invoiceNo),
 ]);
+
+// 9. Incomplete Orders / Social Media Campaign Leads (§6, §14)
+export const incompleteOrders = pgTable('incomplete_orders', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  phone: text('phone').notNull(),
+  name: text('name'),
+  address: text('address'),
+  division: text('division'),
+  district: text('district'),
+  upazila: text('upazila'),
+  items: jsonb('items').notNull(), // Array of { productId, productSlug, productNameEn, productNameBn, unitPrice, quantity, totalPrice, packSize }
+  subtotal: integer('subtotal').notNull(), // in paisa
+  deliveryFee: integer('delivery_fee').notNull().default(0), // in paisa
+  totalAmount: integer('total_amount').notNull(), // in paisa
+  utmSource: text('utm_source'),
+  utmCampaign: text('utm_campaign'),
+  utmMedium: text('utm_medium'),
+  status: text('status').notNull().default('incomplete'), // 'incomplete', 'contacted', 'converted', 'discarded'
+  adminNotes: text('admin_notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('incomplete_orders_phone_idx').on(t.phone),
+  index('incomplete_orders_status_idx').on(t.status),
+  index('incomplete_orders_created_at_idx').on(t.createdAt),
+]);
+
