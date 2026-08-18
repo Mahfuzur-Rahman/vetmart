@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined }),
   images: {
     formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+    ],
   },
   // Ensure strict adherence
   reactStrictMode: true,

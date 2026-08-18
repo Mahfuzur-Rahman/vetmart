@@ -1,6 +1,8 @@
 // lib/storage/index.ts
 // Storage driver interface (§4.3, §10)
 import { env } from '@/lib/env';
+import { cloudinaryDriver } from './cloudinary';
+import { localDriver } from './local';
 
 export type Variant = 'thumb' | 'card' | 'detail' | 'full';
 
@@ -12,16 +14,11 @@ export interface StorageDriver {
 }
 
 export function getStorageDriver(): StorageDriver {
-  switch (env.STORAGE_DRIVER) {
-    case 'cloudinary': {
-      const { cloudinaryDriver } = require('./cloudinary');
-      return cloudinaryDriver;
-    }
-    case 'local': {
-      const { localDriver } = require('./local');
-      return localDriver;
-    }
-    default:
-      throw new Error(`Unsupported STORAGE_DRIVER: ${env.STORAGE_DRIVER}`);
+  const isCloudinaryConfigured = !!(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+  if (env.STORAGE_DRIVER === 'cloudinary' || isCloudinaryConfigured) {
+    return cloudinaryDriver;
   }
+  return localDriver;
 }
+
+
