@@ -1,14 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MOCK_PRODUCTS, type MockProduct } from '@/lib/mock-data/products';
+import {
+  MOCK_PRODUCTS,
+  getStoredProducts,
+  saveStoredCustomProduct,
+  deleteStoredProduct,
+  PRODUCTS_UPDATED_EVENT,
+  type MockProduct,
+} from '@/lib/mock-data/products';
 
 interface Props {
   locale: string;
 }
-
-const STORAGE_KEY = 'vetmart_custom_products';
-const DELETED_KEY = 'vetmart_deleted_product_ids';
 
 export function AdminProductsTable({ locale }: Props) {
   const isBn = locale === 'bn';
@@ -53,32 +57,19 @@ export function AdminProductsTable({ locale }: Props) {
 
   // Load custom products and apply deleted filter
   useEffect(() => {
-    try {
-      const deletedRaw = localStorage.getItem(DELETED_KEY);
-      const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+    const sync = () => {
+      setProducts(getStoredProducts());
+    };
 
-      const stored = localStorage.getItem(STORAGE_KEY);
-      let combined = [...MOCK_PRODUCTS];
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge custom products overriding any matching mock IDs
-          const customMap = new Map(parsed.map((p: MockProduct) => [p.id, p]));
-          const nonOverriddenMocks = MOCK_PRODUCTS.filter((p) => !customMap.has(p.id));
-          combined = [...parsed, ...nonOverriddenMocks];
-        }
-      }
+    sync();
 
-      // Filter out deleted products
-      if (deletedIds.length > 0) {
-        const deletedSet = new Set(deletedIds);
-        combined = combined.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
-      }
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, sync);
+    window.addEventListener('storage', sync);
 
-      setProducts(combined);
-    } catch (e) {
-      console.error('Failed to load products from storage', e);
-    }
+    return () => {
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
   }, []);
 
   // Open Edit modal with selected product's values
@@ -214,30 +205,19 @@ export function AdminProductsTable({ locale }: Props) {
       const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
       setProducts(updatedList);
 
-      // Save to localStorage
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        let list: MockProduct[] = stored ? JSON.parse(stored) : [];
-        const index = list.findIndex((p) => p.id === editingProduct.id);
-        if (index >= 0) {
-          list[index] = updatedProduct;
-        } else {
-          list.push(updatedProduct);
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      // Save to centralized client storage & broadcast
+      saveStoredCustomProduct(updatedProduct);
+      setProducts(getStoredProducts());
 
-        // Call PUT API route
-        await fetch(`/api/v1/admin/products/${editingProduct.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...updatedProduct,
-            imageKey,
-          }),
-        }).catch((err) => console.warn('API update warning:', err));
-      } catch (err) {
-        console.error('Storage save error:', err);
-      }
+      // Call PUT API route
+      fetch(`/api/v1/admin/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updatedProduct,
+          imageKey,
+        }),
+      }).catch((err) => console.warn('API update warning:', err));
 
       setEditingProduct(null);
       setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
@@ -281,16 +261,19 @@ export function AdminProductsTable({ locale }: Props) {
         dosageBn: 'গবাদিপশু: দৈনিক ১০০ মি.লি.। পোল্ট্রি: ২ লিটার পানিতে ১ মি.লি.।',
       };
 
-      const updated = [newProduct, ...products];
-      setProducts(updated);
+      // Save to centralized client storage & broadcast
+      saveStoredCustomProduct(newProduct);
+      setProducts(getStoredProducts());
 
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        const existing = stored ? JSON.parse(stored) : [];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([newProduct, ...existing]));
-      } catch (err) {
-        console.error('Storage save error', err);
-      }
+      // Send POST API call to create product in DB if available
+      fetch('/api/v1/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newProduct,
+          imageKey,
+        }),
+      }).catch((err) => console.warn('API create warning:', err));
 
       setIsEnrollOpen(false);
       setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
@@ -313,26 +296,9 @@ export function AdminProductsTable({ locale }: Props) {
         method: 'DELETE',
       }).catch((e) => console.warn('API delete warning:', e));
 
-      // 2. Remove from React State
-      const updated = products.filter((p) => p.id !== targetId && p.slug !== targetSlug);
-      setProducts(updated);
-
-      // 3. Update localStorage custom products
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const filteredCustom = parsed.filter((p: any) => p.id !== targetId && p.slug !== targetSlug);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredCustom));
-        }
-      }
-
-      // 4. Record deleted ID in DELETED_KEY so default mock items stay deleted
-      const deletedRaw = localStorage.getItem(DELETED_KEY);
-      const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
-      if (!deletedIds.includes(targetId)) deletedIds.push(targetId);
-      if (targetSlug && !deletedIds.includes(targetSlug)) deletedIds.push(targetSlug);
-      localStorage.setItem(DELETED_KEY, JSON.stringify(deletedIds));
+      // 2. Permanently delete from centralized storage & broadcast to all tabs/pages
+      deleteStoredProduct(targetId, targetSlug);
+      setProducts(getStoredProducts());
 
       setToastMessage(
         isBn
@@ -441,95 +407,115 @@ export function AdminProductsTable({ locale }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAEAEA]">
-              {filtered.map((prod) => (
-                <tr key={prod.id} className="hover:bg-[#F9F9F8] transition-colors group">
-                  <td className="px-4 py-3.5 font-mono text-xs font-bold text-emerald-700">
-                    {prod.sku}
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-3">
-                      {prod.imageUrl && (
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200 shadow-2xs">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={prod.imageUrl} alt={prod.nameEn} className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-bold text-[#2F3437] text-xs">{isBn ? prod.nameBn : prod.nameEn}</div>
-                        <div className="text-[10px] text-[#787774]">{prod.manufacturerName}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-emerald-800">
-                    {prod.genericName}
-                  </td>
-                  <td className="px-4 py-3.5 text-right font-mono text-xs text-[#787774]">
-                    ৳{(prod.mrp / 100).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3.5 text-right font-mono font-bold text-xs text-[#2F3437]">
-                    ৳{(prod.salePrice / 100).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3.5 text-center">
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-mono text-xs font-bold border border-emerald-200">
-                      {prod.stockQty}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-center font-mono text-xs text-[#787774]">
-                    <div className="text-[#2F3437] font-bold">{prod.batchNo}</div>
-                    <div className="text-[10px] text-[#787774]">Exp: {prod.expiryDate}</div>
-                  </td>
-                  <td className="px-4 py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {prod.requiresPrescription && (
-                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
-                          Rx
-                        </span>
-                      )}
-                      {prod.coldChain && (
-                        <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold">
-                          ❄️
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => setCampaignModalProduct(prod)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                      title={isBn ? 'সোশ্যাল মিডিয়া ক্যাম্পেইন লিঙ্ক কপি করুন' : 'Generate & Copy Campaign Order Link'}
-                    >
-                      <span>🔗</span>
-                      <span>{isBn ? 'ক্যাম্পেইন লিঙ্ক' : 'Campaign'}</span>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-1.5">
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(prod)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                        title={isBn ? 'পণ্য সম্পাদনা করুন' : 'Edit product details'}
-                      >
-                        <span>✏️</span>
-                        <span>{isBn ? 'সম্পাদনা' : 'Edit'}</span>
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={() => setProductToDelete(prod)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                        title={isBn ? 'পণ্য ও ছবি সম্পূর্ণ মুছে ফেলুন' : 'Delete product and associated images'}
-                      >
-                        <span>🗑️</span>
-                        <span>{isBn ? 'মুছুন' : 'Delete'}</span>
-                      </button>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-[#787774]">
+                    <div className="flex flex-col items-center justify-center space-y-2 max-w-sm mx-auto">
+                      <div className="text-3xl">📦</div>
+                      <p className="font-semibold text-[#2F3437]">
+                        {isBn ? 'কোনো পণ্য পাওয়া যায়নি' : 'No products found'}
+                      </p>
+                      <p className="text-xs text-[#787774]">
+                        {isBn
+                          ? 'নতুন পণ্য যুক্ত করতে উপরের "নতুন পণ্য যোগ করুন" বোতামে ক্লিক করুন।'
+                          : 'Click "Add New Product" above to create and manage products.'}
+                      </p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.map((prod) => (
+                  <tr key={prod.id} className="hover:bg-[#F9F9F8] transition-colors group">
+                    <td className="px-4 py-3.5 font-mono text-xs font-bold text-emerald-700">
+                      {prod.sku}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        {prod.imageUrl && (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200 shadow-2xs">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={prod.imageUrl} alt={prod.nameEn} className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-bold text-[#2F3437] text-xs">{isBn ? prod.nameBn : prod.nameEn}</div>
+                          <div className="text-[10px] text-[#787774]">{prod.manufacturerName}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-emerald-800">
+                      {prod.genericName}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-mono text-xs text-[#787774]">
+                      {(prod.mrp / 100).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-[#2F3437]">
+                      {(prod.salePrice / 100).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#F7F6F3] text-[#2F3437] font-mono text-xs font-bold border border-[#EAEAEA]">
+                        {prod.stockQty ?? 50}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-center text-xs text-[#787774] font-mono">
+                      <div>{prod.batchNo || 'B-BATCH-001'}</div>
+                      <div className="text-[10px] text-amber-700">{prod.expiryDate || '2027-12-31'}</div>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {prod.requiresPrescription && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold" title="Prescription Required">
+                            Rx
+                          </span>
+                        )}
+                        {prod.coldChain && (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold" title="Cold Chain">
+                            ❄️
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCampaignModalProduct(prod);
+                          setIsCopied(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        <span>🔗</span>
+                        <span>{isBn ? 'লিঙ্ক তৈরি করুন' : 'Generate Link'}</span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {/* Edit Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(prod)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                          title={isBn ? 'পণ্য সম্পাদনা করুন' : 'Edit product details'}
+                        >
+                          <span>✏️</span>
+                          <span>{isBn ? 'সম্পাদনা' : 'Edit'}</span>
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => setProductToDelete(prod)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                          title={isBn ? 'পণ্য ও ছবি সম্পূর্ণ মুছে ফেলুন' : 'Delete product and associated images'}
+                        >
+                          <span>🗑️</span>
+                          <span>{isBn ? 'মুছুন' : 'Delete'}</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

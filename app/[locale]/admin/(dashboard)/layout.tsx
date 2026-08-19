@@ -8,6 +8,8 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 type Props = {
   children: React.ReactNode;

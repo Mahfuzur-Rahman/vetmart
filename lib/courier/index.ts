@@ -24,17 +24,12 @@ export interface CourierDriver {
   getStatus(consignmentId: string): Promise<{ status: string; raw: unknown }>;
 }
 
+import { steadfastDriver } from './steadfast';
+import { mockCourierDriver } from './mock';
+
 export function getCourierDriver(): CourierDriver {
-  switch (env.COURIER_DRIVER) {
-    case 'steadfast': {
-      const { steadfastDriver } = require('./steadfast');
-      return steadfastDriver;
-    }
-    case 'mock': {
-      const { mockCourierDriver } = require('./mock');
-      return mockCourierDriver;
-    }
-    default:
-      throw new Error(`Unsupported COURIER_DRIVER: ${env.COURIER_DRIVER}`);
+  if (env.COURIER_DRIVER === 'steadfast' && env.STEADFAST_API_KEY && env.STEADFAST_SECRET_KEY) {
+    return steadfastDriver;
   }
+  return mockCourierDriver;
 }

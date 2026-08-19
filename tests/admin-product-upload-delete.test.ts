@@ -1,7 +1,7 @@
 // tests/admin-product-upload-delete.test.ts
 import { describe, it, expect } from 'vitest';
 import { getStorageDriver } from '@/lib/storage';
-import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
+import { SEED_PRODUCTS } from '@/lib/mock-data/products';
 
 describe('Admin Product Image Storage & Cascade Deletion Logic', () => {
   it('instantiates storage driver properly with responsive image URL generator', () => {
@@ -20,7 +20,7 @@ describe('Admin Product Image Storage & Cascade Deletion Logic', () => {
   });
 
   it('correctly filters out deleted product IDs from catalog dataset', () => {
-    const allProducts = [...MOCK_PRODUCTS];
+    const allProducts = [...SEED_PRODUCTS];
     const initialCount = allProducts.length;
 
     const deletedIds = ['prod-1', 'renaflox-100ml'];

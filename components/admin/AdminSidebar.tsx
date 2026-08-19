@@ -38,9 +38,15 @@ const NAV_ITEMS: NavItem[] = [
     permission: 'stock.read',
   },
   {
-    label: { en: 'Orders', bn: 'অর্ডার সমূহ' },
+    label: { en: 'Orders & Dispatch', bn: 'অর্ডার ও কুরিয়ার' },
     href: '/admin/orders',
     icon: '🧾',
+    permission: 'order.read',
+  },
+  {
+    label: { en: 'COD Reconciliation', bn: 'সিওডি রিকনসিলিয়েশন' },
+    href: '/admin/reconciliation',
+    icon: '💰',
     permission: 'order.read',
   },
   {

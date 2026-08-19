@@ -1,16 +1,17 @@
 // app/[locale]/order/[slug]/page.tsx
 // 1-Page Express Order Landing for Social Media Ad Campaigns
-import { notFound } from 'next/navigation';
 import { setRequestLocale } from 'next-intl/server';
 import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ExpressOrderView, type ExpressProduct } from '@/components/storefront/ExpressOrderView';
 import { getProductBySlug } from '@/lib/services/products';
-import { getProductBySlug as getMockProductBySlug, MOCK_PRODUCTS } from '@/lib/mock-data/products';
+import { getProductBySlug as getMockProductBySlug, getStoredProductBySlug, MOCK_PRODUCTS } from '@/lib/mock-data/products';
 import { isDemoMode } from '@/lib/demo';
+import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type Props = {
   params: Promise<{ locale: string; slug: string }>;
@@ -30,14 +31,42 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     }
   }
 
-  const mock = getMockProductBySlug(slug) || MOCK_PRODUCTS.find((item) => item.slug.toLowerCase().includes(slug.toLowerCase())) || MOCK_PRODUCTS[0];
+  const mock = getMockProductBySlug(slug) || getStoredProductBySlug(slug) || null;
   const p = rawProduct || mock;
+
+  if (!p) {
+    return (
+      <div className="min-h-dvh flex flex-col bg-background text-foreground">
+        <Header locale={loc} />
+
+        <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-20 text-center space-y-4">
+          <div className="text-5xl">📦</div>
+          <h2 className="text-2xl font-bold text-foreground">
+            {loc === 'bn' ? 'পণ্যটি পাওয়া যায়নি' : 'Product Not Found'}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {loc === 'bn'
+              ? 'এই ক্যাম্পেইন লিঙ্কটির পণ্য ক্যাটালগে পাওয়া যায়নি।'
+              : 'The product for this campaign link could not be found in the catalog.'}
+          </p>
+          <Link
+            href="/products"
+            className="inline-block px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all"
+          >
+            {loc === 'bn' ? 'সকল ওষুধ দেখুন' : 'Browse All Products'}
+          </Link>
+        </main>
+
+        <Footer locale={loc} />
+      </div>
+    );
+  }
 
   const product: ExpressProduct = {
     id: p.id,
     slug: p.slug,
     nameEn: p.nameEn,
-    nameBn: p.nameBn,
+    nameBn: p.nameBn || p.nameEn,
     genericName: p.genericName,
     dosageForm: p.dosageForm,
     packSize: p.packSize,
@@ -49,7 +78,7 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     coldChain: p.coldChain || p.requiresColdChain,
     imageUrl: p.imageUrl,
     stock: p.stockQty ?? p.stock ?? 100,
-    manufacturerName: p.manufacturer?.name || p.manufacturerName || 'Square Pharmaceuticals Ltd.',
+    manufacturerName: p.manufacturer?.name || p.manufacturerName || 'Veterinary Formulary',
     withdrawalMeatDays: p.withdrawalMeatDays || 0,
     withdrawalMilkHours: p.withdrawalMilkHours || 0,
   };
@@ -70,7 +99,7 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     coldChain: item.coldChain || item.requiresColdChain,
     imageUrl: item.imageUrl,
     stock: item.stockQty ?? 100,
-    manufacturerName: item.manufacturerName || 'Square Pharmaceuticals Ltd.',
+    manufacturerName: item.manufacturerName || 'Veterinary Formulary',
   }));
 
   return (

@@ -4,7 +4,7 @@ import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { SpeciesGrid } from '@/components/storefront/SpeciesGrid';
 import { HeroCarousel } from '@/components/storefront/HeroCarousel';
-import { ProductCard } from '@/components/storefront/ProductCard';
+import { FeaturedProductsGrid } from '@/components/storefront/FeaturedProductsGrid';
 import { listProducts } from '@/lib/services/products';
 import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
 import { isDemoMode } from '@/lib/demo';
@@ -12,6 +12,7 @@ import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -92,11 +93,7 @@ export default async function HomePage({ params }: Props) {
             </div>
 
             {/* Product Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {products.map((product) => (
-                <ProductCard key={product.id} locale={loc} product={product} />
-              ))}
-            </div>
+            <FeaturedProductsGrid locale={loc} initialProducts={products} />
 
             {/* Mobile view all link */}
             <div className="sm:hidden text-center">

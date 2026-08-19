@@ -45,47 +45,8 @@ interface CartContextType {
 
 const STORAGE_KEY = 'vetmart_cart_v1';
 
-// Initial sample cart items for great out-of-the-box demo experience
-const INITIAL_DEMO_ITEMS: CartItem[] = [
-  {
-    product: {
-      id: MOCK_PRODUCTS[0].id,
-      slug: MOCK_PRODUCTS[0].slug,
-      nameEn: MOCK_PRODUCTS[0].nameEn,
-      nameBn: MOCK_PRODUCTS[0].nameBn,
-      genericName: MOCK_PRODUCTS[0].genericName,
-      dosageForm: MOCK_PRODUCTS[0].dosageForm,
-      packSize: MOCK_PRODUCTS[0].packSize,
-      packUnit: MOCK_PRODUCTS[0].packUnit,
-      mrp: MOCK_PRODUCTS[0].mrp,
-      salePrice: MOCK_PRODUCTS[0].salePrice,
-      requiresPrescription: MOCK_PRODUCTS[0].requiresPrescription,
-      requiresColdChain: MOCK_PRODUCTS[0].requiresColdChain,
-      coldChain: MOCK_PRODUCTS[0].requiresColdChain,
-      imageUrl: MOCK_PRODUCTS[0].imageUrl,
-    },
-    qty: 2,
-  },
-  {
-    product: {
-      id: MOCK_PRODUCTS[1].id,
-      slug: MOCK_PRODUCTS[1].slug,
-      nameEn: MOCK_PRODUCTS[1].nameEn,
-      nameBn: MOCK_PRODUCTS[1].nameBn,
-      genericName: MOCK_PRODUCTS[1].genericName,
-      dosageForm: MOCK_PRODUCTS[1].dosageForm,
-      packSize: MOCK_PRODUCTS[1].packSize,
-      packUnit: MOCK_PRODUCTS[1].packUnit,
-      mrp: MOCK_PRODUCTS[1].mrp,
-      salePrice: MOCK_PRODUCTS[1].salePrice,
-      requiresPrescription: MOCK_PRODUCTS[1].requiresPrescription,
-      requiresColdChain: MOCK_PRODUCTS[1].requiresColdChain,
-      coldChain: MOCK_PRODUCTS[1].requiresColdChain,
-      imageUrl: MOCK_PRODUCTS[1].imageUrl,
-    },
-    qty: 5,
-  },
-];
+// Initial cart items (empty for clean testing slate)
+const INITIAL_DEMO_ITEMS: CartItem[] = [];
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 

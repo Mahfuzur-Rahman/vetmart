@@ -1,3 +1,4 @@
+// components/admin/AdminIncompleteOrdersBoard.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,10 +7,12 @@ import {
   type IncompleteOrderStatus,
   getStoredIncompleteOrders,
   saveStoredIncompleteOrders,
-  sanitizeBdPhone,
 } from '@/lib/mock-data/incomplete-orders';
 import { fmtMoney } from '@/lib/i18n/number';
 import type { Locale } from '@/lib/i18n/config';
+import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
+import { CallLogDrawer, type CallLogEntry } from './CallLogDrawer';
+import { WhatsAppTemplateModal, type WhatsAppOrderContext } from './WhatsAppTemplateModal';
 
 interface Props {
   locale: string;
@@ -22,6 +25,11 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
   const [selectedLead, setSelectedLead] = useState<IncompleteOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<string>('');
+
+  // Modals state
+  const [callDrawerLead, setCallDrawerLead] = useState<IncompleteOrder | null>(null);
+  const [whatsappContext, setWhatsappContext] = useState<WhatsAppOrderContext | null>(null);
+  const [fraudCache, setFraudCache] = useState<Record<string, CourierFraudReport>>({});
 
   // Load leads from storage or API
   const loadLeads = () => {
@@ -36,6 +44,27 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
   useEffect(() => {
     loadLeads();
   }, []);
+
+  // Compute fraud scores for leads
+  useEffect(() => {
+    const fetchFraud = async () => {
+      const newMap: Record<string, CourierFraudReport> = {};
+      for (const lead of leads) {
+        if (!fraudCache[lead.phone]) {
+          try {
+            const report = await checkCustomerFraudRisk(lead.phone);
+            newMap[lead.phone] = report;
+          } catch {
+            // Ignore
+          }
+        }
+      }
+      if (Object.keys(newMap).length > 0) {
+        setFraudCache((prev) => ({ ...prev, ...newMap }));
+      }
+    };
+    fetchFraud();
+  }, [leads]);
 
   const saveUpdatedLeads = (updated: IncompleteOrder[]) => {
     setLeads(updated);
@@ -130,19 +159,6 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
     }
     setToastMessage(isBn ? 'নোট সংরক্ষিত হয়েছে' : 'Admin notes updated');
     setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  // Generate WhatsApp Direct URL with localized message template
-  const getWhatsAppLink = (lead: IncompleteOrder) => {
-    const cleaned = sanitizeBdPhone(lead.phone);
-    const itemSummary = lead.items.map((i) => (isBn ? i.productNameBn : i.productNameEn)).join(', ');
-    const customerName = lead.name || (isBn ? 'গ্রাহক' : 'Customer');
-
-    const msg = isBn
-      ? `আসসালামু আলাইকুম ${customerName}, আপনি VetMart থেকে ${itemSummary} অর্ডার শুরু করেছিলেন। আপনার অর্ডারটি কনফার্ম করতে বা ডেলিভারির বিষয়ে কোনো তথ্যের প্রয়োজন হলে অনুগ্রহ করে আমাদের জানান। ধন্যবাদ! - VetMart Team`
-      : `Hello ${customerName}, we noticed you started ordering ${itemSummary} on VetMart. Let us know if you need assistance confirming your order delivery! - VetMart Dispatch Team`;
-
-    return `https://wa.me/88${cleaned}?text=${encodeURIComponent(msg)}`;
   };
 
   // Metrics summary
@@ -282,15 +298,15 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
       {/* Leads Table */}
       <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full max-w-full touch-pan-x">
-          <table className="min-w-[850px] w-full text-sm">
+          <table className="min-w-[950px] w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
-                <th className="px-5 py-3.5 font-semibold">{isBn ? 'গ্রাহক ও মোবাইল' : 'Customer & Phone'}</th>
+                <th className="px-5 py-3.5 font-semibold">{isBn ? 'গ্রাহক ও রিস্ক স্কোর' : 'Customer & Risk'}</th>
                 <th className="px-5 py-3.5 font-semibold">{isBn ? 'কার্টের ওষুধ' : 'Cart Items'}</th>
                 <th className="px-5 py-3.5 font-semibold">{isBn ? 'সম্ভাব্য মূল্য' : 'Estimated Total'}</th>
                 <th className="px-5 py-3.5 font-semibold">{isBn ? 'ক্যাম্পেইন সোর্স' : 'Campaign Source'}</th>
                 <th className="px-5 py-3.5 font-semibold">{isBn ? 'স্ট্যাটাস' : 'Status'}</th>
-                <th className="px-5 py-3.5 font-semibold text-right">{isBn ? 'রিকভারি অ্যাকশন' : 'Recovery Actions'}</th>
+                <th className="px-5 py-3.5 font-semibold text-right">{isBn ? 'টেলি-সেলস কমান্ড' : 'Quick Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAEAEA]">
@@ -301,119 +317,186 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
                   </td>
                 </tr>
               ) : (
-                filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-[#F9F9F8] transition-colors">
-                    {/* Customer Info */}
-                    <td className="px-5 py-3.5">
-                      <div className="font-bold text-[#2F3437] text-xs">
-                        {lead.name || (isBn ? 'নাম প্রকাশ করেনি' : 'Unspecified Customer')}
-                      </div>
-                      <div className="text-xs font-mono font-bold text-emerald-700 mt-0.5">
-                        📱 {lead.phone}
-                      </div>
-                      {lead.district && (
-                        <div className="text-[11px] text-[#787774] mt-0.5">
-                          📍 {lead.district}, {lead.division}
+                filteredLeads.map((lead) => {
+                  const fraud = fraudCache[lead.phone];
+
+                  return (
+                    <tr key={lead.id} className="hover:bg-[#F9F9F8] transition-colors">
+                      {/* Customer Info */}
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-[#2F3437] text-xs">
+                          {lead.name || (isBn ? 'নাম প্রকাশ করেনি' : 'Unspecified Customer')}
                         </div>
-                      )}
-                    </td>
-
-                    {/* Items in Cart */}
-                    <td className="px-5 py-3.5 max-w-[220px]">
-                      {lead.items.map((item, idx) => (
-                        <div key={idx} className="text-xs font-medium text-[#2F3437] truncate">
-                          <span className="font-bold">{item.quantity}x</span> {isBn ? item.productNameBn : item.productNameEn}
+                        <div className="text-xs font-mono font-bold text-emerald-700 mt-0.5">
+                          📱 {lead.phone}
                         </div>
-                      ))}
-                    </td>
+                        {lead.district && (
+                          <div className="text-[11px] text-[#787774] mt-0.5">
+                            📍 {lead.district}, {lead.division}
+                          </div>
+                        )}
+                        {/* Fraud Risk Indicator */}
+                        {fraud && (
+                          <div className="mt-1">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                                fraud.riskLevel === 'low'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : fraud.riskLevel === 'medium'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                              }`}
+                            >
+                              <span>{fraud.riskLevel === 'low' ? '🟢' : fraud.riskLevel === 'medium' ? '🟡' : '🔴'}</span>
+                              <span>{fraud.successRate}% Courier Success</span>
+                            </span>
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Amount */}
-                    <td className="px-5 py-3.5 font-mono font-extrabold text-[#2F3437] text-xs">
-                      {fmtMoney(lead.totalAmount, locale as Locale)}
-                    </td>
+                      {/* Items in Cart */}
+                      <td className="px-5 py-3.5 max-w-[220px]">
+                        {lead.items.map((item, idx) => (
+                          <div key={idx} className="text-xs font-medium text-[#2F3437] truncate">
+                            <span className="font-bold">{item.quantity}x</span> {isBn ? item.productNameBn : item.productNameEn}
+                          </div>
+                        ))}
+                      </td>
 
-                    {/* Campaign & Timing */}
-                    <td className="px-5 py-3.5">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold uppercase">
-                        <span>📣</span> {lead.utmSource || 'Direct'}
-                      </div>
-                      <div className="text-[10px] text-[#787774] mt-1">
-                        {new Date(lead.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </td>
+                      {/* Amount */}
+                      <td className="px-5 py-3.5 font-mono font-extrabold text-[#2F3437] text-xs">
+                        {fmtMoney(lead.totalAmount, locale as Locale)}
+                      </td>
 
-                    {/* Status Badge */}
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase border ${
-                          lead.status === 'converted'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : lead.status === 'contacted'
-                            ? 'bg-sky-50 text-sky-700 border-sky-200'
-                            : lead.status === 'discarded'
-                            ? 'bg-zinc-100 text-zinc-600 border-zinc-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                        }`}
-                      >
-                        {lead.status}
-                      </span>
-                    </td>
+                      {/* Campaign & Timing */}
+                      <td className="px-5 py-3.5">
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold uppercase">
+                          <span>📣</span> {lead.utmSource || 'Direct'}
+                        </div>
+                        <div className="text-[10px] text-[#787774] mt-1">
+                          {new Date(lead.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </td>
 
-                    {/* Instant Recovery Actions */}
-                    <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
-                      {/* Call Action */}
-                      <a
-                        href={`tel:${lead.phone}`}
-                        onClick={() => handleStatusChange(lead.id, 'contacted')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-colors"
-                        title={isBn ? 'সরাসরি কল দিন' : 'Call customer phone'}
-                      >
-                        <span>📞</span> {isBn ? 'কল' : 'Call'}
-                      </a>
+                      {/* Status Badge */}
+                      <td className="px-5 py-3.5">
+                        <span
+                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase border ${
+                            lead.status === 'converted'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : lead.status === 'contacted'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : lead.status === 'discarded'
+                              ? 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                          }`}
+                        >
+                          {lead.status}
+                        </span>
+                      </td>
 
-                      {/* WhatsApp Recovery Action */}
-                      <a
-                        href={getWhatsAppLink(lead)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => handleStatusChange(lead.id, 'contacted')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition-colors"
-                        title={isBn ? 'হোয়াটসঅ্যাপে প্রি-ফিল্ড মেসেজ পাঠান' : 'Send WhatsApp Recovery Template'}
-                      >
-                        <span>💬</span> WhatsApp
-                      </a>
-
-                      {/* Convert to Order Action */}
-                      {lead.status !== 'converted' && (
+                      {/* Instant Recovery Actions */}
+                      <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        {/* Call Cockpit Action */}
                         <button
                           type="button"
-                          onClick={() => handleConvertLeadToOrder(lead)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                          title={isBn ? 'সরাসরি কনফার্মড অর্ডারে রূপান্তর করুন' : 'Convert to Placed Order'}
+                          onClick={() => {
+                            setCallDrawerLead(lead);
+                            handleStatusChange(lead.id, 'contacted');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition-colors cursor-pointer"
+                          title={isBn ? 'কল রেকর্ড ও ড্যাশবোর্ড' : 'Open Call Log Cockpit'}
                         >
-                          <span>⚡</span> {isBn ? 'অর্ডার করুন' : 'Convert'}
+                          <span>📞</span> {isBn ? 'কল লগ' : 'Call'}
                         </button>
-                      )}
 
-                      {/* Details & Notes */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedLead(lead);
-                          setEditingNotes(lead.adminNotes || '');
-                        }}
-                        className="inline-flex items-center px-2.5 py-1.5 rounded-xl bg-[#F7F6F3] hover:bg-[#EAEAEA] text-[#2F3437] font-semibold text-xs border border-[#EAEAEA] transition-colors cursor-pointer"
-                      >
-                        {isBn ? 'বিস্তারিত' : 'Details'}
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                        {/* WhatsApp Recovery Action */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleStatusChange(lead.id, 'contacted');
+                            setWhatsappContext({
+                              customerName: lead.name || '',
+                              customerPhone: lead.phone,
+                              orderNumber: `LEAD-${lead.id.slice(-5)}`,
+                              totalAmountTaka: lead.totalAmount / 100,
+                              recipientAddress: `${lead.address || ''}, ${lead.district || ''}`,
+                              itemsSummary: lead.items
+                                .map((it) => (isBn ? it.productNameBn : it.productNameEn))
+                                .join(', '),
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition-colors cursor-pointer"
+                          title={isBn ? 'হোয়াটসঅ্যাপে প্রি-ফিল্ড মেসেজ পাঠান' : 'Send WhatsApp Recovery Template'}
+                        >
+                          <span>💬</span> WhatsApp
+                        </button>
+
+                        {/* Convert to Order Action */}
+                        {lead.status !== 'converted' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConvertLeadToOrder(lead)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                            title={isBn ? 'সরাসরি কনফার্মড অর্ডারে রূপান্তর করুন' : 'Convert to Placed Order'}
+                          >
+                            <span>⚡</span> {isBn ? 'অর্ডার করুন' : 'Convert'}
+                          </button>
+                        )}
+
+                        {/* Details & Notes */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setEditingNotes(lead.adminNotes || '');
+                          }}
+                          className="inline-flex items-center px-2.5 py-1.5 rounded-xl bg-[#F7F6F3] hover:bg-[#EAEAEA] text-[#2F3437] font-semibold text-xs border border-[#EAEAEA] transition-colors cursor-pointer"
+                        >
+                          {isBn ? 'নোট' : 'Notes'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Call Log Drawer */}
+      {callDrawerLead && (
+        <CallLogDrawer
+          isOpen={Boolean(callDrawerLead)}
+          onClose={() => setCallDrawerLead(null)}
+          customerName={callDrawerLead.name || 'Unspecified Lead'}
+          customerPhone={callDrawerLead.phone}
+          orderNumber={`LEAD-${callDrawerLead.id.slice(-6)}`}
+          deliveryAddress={`${callDrawerLead.address || ''}, ${callDrawerLead.district || ''}`}
+          totalAmountPaisa={callDrawerLead.totalAmount}
+          fraudReport={fraudCache[callDrawerLead.phone] || null}
+          onAddLog={(entry: CallLogEntry) => {
+            const updated = leads.map((l) =>
+              l.id === callDrawerLead.id
+                ? { ...l, adminNotes: `[${entry.outcome.toUpperCase()}] ${entry.note}`, updatedAt: new Date().toISOString() }
+                : l
+            );
+            saveUpdatedLeads(updated);
+          }}
+          locale={locale}
+        />
+      )}
+
+      {/* WhatsApp Template Modal */}
+      {whatsappContext && (
+        <WhatsAppTemplateModal
+          isOpen={Boolean(whatsappContext)}
+          onClose={() => setWhatsappContext(null)}
+          context={whatsappContext}
+          locale={locale}
+        />
+      )}
 
       {/* Lead Details & Notes Modal */}
       {selectedLead && (

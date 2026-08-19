@@ -1,5 +1,5 @@
 // lib/api/response.ts
-// Standardized API envelope response utility (§9)
+// Standardized API envelope response utility (§9) — No caching for real-time freshness
 import { NextResponse } from 'next/server';
 
 export interface ApiSuccessPayload<T> {
@@ -16,8 +16,21 @@ export interface ApiErrorPayload {
   };
 }
 
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store',
+};
+
 export function apiSuccess<T>(data: T, meta?: Record<string, unknown>, status: number = 200) {
-  return NextResponse.json<ApiSuccessPayload<T>>({ data, meta }, { status });
+  return NextResponse.json<ApiSuccessPayload<T>>(
+    { data, meta },
+    {
+      status,
+      headers: NO_CACHE_HEADERS,
+    }
+  );
 }
 
 export function apiError(
@@ -36,6 +49,9 @@ export function apiError(
         details,
       },
     },
-    { status }
+    {
+      status,
+      headers: NO_CACHE_HEADERS,
+    }
   );
 }

@@ -3,8 +3,10 @@ import { setRequestLocale } from 'next-intl/server';
 import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { CheckoutForm } from '@/components/storefront/CheckoutForm';
-import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type Props = {
   params: Promise<{ locale: string }>;

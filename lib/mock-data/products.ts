@@ -72,7 +72,7 @@ export interface MockProduct {
   dosageBn: string;
 }
 
-export const MOCK_PRODUCTS: MockProduct[] = [
+export const SEED_PRODUCTS: MockProduct[] = [
   {
     id: 'prod-1',
     slug: 'renaflox-100ml',
@@ -355,6 +355,13 @@ export const MOCK_PRODUCTS: MockProduct[] = [
   },
 ];
 
+// Empty active catalog so testers can test each product creation, update, and deletion cleanly
+export const MOCK_PRODUCTS: MockProduct[] = [];
+
+export const STORAGE_KEY = 'vetmart_custom_products';
+export const DELETED_KEY = 'vetmart_deleted_product_ids';
+export const PRODUCTS_UPDATED_EVENT = 'vetmart_products_updated';
+
 export function getProductBySlug(slug: string): MockProduct | undefined {
   if (!slug) return undefined;
   const normalized = slug.toLowerCase().trim();
@@ -376,3 +383,133 @@ export function searchProducts(query: string): MockProduct[] {
       p.banglishKeywords.toLowerCase().includes(q)
   );
 }
+
+/**
+ * Retrieves the live merged products array in client context,
+ * incorporating custom added/edited items and filtering out deleted IDs/slugs.
+ */
+export function getStoredProducts(): MockProduct[] {
+  if (typeof localStorage === 'undefined') {
+    return MOCK_PRODUCTS;
+  }
+
+  try {
+    const deletedRaw = localStorage.getItem(DELETED_KEY);
+    const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+    const deletedSet = new Set(deletedIds);
+
+    const stored = localStorage.getItem(STORAGE_KEY);
+    let combined: MockProduct[] = [...MOCK_PRODUCTS];
+
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const customMap = new Map(parsed.map((p: MockProduct) => [p.id, p]));
+        const nonOverriddenMocks = MOCK_PRODUCTS.filter((p) => !customMap.has(p.id));
+        combined = [...parsed, ...nonOverriddenMocks];
+      }
+    }
+
+    if (deletedSet.size > 0) {
+      combined = combined.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+    }
+
+    return combined;
+  } catch (err) {
+    console.error('Failed to get stored products:', err);
+    return MOCK_PRODUCTS;
+  }
+}
+
+/**
+ * Retrieve a specific product by slug or id taking into account localStorage.
+ */
+export function getStoredProductBySlug(slug: string): MockProduct | undefined {
+  if (!slug) return undefined;
+  const normalized = slug.toLowerCase().trim();
+  const all = getStoredProducts();
+  return (
+    all.find((p) => p.slug.toLowerCase() === normalized || p.id.toLowerCase() === normalized) ||
+    all.find((p) => p.slug.toLowerCase().includes(normalized) || normalized.includes(p.slug.toLowerCase()))
+  );
+}
+
+/**
+ * Check if a product ID or slug is marked deleted in client storage.
+ */
+export function isProductDeleted(idOrSlug: string): boolean {
+  if (typeof localStorage === 'undefined' || !idOrSlug) return false;
+  try {
+    const deletedRaw = localStorage.getItem(DELETED_KEY);
+    const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+    const set = new Set(deletedIds);
+    return set.has(idOrSlug);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Persist an added or edited custom product in client storage and broadcast update.
+ */
+export function saveStoredCustomProduct(product: MockProduct): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    let list: MockProduct[] = stored ? JSON.parse(stored) : [];
+    const index = list.findIndex((p) => p.id === product.id || p.slug === product.slug);
+    if (index >= 0) {
+      list[index] = product;
+    } else {
+      list = [product, ...list];
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+
+    // Remove from deleted IDs if previously marked deleted
+    const deletedRaw = localStorage.getItem(DELETED_KEY);
+    if (deletedRaw) {
+      const deletedIds: string[] = JSON.parse(deletedRaw);
+      const filtered = deletedIds.filter((id) => id !== product.id && id !== product.slug);
+      localStorage.setItem(DELETED_KEY, JSON.stringify(filtered));
+    }
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { type: 'save', product } }));
+    }
+  } catch (err) {
+    console.error('Failed to save stored custom product:', err);
+  }
+}
+
+/**
+ * Delete product in client storage and broadcast update.
+ */
+export function deleteStoredProduct(id: string, slug?: string): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    // 1. Remove from custom products
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((p: any) => p.id !== id && (!slug || p.slug !== slug));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      }
+    }
+
+    // 2. Add to deleted IDs
+    const deletedRaw = localStorage.getItem(DELETED_KEY);
+    const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+    if (!deletedIds.includes(id)) deletedIds.push(id);
+    if (slug && !deletedIds.includes(slug)) deletedIds.push(slug);
+    localStorage.setItem(DELETED_KEY, JSON.stringify(deletedIds));
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { type: 'delete', id, slug } }));
+    }
+  } catch (err) {
+    console.error('Failed to delete stored product:', err);
+  }
+}
+
+
