@@ -60,12 +60,17 @@ export const cloudinaryDriver: StorageDriver = {
   },
 
   url(key: string, variant: Variant): string {
-    const cloudName = env.CLOUDINARY_CLOUD_NAME || 'demo';
+    if (!key) return '/images/cal-d-mag.jpg';
+    if (key.startsWith('http://') || key.startsWith('https://') || key.startsWith('/')) {
+      return key;
+    }
+    const cloudName = env.CLOUDINARY_CLOUD_NAME || 'gz0m7doe';
     const width = variantWidths[variant] || 800;
     const transformation = `f_auto,q_auto,w_${width},c_limit`;
     const cleanKey = key.replace(/\.[^/.]+$/, '');
     return `https://res.cloudinary.com/${cloudName}/image/upload/${transformation}/${cleanKey}`;
   },
+
 
   async signedUrl(key: string, ttlSeconds: number): Promise<string> {
     const cld = getCloudinaryInstance();

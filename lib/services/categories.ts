@@ -1,8 +1,9 @@
 // lib/services/categories.ts
 // Category tree and navigation queries (§6, §7)
-import { eq, asc, isNull } from 'drizzle-orm';
+import { eq, and, asc, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
+
 
 export interface CategoryNode {
   id: string;
@@ -66,19 +67,36 @@ export async function getCategoryBySlug(slug: string) {
 }
 
 /**
- * Flat list of all active categories for dropdowns and filters.
+ * Flat list of categories with optional filters.
  */
-export async function listCategories() {
-  return db
-    .select({
-      id: categories.id,
-      slug: categories.slug,
-      nameEn: categories.nameEn,
-      nameBn: categories.nameBn,
-      parentId: categories.parentId,
-      sort: categories.sort,
-    })
-    .from(categories)
-    .where(eq(categories.isActive, true))
-    .orderBy(asc(categories.sort));
+export async function listCategories(opts?: { showOnHomepage?: boolean; isActive?: boolean }) {
+  try {
+    const conditions = [];
+    if (opts?.isActive !== undefined) {
+      conditions.push(eq(categories.isActive, opts.isActive));
+    }
+    if (opts?.showOnHomepage !== undefined) {
+      conditions.push(eq(categories.showOnHomepage, opts.showOnHomepage));
+    }
+
+    return await db
+      .select({
+        id: categories.id,
+        slug: categories.slug,
+        nameEn: categories.nameEn,
+        nameBn: categories.nameBn,
+        imagePath: categories.imagePath,
+        parentId: categories.parentId,
+        sort: categories.sort,
+        showOnHomepage: categories.showOnHomepage,
+        isActive: categories.isActive,
+      })
+      .from(categories)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(categories.sort), asc(categories.nameEn));
+  } catch (err) {
+    console.warn('[listCategories] DB fetch failed:', err);
+    return [];
+  }
 }
+

@@ -19,13 +19,29 @@ export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
   const [products, setProducts] = useState<any[]>(initialProducts);
 
   useEffect(() => {
-    // Sync with localStorage on client mount
-    const syncProducts = () => {
+    // If server passed DB products, use them
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts.slice(0, 8));
+    } else {
       const stored = getStoredProducts();
       setProducts(stored.slice(0, 8));
-    };
+    }
 
-    syncProducts();
+    const syncProducts = () => {
+      // Re-fetch from API or fallback to storage
+      fetch('/api/v1/products?pageSize=8')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setProducts(json.data);
+          } else {
+            setProducts(getStoredProducts().slice(0, 8));
+          }
+        })
+        .catch(() => {
+          setProducts(getStoredProducts().slice(0, 8));
+        });
+    };
 
     // Listen to custom updates (e.g. admin table add/delete) and cross-tab storage changes
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
@@ -35,7 +51,8 @@ export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
       window.removeEventListener('storage', syncProducts);
     };
-  }, []);
+  }, [initialProducts]);
+
 
   if (products.length === 0) {
     return (

@@ -1,18 +1,50 @@
 // components/storefront/SpeciesGrid.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Link } from '@/lib/i18n/navigation';
-import { SPECIES } from '@/lib/services/species';
+import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 import type { Locale } from '@/lib/i18n/config';
 
 interface SpeciesGridProps {
   locale: Locale;
+  initialSpecies?: SpeciesInfo[];
 }
 
-export function SpeciesGrid({ locale }: SpeciesGridProps) {
+export function SpeciesGrid({ locale, initialSpecies }: SpeciesGridProps) {
+  const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(
+    initialSpecies && initialSpecies.length > 0 ? initialSpecies : SPECIES.filter((s) => s.showOnHomepage !== false)
+  );
+
+  useEffect(() => {
+    if (initialSpecies && initialSpecies.length > 0) {
+      setSpeciesList(initialSpecies);
+    }
+
+    // Refresh active homepage species from API
+    const fetchHomepageSpecies = () => {
+      fetch('/api/v1/species?homepage=true')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setSpeciesList(json.data);
+          }
+        })
+        .catch((e) => console.warn('Could not fetch homepage species:', e));
+    };
+
+    fetchHomepageSpecies();
+  }, [initialSpecies]);
+
+  if (speciesList.length === 0) {
+    return null;
+  }
+
   return (
-    <section className="py-10">
+    <section className="py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground font-display">
             {locale === 'bn' ? 'প্রজাতি অনুযায়ী ক্যাটাগরি' : 'Browse by Target Species'}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -25,7 +57,7 @@ export function SpeciesGrid({ locale }: SpeciesGridProps) {
 
       {/* Bento Grid layout with asymmetric variance per Taste-Skill rules */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {SPECIES.map((s) => (
+        {speciesList.map((s) => (
           <Link
             key={s.key}
             href={`/species/${s.slug}`}
@@ -33,7 +65,7 @@ export function SpeciesGrid({ locale }: SpeciesGridProps) {
           >
             <div className="flex items-start justify-between">
               <span className="text-4xl group-hover:scale-110 transition-transform duration-200">
-                {s.emoji}
+                {s.emoji || '🐾'}
               </span>
               <span className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                 →
@@ -54,3 +86,4 @@ export function SpeciesGrid({ locale }: SpeciesGridProps) {
     </section>
   );
 }
+

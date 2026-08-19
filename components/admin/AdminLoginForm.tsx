@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/i18n/navigation';
 import { MOCK_ADMIN_ACCOUNTS, setMockAdminSession } from '@/lib/mock-data/auth';
 
 interface Props {
@@ -47,10 +47,11 @@ export function AdminLoginForm({ locale }: Props) {
 
     setTimeout(() => {
       setLoading(false);
-      router.push(`/${locale}/admin`);
+      router.push('/admin');
       router.refresh();
     }, 400);
   };
+
 
   return (
     <div className="space-y-6">

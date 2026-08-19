@@ -25,28 +25,44 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
   const [isDeleted, setIsDeleted] = useState<boolean>(false);
 
   useEffect(() => {
-    const syncProduct = () => {
-      // 1. Check if marked deleted
-      if (isProductDeleted(slug) || (initialProduct && isProductDeleted(initialProduct.id))) {
-        setIsDeleted(true);
-        setProductData(null);
-        return;
-      }
-
-      // 2. Check stored products in localStorage
+    if (initialProduct) {
+      setProductData(initialProduct);
+      setIsDeleted(false);
+    } else {
       const stored = getStoredProductBySlug(slug);
       if (stored) {
         setProductData(stored);
         setIsDeleted(false);
-      } else if (initialProduct) {
-        setProductData(initialProduct);
-        setIsDeleted(false);
       } else {
         setIsDeleted(true);
       }
-    };
+    }
 
-    syncProduct();
+    const syncProduct = () => {
+      fetch(`/api/v1/products/${slug}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data) {
+            setProductData(json.data);
+            setIsDeleted(false);
+          } else {
+            const stored = getStoredProductBySlug(slug);
+            if (stored) {
+              setProductData(stored);
+              setIsDeleted(false);
+            } else {
+              setIsDeleted(true);
+            }
+          }
+        })
+        .catch(() => {
+          const stored = getStoredProductBySlug(slug);
+          if (stored) {
+            setProductData(stored);
+            setIsDeleted(false);
+          }
+        });
+    };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProduct);
     window.addEventListener('storage', syncProduct);
@@ -56,6 +72,7 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
       window.removeEventListener('storage', syncProduct);
     };
   }, [slug, initialProduct]);
+
 
   if (isDeleted || !productData) {
     return (

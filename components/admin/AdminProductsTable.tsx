@@ -6,9 +6,12 @@ import {
   getStoredProducts,
   saveStoredCustomProduct,
   deleteStoredProduct,
+  clearAllStoredProducts,
   PRODUCTS_UPDATED_EVENT,
   type MockProduct,
 } from '@/lib/mock-data/products';
+import { type DrugClassificationInfo, DEFAULT_DRUG_CLASSIFICATIONS } from '@/lib/services/drug-classifications';
+import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 
 interface Props {
   locale: string;
@@ -28,6 +31,18 @@ export function AdminProductsTable({ locale }: Props) {
   const [campaignName, setCampaignName] = useState('poultry_boost_august');
   const [isCopied, setIsCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Dynamic classifications & categories
+  const [drugClassification, setDrugClassification] = useState('vitamins');
+  const [availableDrugClasses, setAvailableDrugClasses] = useState<DrugClassificationInfo[]>(DEFAULT_DRUG_CLASSIFICATIONS);
+  const [availableCategories, setAvailableCategories] = useState<{ id: string; slug: string; nameEn: string; nameBn: string }[]>([
+    { id: '1', slug: 'vitamins-minerals', nameEn: 'Vitamins & Supplements', nameBn: 'ভিটামিন ও খনিজ' },
+    { id: '2', slug: 'antibiotics', nameEn: 'Antibiotics', nameBn: 'অ্যান্টিবায়োটিক' },
+    { id: '3', slug: 'vaccines', nameEn: 'Vaccines', nameBn: 'ভ্যাকসিন' },
+    { id: '4', slug: 'dewormers', nameEn: 'Dewormers', nameBn: 'কৃমিনাশক' },
+    { id: '5', slug: 'disinfectants', nameEn: 'Disinfectants', nameBn: 'জীবাণুনাশক' },
+  ]);
+  const [availableSpecies, setAvailableSpecies] = useState<SpeciesInfo[]>(SPECIES);
 
   // Form states (used for both Add New and Edit)
   const [nameEn, setNameEn] = useState('Beximco Cal-D-Mag Plus Vet Liquid 1L');
@@ -51,24 +66,73 @@ export function AdminProductsTable({ locale }: Props) {
   const [imageKey, setImageKey] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load custom products and apply deleted filter
+  // Load live DB products, classifications, categories, species
   useEffect(() => {
-    const sync = () => {
+    const fetchLiveProducts = async () => {
+      try {
+        const res = await fetch('/api/v1/products?pageSize=100');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setProducts(json.data);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('API fetch failed, using stored fallback:', err);
+      }
       setProducts(getStoredProducts());
     };
 
-    sync();
+    const fetchOptions = async () => {
+      try {
+        const [dcRes, catRes, spRes] = await Promise.all([
+          fetch('/api/v1/drug-classifications'),
+          fetch('/api/v1/admin/categories'),
+          fetch('/api/v1/species'),
+        ]);
 
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, sync);
-    window.addEventListener('storage', sync);
+        if (dcRes.ok) {
+          const json = await dcRes.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setAvailableDrugClasses(json.data);
+          }
+        }
+
+        if (catRes.ok) {
+          const json = await catRes.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setAvailableCategories(json.data);
+          }
+        }
+
+        if (spRes.ok) {
+          const json = await spRes.json();
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setAvailableSpecies(json.data);
+          }
+        }
+      } catch (err) {
+        console.warn('Options fetch error:', err);
+      }
+    };
+
+    fetchLiveProducts();
+    fetchOptions();
+
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, fetchLiveProducts);
+    window.addEventListener('storage', fetchLiveProducts);
+    window.addEventListener('custom-products-updated', fetchOptions);
 
     return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, sync);
-      window.removeEventListener('storage', sync);
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, fetchLiveProducts);
+      window.removeEventListener('storage', fetchLiveProducts);
+      window.removeEventListener('custom-products-updated', fetchOptions);
     };
   }, []);
 
@@ -79,6 +143,7 @@ export function AdminProductsTable({ locale }: Props) {
     setNameBn(prod.nameBn || prod.nameEn);
     setGenericName(prod.genericName || '');
     setCategory(prod.categorySlug || 'vitamins-minerals');
+    setDrugClassification(prod.drugClassificationSlug || 'vitamins');
     setManufacturer(prod.manufacturerName || '');
     setTargetSpecies(prod.targetSpecies || ['cattle', 'poultry']);
     setMrp((prod.mrp / 100).toFixed(2));
@@ -102,6 +167,7 @@ export function AdminProductsTable({ locale }: Props) {
     setNameBn('বেক্সিমকো ক্যাল-ডি-ম্যাগ প্লাস ভেট লিকুইড ১ লিটার');
     setGenericName('Calcium + Magnesium + Vitamin D3');
     setCategory('vitamins-minerals');
+    setDrugClassification('vitamins');
     setManufacturer('Beximco Pharmaceuticals Ltd');
     setTargetSpecies(['cattle', 'poultry', 'goat-sheep']);
     setMrp('520');
@@ -118,6 +184,7 @@ export function AdminProductsTable({ locale }: Props) {
     setImageFileName(null);
     setIsEnrollOpen(true);
   };
+
 
   // Handle image upload from file picker / dropzone
   const handleFileProcess = async (file: File) => {
@@ -174,112 +241,158 @@ export function AdminProductsTable({ locale }: Props) {
   // Handle Save (Add New or Edit)
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    if (editingProduct) {
-      // EDIT MODE
-      const updatedProduct: MockProduct = {
-        ...editingProduct,
-        nameEn,
-        nameBn: nameBn || nameEn,
-        genericName,
-        categorySlug: category,
-        categoryNameEn: category === 'antibiotics' ? 'Antibiotics & Antimicrobials' : 'Vitamins & Minerals',
-        categoryNameBn: category === 'antibiotics' ? 'অ্যান্টিবায়োটিক' : 'ভিটামিন ও খনিজ',
-        manufacturerName: manufacturer,
-        targetSpecies,
-        mrp: Math.round(parseFloat(mrp || '0') * 100),
-        salePrice: Math.round(parseFloat(salePrice || '0') * 100),
-        vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
-        requiresPrescription: requiresRx,
-        requiresColdChain: coldChain,
-        coldChain,
-        dgdaRegNo,
-        batchNo,
-        expiryDate,
-        mfgDate,
-        stockQty: parseInt(initialStock || '0', 10),
-        imageUrl: imageUrl || editingProduct.imageUrl,
-        banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
-      };
+    const selectedDc = availableDrugClasses.find((d) => d.slug === drugClassification);
+    const selectedCat = availableCategories.find((c) => c.slug === category);
 
-      const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
-      setProducts(updatedList);
+    const dcNameEn = selectedDc?.nameEn || 'Feed Additives & Vitamins';
+    const dcNameBn = selectedDc?.nameBn || 'ফিড অ্যাডিটিভস ও ভিটামিন';
+    const catNameEn = selectedCat?.nameEn || (category === 'antibiotics' ? 'Antibiotics & Antimicrobials' : 'Vitamins & Minerals');
+    const catNameBn = selectedCat?.nameBn || (category === 'antibiotics' ? 'অ্যান্টিবায়োটিক' : 'ভিটামিন ও খনিজ');
 
-      // Save to centralized client storage & broadcast
-      saveStoredCustomProduct(updatedProduct);
-      setProducts(getStoredProducts());
+    try {
+      if (editingProduct) {
+        // EDIT MODE
+        const updatedProduct: MockProduct = {
+          ...editingProduct,
+          nameEn,
+          nameBn: nameBn || nameEn,
+          genericName,
+          categorySlug: category,
+          categoryNameEn: catNameEn,
+          categoryNameBn: catNameBn,
+          drugClassificationSlug: drugClassification,
+          drugClassificationNameEn: dcNameEn,
+          drugClassificationNameBn: dcNameBn,
+          manufacturerName: manufacturer,
+          targetSpecies,
+          mrp: Math.round(parseFloat(mrp || '0') * 100),
+          salePrice: Math.round(parseFloat(salePrice || '0') * 100),
+          vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
+          requiresPrescription: requiresRx,
+          requiresColdChain: coldChain,
+          coldChain,
+          dgdaRegNo,
+          batchNo,
+          expiryDate,
+          mfgDate,
+          stockQty: parseInt(initialStock || '0', 10),
+          imageUrl: imageUrl || editingProduct.imageUrl,
+          banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
+        };
 
-      // Call PUT API route
-      fetch(`/api/v1/admin/products/${editingProduct.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...updatedProduct,
-          imageKey,
-        }),
-      }).catch((err) => console.warn('API update warning:', err));
+        const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
+        setProducts(updatedList);
 
-      setEditingProduct(null);
-      setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
-      setTimeout(() => setToastMessage(null), 4000);
-    } else {
-      // ADD NEW MODE
-      const slug = nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const newProduct: MockProduct & { imageKey?: string } = {
-        id: `prod-custom-${Date.now()}`,
-        slug: slug || `custom-sku-${Date.now()}`,
-        sku: `VET-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-        nameEn,
-        nameBn: nameBn || nameEn,
-        genericName,
-        categorySlug: category,
-        categoryNameEn: category === 'antibiotics' ? 'Antibiotics & Antimicrobials' : 'Vitamins & Minerals',
-        categoryNameBn: category === 'antibiotics' ? 'অ্যান্টিবায়োটিক' : 'ভিটামিন ও খনিজ',
-        manufacturerName: manufacturer,
-        strength: 'Liquid Form',
-        dosageForm: 'Oral Solution',
-        packSize: '1 Liter Bottle',
-        packUnit: 'bottle',
-        targetSpecies,
-        mrp: Math.round(parseFloat(mrp || '0') * 100),
-        salePrice: Math.round(parseFloat(salePrice || '0') * 100),
-        vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
-        requiresPrescription: requiresRx,
-        requiresColdChain: coldChain,
-        isAntimicrobial: false,
-        coldChain,
-        dgdaRegNo,
-        batchNo,
-        expiryDate,
-        mfgDate,
-        stockQty: parseInt(initialStock || '0', 10),
-        imageUrl: imageUrl || '/images/cal-d-mag.jpg',
-        banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
-        descriptionEn: `High-potency veterinary calcium, magnesium and vitamin D3 formulation manufactured by ${manufacturer}.`,
-        descriptionBn: `${manufacturer} দ্বারা প্রস্তুতকৃত উচ্চমানের ভেটেরিনারি ক্যালসিয়াম, ম্যাগনেসিয়াম ও ভিটামিন ডি৩ দ্রবণ।`,
-        dosageEn: 'Cattle: 100ml daily. Poultry: 1ml per 2L drinking water.',
-        dosageBn: 'গবাদিপশু: দৈনিক ১০০ মি.লি.। পোল্ট্রি: ২ লিটার পানিতে ১ মি.লি.।',
-      };
+        // Save to centralized client storage & broadcast
+        saveStoredCustomProduct(updatedProduct);
+        setProducts(getStoredProducts());
 
-      // Save to centralized client storage & broadcast
-      saveStoredCustomProduct(newProduct);
-      setProducts(getStoredProducts());
+        // Call PUT API route
+        try {
+          const res = await fetch(`/api/v1/admin/products/${editingProduct.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...updatedProduct,
+              imageKey,
+            }),
+          });
+          if (res.ok) {
+            const listRes = await fetch('/api/v1/products?pageSize=100');
+            if (listRes.ok) {
+              const json = await listRes.json();
+              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                setProducts(json.data);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('API update warning:', err);
+        }
 
-      // Send POST API call to create product in DB if available
-      fetch('/api/v1/admin/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newProduct,
-          imageKey,
-        }),
-      }).catch((err) => console.warn('API create warning:', err));
+        setEditingProduct(null);
+        setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
+        setTimeout(() => setToastMessage(null), 4000);
+      } else {
+        // ADD NEW MODE
+        const slug = nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const newProduct: MockProduct & { imageKey?: string } = {
+          id: `prod-custom-${Date.now()}`,
+          slug: slug || `custom-sku-${Date.now()}`,
+          sku: `VET-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+          nameEn,
+          nameBn: nameBn || nameEn,
+          genericName,
+          categorySlug: category,
+          categoryNameEn: catNameEn,
+          categoryNameBn: catNameBn,
+          drugClassificationSlug: drugClassification,
+          drugClassificationNameEn: dcNameEn,
+          drugClassificationNameBn: dcNameBn,
+          manufacturerName: manufacturer,
+          strength: 'Liquid Form',
+          dosageForm: 'Oral Solution',
+          packSize: '1 Liter Bottle',
+          packUnit: 'bottle',
+          targetSpecies,
+          mrp: Math.round(parseFloat(mrp || '0') * 100),
+          salePrice: Math.round(parseFloat(salePrice || '0') * 100),
+          vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
+          requiresPrescription: requiresRx,
+          requiresColdChain: coldChain,
+          isAntimicrobial: false,
+          coldChain,
+          dgdaRegNo,
+          batchNo,
+          expiryDate,
+          mfgDate,
+          stockQty: parseInt(initialStock || '0', 10),
+          imageUrl: imageUrl || '/images/cal-d-mag.jpg',
+          banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
+          descriptionEn: `High-potency veterinary formulation manufactured by ${manufacturer}.`,
+          descriptionBn: `${manufacturer} দ্বারা প্রস্তুতকৃত উচ্চমানের ভেটেরিনারি পণ্য।`,
+          dosageEn: 'As directed by registered veterinary practitioner.',
+          dosageBn: 'রেজিস্টার্ড ভেটেরিনারি চিকিৎসকের পরামর্শ অনুযায়ী ব্যবহার্য।',
+        };
 
-      setIsEnrollOpen(false);
-      setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
-      setTimeout(() => setToastMessage(null), 4000);
+
+        // Save to centralized client storage & broadcast
+        saveStoredCustomProduct(newProduct);
+
+        // Send POST API call to create product in DB
+        try {
+          const res = await fetch('/api/v1/admin/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...newProduct,
+              imageKey,
+            }),
+          });
+          if (res.ok) {
+            const listRes = await fetch('/api/v1/products?pageSize=100');
+            if (listRes.ok) {
+              const json = await listRes.json();
+              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                setProducts(json.data);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('API create warning:', err);
+        }
+
+        setIsEnrollOpen(false);
+        setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
 
   // Cascade Delete Product and Images
   const handleDeleteConfirm = async () => {
@@ -292,13 +405,25 @@ export function AdminProductsTable({ locale }: Props) {
 
     try {
       // 1. Send API cascade delete call (removes stored image and deletes DB record)
-      await fetch(`/api/v1/admin/products/${targetId}?imageKey=${encodeURIComponent(targetImgKey || '')}`, {
+      const res = await fetch(`/api/v1/admin/products/${targetId}?imageKey=${encodeURIComponent(targetImgKey || '')}`, {
         method: 'DELETE',
       }).catch((e) => console.warn('API delete warning:', e));
 
       // 2. Permanently delete from centralized storage & broadcast to all tabs/pages
       deleteStoredProduct(targetId, targetSlug);
-      setProducts(getStoredProducts());
+
+      const listRes = await fetch('/api/v1/products?pageSize=100');
+      if (listRes && listRes.ok) {
+        const json = await listRes.json();
+        if (json.data && Array.isArray(json.data)) {
+          setProducts(json.data);
+        } else {
+          setProducts(getStoredProducts());
+        }
+      } else {
+        setProducts(getStoredProducts());
+      }
+
 
       setToastMessage(
         isBn
@@ -439,8 +564,21 @@ export function AdminProductsTable({ locale }: Props) {
                         )}
                         <div>
                           <div className="font-bold text-[#2F3437] text-xs">{isBn ? prod.nameBn : prod.nameEn}</div>
-                          <div className="text-[10px] text-[#787774]">{prod.manufacturerName}</div>
+                          <div className="text-[10px] text-[#787774] flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span>{prod.manufacturerName}</span>
+                            {prod.drugClassificationSlug && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[9px] border border-blue-200">
+                                💊 {prod.drugClassificationNameEn || prod.drugClassificationSlug}
+                              </span>
+                            )}
+                            {prod.categorySlug && (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold text-[9px] border border-purple-200">
+                                🏷️ {prod.categorySlug}
+                              </span>
+                            )}
+                          </div>
                         </div>
+
                       </div>
                     </td>
                     <td className="px-4 py-3.5 font-mono text-xs text-emerald-800">
@@ -715,6 +853,92 @@ export function AdminProductsTable({ locale }: Props) {
                 </div>
               </div>
 
+              {/* ═══ DRUG CLASSIFICATION & CATEGORY DROPDOWNS ═══ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                <div>
+                  <label className="block text-[#2F3437] font-bold mb-1 flex items-center gap-1.5">
+                    <span>💊</span>
+                    <span>{isBn ? 'ঔষধের শ্রেণিবিভাগ (Drug Classification) *' : 'Drug Classification (Menu Class) *'}</span>
+                  </label>
+                  <select
+                    value={drugClassification}
+                    onChange={(e) => setDrugClassification(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#EAEAEA] text-[#2F3437] font-semibold text-xs focus:ring-2 focus:ring-blue-500/30 cursor-pointer"
+                  >
+                    {availableDrugClasses.map((dc) => (
+                      <option key={dc.slug} value={dc.slug}>
+                        {dc.emoji} {isBn ? dc.nameBn : dc.nameEn} ({dc.slug})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-[#787774] mt-1">
+                    {isBn ? 'হেডার মেগা-মেনুর যে কলামের অধীনে পণ্যটি থাকবে' : 'Determines classification under Mega-Menu'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[#2F3437] font-bold mb-1 flex items-center gap-1.5">
+                    <span>🏷️</span>
+                    <span>{isBn ? 'পণ্যের সাধারণ ক্যাটাগরি *' : 'General Product Category *'}</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#EAEAEA] text-[#2F3437] font-semibold text-xs focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
+                  >
+                    {availableCategories.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        🏷️ {isBn ? c.nameBn : c.nameEn}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-[#787774] mt-1">
+                    {isBn ? 'পণ্যের সাধারণ ক্যাটালগ শ্রেণি' : 'General catalog taxonomy group'}
+                  </p>
+                </div>
+              </div>
+
+              {/* ═══ TARGET SPECIES MULTI-SELECTOR ═══ */}
+              <div className="space-y-1.5 p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-200/70">
+                <label className="block text-emerald-950 font-bold flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span>🐾</span>
+                    <span>{isBn ? 'লক্ষ্য প্রাণী ও খামার প্রজাতি (Target Species)' : 'Target Animal Species'}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-normal">
+                    {isBn ? 'এক বা একাধিক প্রাণী নির্বাচন করুন' : 'Select all animals that apply'}
+                  </span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {availableSpecies.map((sp) => {
+                    const isSelected = targetSpecies.includes(sp.key) || targetSpecies.includes(sp.slug);
+                    return (
+                      <button
+                        key={sp.key}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setTargetSpecies(targetSpecies.filter((k) => k !== sp.key && k !== sp.slug));
+                          } else {
+                            setTargetSpecies([...targetSpecies, sp.key]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 border ${
+                          isSelected
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs scale-102'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <span className="text-sm">{sp.emoji}</span>
+                        <span>{isBn ? sp.nameBn : sp.nameEn}</span>
+                        {isSelected && <span>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+
               {/* Clean Product Image Section with Upload Dropzone + Direct URL Input */}
               <div className="space-y-2 pt-1">
                 <label className="block text-[#5F6368] font-bold">
@@ -869,21 +1093,40 @@ export function AdminProductsTable({ locale }: Props) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploadingImage}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold shadow-md transition-all cursor-pointer"
+                  disabled={isUploadingImage || isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:bg-emerald-400 text-white font-bold shadow-md transition-all cursor-pointer inline-flex items-center justify-center gap-2 min-w-[140px]"
                 >
-                  {isUploadingImage
-                    ? isBn
-                      ? 'ছবি আপলোড হচ্ছে...'
-                      : 'Uploading Image...'
-                    : editingProduct
-                    ? isBn
-                      ? 'পরিবর্তন সংরক্ষণ করুন'
-                      : 'Save Changes'
-                    : isBn
-                    ? 'পণ্য তালিকাভুক্ত করুন'
-                    : 'Enroll Product'}
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>
+                        {editingProduct
+                          ? isBn
+                            ? 'সংরক্ষণ হচ্ছে...'
+                            : 'Saving...'
+                          : isBn
+                          ? 'তালিকাভুক্ত হচ্ছে...'
+                          : 'Enrolling...'}
+                      </span>
+                    </>
+                  ) : isUploadingImage ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>{isBn ? 'ছবি আপলোড হচ্ছে...' : 'Uploading Image...'}</span>
+                    </>
+                  ) : editingProduct ? (
+                    <span>{isBn ? 'পরিবর্তন সংরক্ষণ করুন' : 'Save Changes'}</span>
+                  ) : (
+                    <span>{isBn ? 'পণ্য তালিকাভুক্ত করুন' : 'Enroll Product'}</span>
+                  )}
                 </button>
+
               </div>
             </form>
           </div>

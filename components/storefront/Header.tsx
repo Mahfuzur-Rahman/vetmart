@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Link } from '@/lib/i18n/navigation';
-import { SPECIES } from '@/lib/services/species';
+import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
+import { DEFAULT_DRUG_CLASSIFICATIONS, type DrugClassificationInfo } from '@/lib/services/drug-classifications';
 import { fmtNumber } from '@/lib/i18n/number';
 import { useCart } from '@/lib/context/CartContext';
 import { getMockCustomerSession, clearMockCustomerSession, type MockCustomerSession } from '@/lib/mock-data/auth';
@@ -12,16 +13,9 @@ import type { Locale } from '@/lib/i18n/config';
 interface HeaderProps {
   locale: Locale;
   cartCount?: number;
+  initialSpecies?: SpeciesInfo[];
+  initialDrugClassifications?: DrugClassificationInfo[];
 }
-
-const PHARMA_CATEGORIES = [
-  { slug: 'vaccine', nameEn: 'Vaccines & Biologicals', nameBn: 'ভ্যাকসিন ও বায়োলজিক্যালস', emoji: '💉', descEn: 'Cold-chain guaranteed viral & bacterial vaccines', descBn: 'কোল্ড-চেইন নিশ্চিত ভাইরাল ও ব্যাকটেরিয়াল ভ্যাকসিন' },
-  { slug: 'antibiotics', nameEn: 'Antibiotics & Anti-infectives', nameBn: 'অ্যান্টিবায়োটিক ও রেজিস্টার্ড ওষুধ', emoji: '💊', descEn: 'Injectables, bolus & oral antibiotics with withdrawal info', descBn: 'ইনজেকশন, বোলাস ও ওরাল অ্যান্টিবায়োটিক' },
-  { slug: 'vitamins', nameEn: 'Feed Additives & Vitamins', nameBn: 'ফিড অ্যাডিটিভস ও ভিটামিন', emoji: '🌾', descEn: 'Growth promoters, premixes & liquid vitamins', descBn: 'গ্রোথ প্রমোটার, প্রিমিক্স ও লিকুইড ভিটামিন' },
-  { slug: 'disinfectants', nameEn: 'Disinfectants & Biosecurity', nameBn: 'বায়ো-সিকিউরিটি ও ডিসইনফেক্টেন্ট', emoji: '🧼', descEn: 'Shed sanitizers, water purifiers & foot dip solutions', descBn: 'শেড জীবাণুনাশক ও পানি বিশুদ্ধকরণ' },
-  { slug: 'dewormers', nameEn: 'Dewormers & Parasiticides', nameBn: 'কৃমিনাশক বোলুস ও ড্রেঞ্চ', emoji: '🧪', descEn: 'Broad-spectrum dewormers & ectoparasite drops', descBn: 'ব্রড-স্পেকট্রাম কৃমিনাশক ও পরজীবীনাশক' },
-  { slug: 'hormones', nameEn: 'Reproductive & Hormones', nameBn: 'প্রজনন ও হরমোন প্রিপারেশন', emoji: '🧬', descEn: 'AI estrus synchronization & fertility boosters', descBn: 'কৃত্রিম প্রজনন ও হরমোন ব্যবস্থাপনা' },
-];
 
 const SERVICES_LINKS = [
   { href: '/products?category=vaccine', nameEn: 'Cold-Chain Delivery Specs', nameBn: 'কোল্ড-চেইন শিপিং তথ্য', emoji: '❄️', tagEn: '2°C–8°C Icebox', tagBn: '২°-৮° সে. কোল্ড বক্স' },
@@ -30,14 +24,66 @@ const SERVICES_LINKS = [
   { href: '/products', nameEn: 'Bulk Farm Supply Orders', nameBn: 'খামারের পাইকারি অর্ডার', emoji: '📦', tagEn: 'Wholesale Pricing', tagBn: 'পাইকারি রেট সুবিধা' },
 ];
 
-export function Header({ locale, cartCount = 0 }: HeaderProps) {
+export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClassifications }: HeaderProps) {
   const { itemCount } = useCart();
   const effectiveCartCount = cartCount > 0 ? cartCount : itemCount;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [customer, setCustomer] = useState<MockCustomerSession | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(
+    initialSpecies && initialSpecies.length > 0
+      ? initialSpecies
+      : SPECIES.filter((s) => s.showOnHomepage !== false)
+  );
+  const [pharmaCategories, setPharmaCategories] = useState<DrugClassificationInfo[]>(
+    initialDrugClassifications && initialDrugClassifications.length > 0
+      ? initialDrugClassifications
+      : DEFAULT_DRUG_CLASSIFICATIONS.filter((d) => d.showOnMenu !== false)
+  );
   const megaMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialSpecies && initialSpecies.length > 0) {
+      setSpeciesList(initialSpecies);
+    }
+    if (initialDrugClassifications && initialDrugClassifications.length > 0) {
+      setPharmaCategories(initialDrugClassifications);
+    }
+
+    const fetchActiveSpecies = () => {
+      fetch('/api/v1/species?homepage=true')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setSpeciesList(json.data);
+          }
+        })
+        .catch((e) => console.warn('Could not fetch active species for header:', e));
+    };
+
+    const fetchActivePharma = () => {
+      fetch('/api/v1/drug-classifications?menu=true')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setPharmaCategories(json.data);
+          }
+        })
+        .catch((e) => console.warn('Could not fetch active drug classifications for header:', e));
+    };
+
+    fetchActiveSpecies();
+    fetchActivePharma();
+
+    window.addEventListener('custom-products-updated', fetchActiveSpecies);
+    window.addEventListener('custom-products-updated', fetchActivePharma);
+    return () => {
+      window.removeEventListener('custom-products-updated', fetchActiveSpecies);
+      window.removeEventListener('custom-products-updated', fetchActivePharma);
+    };
+  }, [initialSpecies, initialDrugClassifications]);
+
 
   useEffect(() => {
     setCustomer(getMockCustomerSession());
@@ -49,6 +95,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
 
   // Close mega menu on outside click or escape
   useEffect(() => {
@@ -348,7 +395,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                       <span>{locale === 'bn' ? 'প্রজাতি ও গবাদিপশু' : 'Species & Livestock'}</span>
                     </div>
                     <div className="space-y-1">
-                      {SPECIES.map((s) => (
+                      {speciesList.map((s) => (
                         <Link
                           key={s.key}
                           href={`/species/${s.slug}`}
@@ -362,6 +409,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                         </Link>
                       ))}
                     </div>
+
                   </div>
 
                   {/* Column 2: Pharmacological Medicine Categories */}
@@ -371,7 +419,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                       <span>{locale === 'bn' ? 'ওষুধের ক্যাটাগরি' : 'Drug Classifications'}</span>
                     </div>
                     <div className="space-y-1.5">
-                      {PHARMA_CATEGORIES.map((cat) => (
+                      {pharmaCategories.map((cat) => (
                         <Link
                           key={cat.slug}
                           href={`/products?category=${cat.slug}`}
@@ -382,12 +430,13 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                           <div>
                             <div className="font-semibold leading-tight">{locale === 'bn' ? cat.nameBn : cat.nameEn}</div>
                             <div className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                              {locale === 'bn' ? cat.descBn : cat.descEn}
+                              {locale === 'bn' ? cat.descriptionBn || cat.descriptionEn : cat.descriptionEn || cat.descriptionBn}
                             </div>
                           </div>
                         </Link>
                       ))}
                     </div>
+
                   </div>
 
                   {/* Column 3: Fast Vet Services & Trust Support */}
@@ -423,7 +472,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
 
             {/* Quick Species Badges (Horizontal Row) */}
             <div className="flex items-center gap-1 px-2 overflow-x-auto scrollbar-hide py-1.5">
-              {SPECIES.map((s) => (
+              {speciesList.map((s) => (
                 <Link
                   key={s.key}
                   href={`/species/${s.slug}`}
@@ -434,6 +483,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                 </Link>
               ))}
             </div>
+
           </div>
 
           {/* Quick Highlight Links on Right */}
@@ -530,7 +580,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                   {locale === 'bn' ? 'ওষুধের ক্যাটাগরি' : 'Medicine Categories'}
                 </span>
                 <div className="grid grid-cols-1 gap-1.5">
-                  {PHARMA_CATEGORIES.map((cat) => (
+                  {pharmaCategories.map((cat) => (
                     <Link
                       key={cat.slug}
                       href={`/products?category=${cat.slug}`}
@@ -545,6 +595,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                     </Link>
                   ))}
                 </div>
+
               </div>
 
               {/* Species Grid */}
@@ -553,7 +604,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                   {locale === 'bn' ? 'প্রজাতি অনুযায়ী ক্যাটাগরি' : 'Browse by Species'}
                 </span>
                 <div className="grid grid-cols-2 gap-2">
-                  {SPECIES.map((s) => (
+                  {speciesList.map((s) => (
                     <Link
                       key={s.key}
                       href={`/species/${s.slug}`}
@@ -565,6 +616,7 @@ export function Header({ locale, cartCount = 0 }: HeaderProps) {
                     </Link>
                   ))}
                 </div>
+
               </div>
 
               {/* User Account / Auth Section */}

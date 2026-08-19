@@ -1,13 +1,18 @@
 // lib/services/species.ts
-// Species navigation — the primary browsing axis for BD veterinary e-commerce (§2 rule 1, §7)
+// Species navigation — client-safe definitions, types, and fallback data (§2 rule 1, §7)
 import type { Locale } from '@/lib/i18n/config';
 
 export interface SpeciesInfo {
+  id?: string;
   key: string;
   nameEn: string;
   nameBn: string;
   emoji: string;
   slug: string;
+  imagePath?: string | null;
+  sort?: number;
+  showOnHomepage?: boolean;
+  isActive?: boolean;
   description?: {
     en: string;
     bn: string;
@@ -16,16 +21,18 @@ export interface SpeciesInfo {
 
 /**
  * The canonical species list (§7).
- * Static — species don't change at runtime. This avoids a DB round-trip for the
- * most-used navigation element on every page load.
+ * Static — client-safe navigation definitions.
  */
 export const SPECIES: SpeciesInfo[] = [
   {
     key: 'cattle',
-    nameEn: 'Cattle',
-    nameBn: 'গরু',
+    nameEn: 'Cattle (Cow)',
+    nameBn: 'গরু (গবাদিপশু)',
     emoji: '🐄',
     slug: 'cattle',
+    sort: 1,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Medicines, vaccines & supplements for cattle',
       bn: 'গরুর জন্য ওষুধ, ভ্যাকসিন ও সাপ্লিমেন্ট',
@@ -37,6 +44,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'মহিষ',
     emoji: '🐃',
     slug: 'buffalo',
+    sort: 2,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Medicines & supplements for buffalo',
       bn: 'মহিষের জন্য ওষুধ ও সাপ্লিমেন্ট',
@@ -48,6 +58,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'ছাগল ও ভেড়া',
     emoji: '🐐',
     slug: 'goat-sheep',
+    sort: 3,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Dewormers, vaccines & nutrition for goat and sheep',
       bn: 'ছাগল ও ভেড়ার কৃমিনাশক, ভ্যাকসিন ও পুষ্টি',
@@ -56,9 +69,12 @@ export const SPECIES: SpeciesInfo[] = [
   {
     key: 'poultry',
     nameEn: 'Poultry',
-    nameBn: 'পোল্ট্রি',
+    nameBn: 'পোল্ট্রি (হাঁস-মুরগি)',
     emoji: '🐔',
     slug: 'poultry',
+    sort: 4,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Antibiotics, vitamins & premixes for poultry',
       bn: 'পোল্ট্রির অ্যান্টিবায়োটিক, ভিটামিন ও প্রিমিক্স',
@@ -70,6 +86,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'মাছ ও মৎস্য চাষ',
     emoji: '🐟',
     slug: 'fish',
+    sort: 5,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Probiotics, minerals & treatments for fish farming',
       bn: 'মাছ চাষের প্রোবায়োটিক, মিনারেল ও চিকিৎসা',
@@ -81,6 +100,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'কুকুর',
     emoji: '🐕',
     slug: 'dog',
+    sort: 6,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Pet medicine, vaccines & nutrition for dogs',
       bn: 'কুকুরের ওষুধ, ভ্যাকসিন ও পুষ্টি',
@@ -92,6 +114,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'বিড়াল',
     emoji: '🐈',
     slug: 'cat',
+    sort: 7,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Pet medicine & nutrition for cats',
       bn: 'বিড়ালের ওষুধ ও পুষ্টি',
@@ -103,6 +128,9 @@ export const SPECIES: SpeciesInfo[] = [
     nameBn: 'কবুতর',
     emoji: '🕊️',
     slug: 'pigeon',
+    sort: 8,
+    showOnHomepage: true,
+    isActive: true,
     description: {
       en: 'Medicines & supplements for pigeons',
       bn: 'কবুতরের ওষুধ ও সাপ্লিমেন্ট',
@@ -114,7 +142,7 @@ export const SPECIES: SpeciesInfo[] = [
  * Get localized species name.
  */
 export function getSpeciesName(key: string, locale: Locale): string {
-  const species = SPECIES.find((s) => s.key === key);
+  const species = SPECIES.find((s) => s.key === key || s.slug === key);
   if (!species) return key;
   return locale === 'bn' ? species.nameBn : species.nameEn;
 }
@@ -123,7 +151,7 @@ export function getSpeciesName(key: string, locale: Locale): string {
  * Look up species info by its URL slug (e.g. 'goat-sheep' → goat_sheep).
  */
 export function getSpeciesBySlug(slug: string): SpeciesInfo | undefined {
-  return SPECIES.find((s) => s.slug === slug);
+  return SPECIES.find((s) => s.slug === slug || s.key === slug);
 }
 
 /**

@@ -1,8 +1,20 @@
-// app/api/v1/species/route.ts
-// GET /api/v1/species — Static species list (§9)
-import { SPECIES } from '@/lib/services/species';
-import { apiSuccess } from '@/lib/api/response';
+import { NextRequest } from 'next/server';
+import { listSpecies } from '@/lib/services/species-server';
+import { apiSuccess, apiError } from '@/lib/api/response';
 
-export async function GET() {
-  return apiSuccess(SPECIES);
+
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const homepageOnly = url.searchParams.get('homepage') === 'true';
+
+    const items = await listSpecies({
+      isActive: true,
+      showOnHomepage: homepageOnly ? true : undefined,
+    });
+
+    return apiSuccess(items);
+  } catch (err: any) {
+    return apiError('SPECIES_QUERY_FAILED', err?.message || 'Failed to query species', 500);
+  }
 }

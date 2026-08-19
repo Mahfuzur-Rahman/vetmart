@@ -14,12 +14,16 @@ export async function PUT(req: NextRequest, { params }: Props) {
     const { id } = await params;
     const body = await req.json();
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const lookupCondition = isUuid ? eq(products.id, id) : eq(products.slug, id);
+
     try {
       // Attempt DB update if connected
       const [existing] = await db
         .select({ id: products.id })
         .from(products)
-        .where(or(eq(products.id, id), eq(products.slug, id)));
+        .where(lookupCondition);
+
 
       if (existing) {
         await db
@@ -93,12 +97,16 @@ export async function DELETE(req: NextRequest, { params }: Props) {
       }
     }
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const lookupCondition = isUuid ? eq(products.id, id) : eq(products.slug, id);
+
     try {
       // Attempt database lookup
       const [product] = await db
         .select({ id: products.id, slug: products.slug })
         .from(products)
-        .where(or(eq(products.id, id), eq(products.slug, id)));
+        .where(lookupCondition);
+
 
       if (product) {
         // Fetch all stored image records for this product

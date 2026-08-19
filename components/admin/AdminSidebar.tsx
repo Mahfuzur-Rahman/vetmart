@@ -32,6 +32,14 @@ const NAV_ITEMS: NavItem[] = [
     permission: 'product.read',
   },
   {
+    label: { en: 'Categories & Classifications', bn: 'ক্যাটাগরি ও শ্রেণিবিভাগ' },
+    href: '/admin/categories',
+    icon: '🏷️',
+    permission: 'category.read',
+  },
+
+
+  {
     label: { en: 'Stock & Batches', bn: 'স্টক ও ব্যাচ' },
     href: '/admin/stock',
     icon: '📦',
@@ -76,9 +84,10 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
 
   const handleLogout = () => {
     clearMockAdminSession();
-    router.push(`/${locale}/admin/login`);
+    router.push('/admin/login');
     router.refresh();
   };
+
 
   const hasPerm = (perm?: string) => {
     if (!perm) return true;

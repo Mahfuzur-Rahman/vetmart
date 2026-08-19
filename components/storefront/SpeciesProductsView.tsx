@@ -31,15 +31,32 @@ export function SpeciesProductsView({
   const [products, setProducts] = useState<any[]>(initialItems);
 
   useEffect(() => {
-    const syncProducts = () => {
+    if (initialItems && initialItems.length > 0) {
+      setProducts(initialItems);
+    } else {
       const stored = getStoredProducts();
       const filtered = stored.filter(
         (p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)
       );
       setProducts(filtered);
-    };
+    }
 
-    syncProducts();
+    const syncProducts = () => {
+      fetch(`/api/v1/products?species=${encodeURIComponent(speciesKey)}&pageSize=48`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setProducts(json.data);
+          } else {
+            const stored = getStoredProducts();
+            setProducts(stored.filter((p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)));
+          }
+        })
+        .catch(() => {
+          const stored = getStoredProducts();
+          setProducts(stored.filter((p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)));
+        });
+    };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
     window.addEventListener('storage', syncProducts);
@@ -48,7 +65,8 @@ export function SpeciesProductsView({
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
       window.removeEventListener('storage', syncProducts);
     };
-  }, [speciesKey]);
+  }, [speciesKey, initialItems]);
+
 
   return (
     <div className="space-y-8">

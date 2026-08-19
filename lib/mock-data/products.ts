@@ -46,7 +46,11 @@ export interface MockProduct {
   categorySlug: string;
   categoryNameEn: string;
   categoryNameBn: string;
+  drugClassificationSlug?: string;
+  drugClassificationNameEn?: string;
+  drugClassificationNameBn?: string;
   manufacturerName: string;
+
   strength: string;
   dosageForm: string;
   packSize: string;
@@ -355,10 +359,11 @@ export const SEED_PRODUCTS: MockProduct[] = [
   },
 ];
 
-// Empty active catalog so testers can test each product creation, update, and deletion cleanly
+// Empty active catalog - all products are created and managed via database
 export const MOCK_PRODUCTS: MockProduct[] = [];
 
 export const STORAGE_KEY = 'vetmart_custom_products';
+
 export const DELETED_KEY = 'vetmart_deleted_product_ids';
 export const PRODUCTS_UPDATED_EVENT = 'vetmart_products_updated';
 
@@ -511,5 +516,22 @@ export function deleteStoredProduct(id: string, slug?: string): void {
     console.error('Failed to delete stored product:', err);
   }
 }
+
+/**
+ * Clear all custom products and reset storage.
+ */
+export function clearAllStoredProducts(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(DELETED_KEY);
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT, { detail: { type: 'clear' } }));
+    }
+  } catch (err) {
+    console.error('Failed to clear stored products:', err);
+  }
+}
+
 
 

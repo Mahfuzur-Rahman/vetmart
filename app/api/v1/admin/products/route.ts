@@ -2,8 +2,9 @@
 // POST /api/v1/admin/products — Create new product (§5, §10)
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { products, productImages } from '@/lib/db/schema';
+import { products, productImages, productBatches, stockLedger } from '@/lib/db/schema';
 import { apiSuccess, apiError } from '@/lib/api/response';
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,21 +43,51 @@ export async function POST(req: NextRequest) {
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
-        }).returning({ id: products.id });
+        }).returning({ id: products.id, slug: products.slug, sku: products.sku });
 
-        if (inserted && (body.imageUrl || body.imageKey)) {
-          const basePath = body.imageKey || body.imageUrl;
-          await db.insert(productImages).values({
+        if (inserted) {
+          if (body.imageUrl || body.imageKey) {
+            const basePath = body.imageKey || body.imageUrl;
+            await db.insert(productImages).values({
+              productId: inserted.id,
+              basePath,
+              altEn: body.nameEn,
+              altBn: body.nameBn || body.nameEn,
+            });
+          }
+
+          // Create initial batch and stock ledger movement
+          const stockQty = Number(body.stockQty || body.initialStock || 50);
+          const expiryDate = body.expiryDate ? new Date(body.expiryDate) : new Date(Date.now() + 365 * 24 * 3600 * 1000);
+          const mfgDate = body.mfgDate ? new Date(body.mfgDate) : new Date();
+
+          const [batch] = await db.insert(productBatches).values({
             productId: inserted.id,
-            basePath,
-            altEn: body.nameEn,
-            altBn: body.nameBn || body.nameEn,
-          });
+            batchNo: body.batchNo || `B-${Math.floor(1000 + Math.random() * 9000)}`,
+            mfgDate,
+            expiryDate,
+            qtyReceived: stockQty,
+            costPrice: Math.round(Number(body.salePrice || 0) * 0.75),
+            supplierId: body.manufacturerName || 'Primary Distributor',
+          }).returning({ id: productBatches.id, batchNo: productBatches.batchNo });
+
+          if (batch) {
+            await db.insert(stockLedger).values({
+              productId: inserted.id,
+              batchId: batch.id,
+              delta: stockQty,
+              reason: 'purchase',
+              refType: 'admin_initial',
+              refId: batch.batchNo,
+            });
+          }
         }
       }
     } catch (dbErr) {
-      console.warn('[Admin Product Create] DB insertion fallback (running demo / mock mode):', dbErr);
+      console.warn('[Admin Product Create] DB insertion error:', dbErr);
     }
+
+
 
     return apiSuccess({
       id: newId,

@@ -6,7 +6,10 @@ import { SpeciesGrid } from '@/components/storefront/SpeciesGrid';
 import { HeroCarousel } from '@/components/storefront/HeroCarousel';
 import { FeaturedProductsGrid } from '@/components/storefront/FeaturedProductsGrid';
 import { listProducts } from '@/lib/services/products';
+import { listSpecies } from '@/lib/services/species-server';
+import { listDrugClassifications } from '@/lib/services/drug-classifications-server';
 import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
+
 import { isDemoMode } from '@/lib/demo';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
@@ -23,8 +26,13 @@ export default async function HomePage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // Fetch featured products with mock fallback
+  // Fetch featured products and active homepage species & drug classifications
   let products = MOCK_PRODUCTS;
+  const [homepageSpecies, menuPharma] = await Promise.all([
+    listSpecies({ showOnHomepage: true, isActive: true }),
+    listDrugClassifications({ showOnMenu: true, isActive: true }),
+  ]);
+
   if (!isDemoMode()) {
     try {
       const fetched = await listProducts({ limit: 8 });
@@ -38,7 +46,9 @@ export default async function HomePage({ params }: Props) {
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">
-      <Header locale={loc} />
+      <Header locale={loc} initialSpecies={homepageSpecies} initialDrugClassifications={menuPharma} />
+
+
 
       <main className="flex-1">
         {/* ═══ HERO CAROUSEL SECTION (10 SLIDES) ═══ */}
@@ -67,7 +77,8 @@ export default async function HomePage({ params }: Props) {
 
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 space-y-14">
           {/* ═══ SPECIES NAVIGATION ═══ */}
-          <SpeciesGrid locale={loc} />
+          <SpeciesGrid locale={loc} initialSpecies={homepageSpecies} />
+
 
           {/* ═══ FEATURED PRODUCTS ═══ */}
           <section className="space-y-6">

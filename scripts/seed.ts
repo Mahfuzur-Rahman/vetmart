@@ -2,13 +2,33 @@
 // Database seeder for VetMart BD (§17, §18)
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import fs from 'fs';
+import path from 'path';
 import * as schema from '../lib/db/schema';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/vetmart';
+function getDatabaseUrl(): string {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  try {
+    const envPath = path.resolve('.env.local');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('DATABASE_URL=')) {
+          return trimmed.replace('DATABASE_URL=', '').trim();
+        }
+      }
+    }
+  } catch {}
+  return 'postgresql://postgres:postgres@localhost:5432/vetmart';
+}
+
+const DATABASE_URL = getDatabaseUrl();
 
 async function seed() {
   console.log('🌱 Starting VetMart BD database seeding...');
   const sql = postgres(DATABASE_URL, { max: 1 });
+
   const db = drizzle(sql, { schema });
 
   // 1. Roles & Permissions (§14.1)
@@ -56,6 +76,8 @@ async function seed() {
     { name: 'SK+F Animal Health', country: 'Bangladesh', logoPath: 'vetmart/seed/logo_skf' },
     { name: 'The ACME Laboratories Ltd. (Veterinary)', country: 'Bangladesh', logoPath: 'vetmart/seed/logo_acme' },
     { name: 'Eon Animal Health', country: 'Bangladesh', logoPath: 'vetmart/seed/logo_eon' },
+    { name: 'Beximco Pharmaceuticals Ltd (Vet Division)', country: 'Bangladesh', logoPath: 'vetmart/seed/logo_beximco' },
+    { name: 'Renata Instrument Division', country: 'Bangladesh', logoPath: 'vetmart/seed/logo_renata' },
   ];
 
   const mfgMap = new Map<string, string>();
@@ -95,9 +117,9 @@ async function seed() {
     {
       slug: 'renaflox-100ml',
       sku: 'REN-ENRO-100',
-      nameEn: 'Renaflox Oral Solution',
-      nameBn: 'রেনাফ্লক্স ওরাল সলিউশন',
-      genericName: 'Enrofloxacin',
+      nameEn: 'Renaflox 100ml Oral Solution',
+      nameBn: 'রেনাফ্লক্স ১০০মি.লি. ওরাল সলিউশন',
+      genericName: 'Enrofloxacin 100 mg/ml',
       productType: 'drug_rx' as const,
       manufacturerId: mfgMap.get('Renata Animal Health'),
       categoryId: catMap.get('antibiotics'),
@@ -112,18 +134,20 @@ async function seed() {
       dgdaRegistrationNo: 'DAR-024-118-059',
       storageCondition: 'cool_dry' as const,
       requiresPrescription: true,
+      requiresColdChain: true,
       isAntimicrobial: true,
       vatRate: '0.00',
       mrp: 18000, // ৳180.00
       salePrice: 16500, // ৳165.00
-      banglishKeywords: 'renaflox enrofloxacin murgir oshudh gorur thanda',
+      banglishKeywords: 'renaflox enrofloxacin murgir oshudh gorur thanda cold chain',
+      imageUrl: '/images/cal-d-mag.jpg',
     },
     {
       slug: 'rena-ws-100g',
       sku: 'REN-WS-100G',
-      nameEn: 'Rena-WS Water Soluble Powder',
-      nameBn: 'রেনা-ডব্লিউএস পাউডার',
-      genericName: 'Multivitamin with Minerals',
+      nameEn: 'Rena-WS 100g Soluble Powder',
+      nameBn: 'রেনা-ডব্লিউএস ১০০গ্রাম পাউডার',
+      genericName: 'Multivitamin with Essential Minerals',
       productType: 'drug_otc' as const,
       manufacturerId: mfgMap.get('Renata Animal Health'),
       categoryId: catMap.get('vitamins-minerals'),
@@ -137,22 +161,24 @@ async function seed() {
       dgdaRegistrationNo: 'DAR-024-005-012',
       storageCondition: 'cool_dry' as const,
       requiresPrescription: false,
+      requiresColdChain: false,
       isAntimicrobial: false,
       vatRate: '0.00',
       mrp: 12000, // ৳120.00
       salePrice: 11000, // ৳110.00
-      banglishKeywords: 'rena ws vitamin powder murgir dim barano',
+      banglishKeywords: 'rena ws vitamin powder murgir dim barano nutrition boost',
+      imageUrl: '/images/cal-d-mag.jpg',
     },
     {
       slug: 'acimec-1-injection-10ml',
       sku: 'ACM-IVM-10ML',
-      nameEn: 'Acimec 1% Injection',
-      nameBn: 'এসিমেক ১% ইনজেকশন',
-      genericName: 'Ivermectin',
+      nameEn: 'Acimec 1% Injection 10ml',
+      nameBn: 'এসিমেক ১% ইনজেকশন ১০মি.লি.',
+      genericName: 'Ivermectin 10 mg/ml (1% w/v)',
       productType: 'drug_rx' as const,
       manufacturerId: mfgMap.get('The ACME Laboratories Ltd. (Veterinary)'),
       categoryId: catMap.get('anthelmintics'),
-      strength: '10 mg/ml (1% w/v)',
+      strength: '10 mg/ml',
       strengthUnit: 'mg/ml',
       dosageForm: 'Injection',
       packSize: '10 ml vial',
@@ -163,15 +189,153 @@ async function seed() {
       dgdaRegistrationNo: 'DAR-001-342-019',
       storageCondition: 'room_temp' as const,
       requiresPrescription: true,
+      requiresColdChain: false,
       isAntimicrobial: false,
       vatRate: '0.00',
       mrp: 14500, // ৳145.00
       salePrice: 13500, // ৳135.00
-      banglishKeywords: 'acimec ivermectin kriminashok gorur chulkani',
+      banglishKeywords: 'acimec ivermectin kriminashok gorur chulkani parasite control',
+      imageUrl: '/images/cal-d-mag.jpg',
+    },
+    {
+      slug: 'eon-cal-p-1L',
+      sku: 'EON-CALP-1L',
+      nameEn: 'Eon Cal-P 1 Liter Liquid',
+      nameBn: 'ইয়ন ক্যাল-পি ১ লিটার লিকুইড',
+      genericName: 'Calcium, Phosphorus & Vitamin D3',
+      productType: 'feed_supplement' as const,
+      manufacturerId: mfgMap.get('Eon Animal Health'),
+      categoryId: catMap.get('feed-supplements'),
+      strength: 'High-potency ionic Liquid Calcium',
+      dosageForm: 'Oral Liquid',
+      packSize: '1 Liter bottle',
+      packUnit: 'bottle',
+      targetSpecies: ['cattle', 'goat_sheep'],
+      withdrawalMeatDays: 0,
+      withdrawalMilkHours: 0,
+      dgdaRegistrationNo: 'DAR-088-112-004',
+      storageCondition: 'room_temp' as const,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      isAntimicrobial: false,
+      vatRate: '0.00',
+      mrp: 48000,
+      salePrice: 45000,
+      banglishKeywords: 'eon cal p calcium liquid dudh barano milk booster',
+      imageUrl: '/images/cal-d-mag.jpg',
+    },
+    {
+      slug: 'square-vet-c-500g',
+      sku: 'SQ-VETC-500G',
+      nameEn: 'Square Vet-C 99% Powder 500g',
+      nameBn: 'স্কয়ার ভেট-সি ৯৯% পাউডার ৫০০গ্রাম',
+      genericName: 'Ascorbic Acid (Pure Vitamin C 99%)',
+      productType: 'feed_supplement' as const,
+      manufacturerId: mfgMap.get('Square Pharmaceuticals Ltd. (AgroVet)'),
+      categoryId: catMap.get('feed-supplements'),
+      strength: '99% Pure Ascorbic Acid',
+      dosageForm: 'Powder',
+      packSize: '500 g pack',
+      packUnit: 'pack',
+      targetSpecies: ['poultry'],
+      withdrawalMeatDays: 0,
+      withdrawalMilkHours: 0,
+      dgdaRegistrationNo: 'DAR-002-990-101',
+      storageCondition: 'room_temp' as const,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      isAntimicrobial: false,
+      vatRate: '0.00',
+      mrp: 35000,
+      salePrice: 32000,
+      banglishKeywords: 'vet c vitamin c heat stress murgir gorom lagle',
+      imageUrl: '/images/cal-d-mag.jpg',
+    },
+    {
+      slug: 'petcare-shampoo-kit',
+      sku: 'PET-SHAMP-KIT',
+      nameEn: 'PetCare Herbal Anti-Tick Shampoo Kit',
+      nameBn: 'পেটকেয়ার ভেষজ অ্যান্টি-টিক শ্যাম্পু কিট',
+      genericName: 'Herbal Neem & Permethrin Pet Cleanser',
+      productType: 'pet_food' as const,
+      manufacturerId: mfgMap.get('ACI Animal Health'),
+      categoryId: catMap.get('pet-care'),
+      strength: 'Herbal tick & flea protection',
+      dosageForm: 'Liquid Shampoo',
+      packSize: '250 ml bottle + comb',
+      packUnit: 'kit',
+      targetSpecies: ['dog', 'cat', 'pet'],
+      withdrawalMeatDays: 0,
+      withdrawalMilkHours: 0,
+      dgdaRegistrationNo: 'DAR-044-881-002',
+      storageCondition: 'room_temp' as const,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      isAntimicrobial: false,
+      vatRate: '0.00',
+      mrp: 95000,
+      salePrice: 89000,
+      banglishKeywords: 'pet shampoo dog shampoo cat shampoo anti tick',
+      imageUrl: '/images/cal-d-mag.jpg',
+    },
+    {
+      slug: 'vet-ai-gun-french',
+      sku: 'INST-AIGUN-FR',
+      nameEn: 'Veterinary French AI Gun Stainless Steel',
+      nameBn: 'ভেটেরিনারি এআই গান (কৃত্রিম প্রজনন গান)',
+      genericName: 'Universal 0.25ml & 0.5ml Straw AI Applicator',
+      productType: 'instrument' as const,
+      manufacturerId: mfgMap.get('Renata Instrument Division'),
+      categoryId: catMap.get('instruments'),
+      strength: 'Medical grade 304 Stainless Steel',
+      dosageForm: 'Instrument',
+      packSize: '1 Set',
+      packUnit: 'set',
+      targetSpecies: ['cattle', 'goat_sheep'],
+      withdrawalMeatDays: 0,
+      withdrawalMilkHours: 0,
+      dgdaRegistrationNo: 'DAR-INST-001',
+      storageCondition: 'room_temp' as const,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      isAntimicrobial: false,
+      vatRate: '0.00',
+      mrp: 140000,
+      salePrice: 125000,
+      banglishKeywords: 'ai gun artificial insemination gorur bij debar gun',
+      imageUrl: '/images/cal-d-mag.jpg',
+    },
+    {
+      slug: 'beximco-cal-d-mag-plus-vet-liquid-1l',
+      sku: 'BEX-CALDMAG-1L',
+      nameEn: 'Beximco Cal-D-Mag Plus Vet Liquid 1L',
+      nameBn: 'বেক্সিমকো ক্যাল-ডি-ম্যাগ প্লাস ভেট লিকুইড ১ লিটার',
+      genericName: 'Calcium, Magnesium, Zinc & Vitamin D3',
+      productType: 'feed_supplement' as const,
+      manufacturerId: mfgMap.get('Beximco Pharmaceuticals Ltd (Vet Division)'),
+      categoryId: catMap.get('vitamins-minerals'),
+      strength: 'Ionic Liquid Calcium + Magnesium',
+      dosageForm: 'Oral Solution',
+      packSize: '1 Liter Bottle',
+      packUnit: 'bottle',
+      targetSpecies: ['cattle', 'poultry', 'goat_sheep'],
+      withdrawalMeatDays: 0,
+      withdrawalMilkHours: 0,
+      dgdaRegistrationNo: 'DAR-012-441-098',
+      storageCondition: 'room_temp' as const,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      isAntimicrobial: false,
+      vatRate: '0.00',
+      mrp: 52000,
+      salePrice: 47500,
+      banglishKeywords: 'beximco cal d mag calcium magnesium dudh barano milk fever',
+      imageUrl: '/images/cal-d-mag.jpg',
     },
   ];
 
-  for (const prod of sampleProducts) {
+  for (const prodData of sampleProducts) {
+    const { imageUrl: prodImg, ...prod } = prodData;
     const [insertedProd] = await db
       .insert(schema.products)
       .values(prod)
@@ -208,21 +372,17 @@ async function seed() {
     });
 
     // Seed product images
-    let imageKey = 'vetmart/seed/cat_vitamins';
-    if (prod.slug === 'renaflox-100ml') imageKey = 'vetmart/seed/prod_renaflox';
-    if (prod.slug === 'rena-ws-100g') imageKey = 'vetmart/seed/prod_renaws'; 
-    if (prod.slug === 'acimec-1-injection-10ml') imageKey = 'vetmart/seed/prod_acimec'; 
-
     await db.insert(schema.productImages)
       .values({
         productId: insertedProd.id,
-        basePath: imageKey,
+        basePath: prodImg || '/images/cal-d-mag.jpg',
         altEn: prod.nameEn,
         altBn: prod.nameBn,
         sort: 1,
       })
       .onConflictDoNothing();
   }
+
 
   // 5b. Seeding Homepage Banners
   console.log('5b️⃣ Seeding Homepage Banners...');

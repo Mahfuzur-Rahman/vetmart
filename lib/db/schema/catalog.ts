@@ -52,11 +52,55 @@ export const categories = pgTable('categories', {
   nameBn: text('name_bn').notNull(),
   imagePath: text('image_path'),
   sort: integer('sort').notNull().default(0),
+  showOnHomepage: boolean('show_on_homepage').notNull().default(true),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index('categories_slug_idx').on(t.slug),
   index('categories_parent_idx').on(t.parentId),
+]);
+
+// 2b. Target Species Categories (Animal browsing axis: Cow, Buffalo, Goat, Poultry, etc. §2, §7)
+export const speciesCategories = pgTable('species_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  key: text('key').notNull().unique(), // e.g. 'cattle', 'buffalo', 'goat_sheep', 'poultry', 'fish', 'dog', 'cat', 'pigeon'
+  slug: text('slug').notNull().unique(), // e.g. 'cattle', 'buffalo', 'goat-sheep', etc.
+  nameEn: text('name_en').notNull(),
+  nameBn: text('name_bn').notNull(),
+  emoji: text('emoji').notNull().default('🐾'),
+  imagePath: text('image_path'),
+  descriptionEn: text('description_en'),
+  descriptionBn: text('description_bn'),
+  sort: integer('sort').notNull().default(0),
+  showOnHomepage: boolean('show_on_homepage').notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('species_categories_key_idx').on(t.key),
+  index('species_categories_slug_idx').on(t.slug),
+  index('species_categories_sort_idx').on(t.sort),
+]);
+
+
+// 2c. Drug Classifications (Pharmacological / therapeutic classifications for menu & catalog §5.2)
+export const drugClassifications = pgTable('drug_classifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: text('slug').notNull().unique(), // e.g. 'vaccine', 'antibiotics', 'vitamins', 'disinfectants', 'dewormers', 'hormones', 'nsaids-pain'
+  nameEn: text('name_en').notNull(),
+  nameBn: text('name_bn').notNull(),
+  emoji: text('emoji').notNull().default('💊'),
+  descriptionEn: text('description_en'),
+  descriptionBn: text('description_bn'),
+  sort: integer('sort').notNull().default(0),
+  showOnMenu: boolean('show_on_menu').notNull().default(true),
+  showOnHomepage: boolean('show_on_homepage').notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('drug_classifications_slug_idx').on(t.slug),
+  index('drug_classifications_sort_idx').on(t.sort),
 ]);
 
 // 3. Products (Regulated veterinary medicine catalog §5.2, §6)
@@ -70,6 +114,7 @@ export const products = pgTable('products', {
   productType: productTypeEnum('product_type').notNull(),
   manufacturerId: uuid('manufacturer_id').references(() => manufacturers.id),
   categoryId: uuid('category_id').references(() => categories.id),
+  drugClassificationId: uuid('drug_classification_id').references(() => drugClassifications.id),
 
   // Veterinary specifications (§5.2)
   strength: text('strength'), // e.g. "100 mg/ml", "10% w/v"
@@ -107,6 +152,7 @@ export const products = pgTable('products', {
   index('products_type_idx').on(t.productType),
   index('products_manufacturer_idx').on(t.manufacturerId),
   index('products_category_idx').on(t.categoryId),
+  index('products_drug_class_idx').on(t.drugClassificationId),
   index('products_active_idx').on(t.isActive),
 ]);
 

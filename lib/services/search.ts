@@ -2,8 +2,9 @@
 // Unified catalog search combining generic name, brand name, Banglish keywords (§6, §20)
 import { eq, and, sql as dSql, ilike, or, arrayOverlaps, asc, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { products, categories, manufacturers, stockLedger, productBatches } from '@/lib/db/schema';
+import { products, productImages, categories, manufacturers, stockLedger, productBatches } from '@/lib/db/schema';
 import { normalizeDigits } from '@/lib/i18n/number';
+import { getStorageDriver } from '@/lib/storage';
 
 export type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest';
 
@@ -45,6 +46,7 @@ export interface CatalogSearchItem {
   categoryNameBn: string | null;
   manufacturerName: string | null;
   sellableStock: number;
+  imageUrl?: string;
 }
 
 /**
@@ -151,9 +153,10 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
     .limit(pageSize)
     .offset(offset);
 
-  // Derive sellable stock for each product (batch-level with 60-day expiry cutoff)
+  // Derive sellable stock & Cloudinary image for each product
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() + 60);
+  const storage = getStorageDriver();
 
   const items: CatalogSearchItem[] = await Promise.all(
     rows.map(async (row) => {
@@ -168,12 +171,25 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
         .innerJoin(productBatches, eq(stockLedger.batchId, productBatches.id))
         .where(eq(stockLedger.productId, row.id));
 
+      const [imgRow] = await db
+        .select({ basePath: productImages.basePath })
+        .from(productImages)
+        .where(eq(productImages.productId, row.id))
+        .orderBy(asc(productImages.sort))
+        .limit(1);
+
+      const imageUrl = imgRow?.basePath
+        ? storage.url(imgRow.basePath, 'card')
+        : '/images/cal-d-mag.jpg';
+
       return {
         ...row,
         sellableStock: Math.max(0, stockResult?.sellable ?? 0),
+        imageUrl,
       };
     })
   );
+
 
   return {
     items,

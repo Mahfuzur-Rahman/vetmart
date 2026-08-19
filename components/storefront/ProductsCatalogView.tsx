@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+
 import { ProductCard } from '@/components/storefront/ProductCard';
 import {
   getStoredProducts,
   PRODUCTS_UPDATED_EVENT,
   type MockProduct,
 } from '@/lib/mock-data/products';
-import { SPECIES } from '@/lib/services/species';
+import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -23,6 +24,7 @@ interface Props {
   initialItems: any[];
   initialTotalCount: number;
   initialCategories: CategoryItem[];
+  initialSpecies?: SpeciesInfo[];
   query?: string;
   speciesFilter?: string;
   categoryFilter?: string;
@@ -34,6 +36,7 @@ export function ProductsCatalogView({
   initialItems,
   initialTotalCount,
   initialCategories,
+  initialSpecies,
   query,
   speciesFilter,
   categoryFilter,
@@ -41,13 +44,45 @@ export function ProductsCatalogView({
 }: Props) {
   const [allProducts, setAllProducts] = useState<MockProduct[]>(initialItems as MockProduct[]);
   const [selectedSort, setSelectedSort] = useState<string>(initialSort);
+  const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(
+    initialSpecies && initialSpecies.length > 0
+      ? initialSpecies
+      : SPECIES.filter((s) => s.showOnHomepage !== false)
+  );
 
   useEffect(() => {
-    const syncProducts = () => {
-      setAllProducts(getStoredProducts());
-    };
+    fetch('/api/v1/species?homepage=true')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+          setSpeciesList(json.data);
+        }
+      })
+      .catch((e) => console.warn('Could not fetch species for catalog filter:', e));
+  }, []);
 
-    syncProducts();
+
+  useEffect(() => {
+    if (initialItems && initialItems.length > 0) {
+      setAllProducts(initialItems as MockProduct[]);
+    } else {
+      setAllProducts(getStoredProducts());
+    }
+
+    const syncProducts = () => {
+      fetch('/api/v1/products?pageSize=48')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+            setAllProducts(json.data);
+          } else {
+            setAllProducts(getStoredProducts());
+          }
+        })
+        .catch(() => {
+          setAllProducts(getStoredProducts());
+        });
+    };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
     window.addEventListener('storage', syncProducts);
@@ -56,7 +91,8 @@ export function ProductsCatalogView({
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
       window.removeEventListener('storage', syncProducts);
     };
-  }, []);
+  }, [initialItems]);
+
 
   // Filter and sort products client-side
   const filteredProducts = useMemo(() => {
@@ -146,7 +182,7 @@ export function ProductsCatalogView({
               >
                 {locale === 'bn' ? 'সকল প্রজাতি' : 'All Species'}
               </Link>
-              {SPECIES.map((s) => (
+              {speciesList.map((s) => (
                 <Link
                   key={s.key}
                   href={`/products?species=${s.key}${query ? `&q=${query}` : ''}`}
@@ -160,6 +196,7 @@ export function ProductsCatalogView({
                   <span>{locale === 'bn' ? s.nameBn : s.nameEn}</span>
                 </Link>
               ))}
+
             </div>
           </div>
 
