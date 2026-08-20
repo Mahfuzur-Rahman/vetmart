@@ -1,104 +1,50 @@
 // app/api/v1/admin/products/route.ts
-// POST /api/v1/admin/products — Create new product (§5, §10)
+// POST /api/v1/admin/products — Create a catalog product (§5, §9, §10)
+//
+// Thin transport only. All catalog logic lives in lib/services/products.ts so
+// the Flutter client can reach the same behaviour without a rewrite (§2 rule 1).
 import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
-import { products, productImages, productBatches, stockLedger } from '@/lib/db/schema';
+import { ZodError } from 'zod';
+import { createProduct, DemoModeWriteError } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
-
 export async function POST(req: NextRequest) {
+  let body: unknown;
   try {
-    const body = await req.json();
+    body = await req.json();
+  } catch {
+    return apiError('INVALID_JSON', 'Request body is not valid JSON', 400);
+  }
 
-    const newId = body.id || `prod-custom-${Date.now()}`;
-    const slug = body.slug || body.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const sku = body.sku || `VET-SKU-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    try {
-      if (db) {
-        const [inserted] = await db.insert(products).values({
-          slug,
-          sku,
-          nameEn: body.nameEn,
-          nameBn: body.nameBn || body.nameEn,
-          genericName: body.genericName || '',
-          productType: (body.productType as any) || (body.requiresPrescription ? 'drug_rx' : 'drug_otc'),
-          strength: body.strength || '',
-          strengthUnit: body.strengthUnit || '',
-          dosageForm: body.dosageForm || 'Oral Solution',
-          packSize: body.packSize || '1 Liter Bottle',
-          packUnit: body.packUnit || 'bottle',
-          targetSpecies: body.targetSpecies || ['cattle'],
-          withdrawalMeatDays: body.withdrawalMeatDays || 0,
-          withdrawalMilkHours: body.withdrawalMilkHours || 0,
-          dgdaRegistrationNo: body.dgdaRegNo || body.dgdaRegistrationNo || '',
-          storageCondition: body.storageCondition || 'room_temp',
-          requiresColdChain: !!(body.requiresColdChain || body.coldChain),
-          requiresPrescription: !!body.requiresPrescription,
-          isAntimicrobial: !!body.isAntimicrobial,
-          vatRate: '0.00',
-          mrp: Number(body.mrp) || 0,
-          salePrice: Number(body.salePrice) || 0,
-          banglishKeywords: body.banglishKeywords || `${body.nameEn} ${body.genericName}`.toLowerCase(),
-          isActive: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }).returning({ id: products.id, slug: products.slug, sku: products.sku });
-
-        if (inserted) {
-          if (body.imageUrl || body.imageKey) {
-            const basePath = body.imageKey || body.imageUrl;
-            await db.insert(productImages).values({
-              productId: inserted.id,
-              basePath,
-              altEn: body.nameEn,
-              altBn: body.nameBn || body.nameEn,
-            });
-          }
-
-          // Create initial batch and stock ledger movement
-          const stockQty = Number(body.stockQty || body.initialStock || 50);
-          const expiryDate = body.expiryDate ? new Date(body.expiryDate) : new Date(Date.now() + 365 * 24 * 3600 * 1000);
-          const mfgDate = body.mfgDate ? new Date(body.mfgDate) : new Date();
-
-          const [batch] = await db.insert(productBatches).values({
-            productId: inserted.id,
-            batchNo: body.batchNo || `B-${Math.floor(1000 + Math.random() * 9000)}`,
-            mfgDate,
-            expiryDate,
-            qtyReceived: stockQty,
-            costPrice: Math.round(Number(body.salePrice || 0) * 0.75),
-            supplierId: body.manufacturerName || 'Primary Distributor',
-          }).returning({ id: productBatches.id, batchNo: productBatches.batchNo });
-
-          if (batch) {
-            await db.insert(stockLedger).values({
-              productId: inserted.id,
-              batchId: batch.id,
-              delta: stockQty,
-              reason: 'purchase',
-              refType: 'admin_initial',
-              refId: batch.batchNo,
-            });
-          }
-        }
-      }
-    } catch (dbErr) {
-      console.warn('[Admin Product Create] DB insertion error:', dbErr);
+  try {
+    const created = await createProduct(body);
+    return apiSuccess(created, undefined, 201);
+  } catch (err) {
+    // A validation failure is the operator's to fix — return the offending
+    // field so the admin form can highlight it (§9).
+    if (err instanceof ZodError) {
+      const first = err.issues[0];
+      return apiError(
+        'PRODUCT_VALIDATION_FAILED',
+        first?.message ?? 'Product data is invalid',
+        422,
+        first?.path.join('.'),
+        err.issues.map((i) => ({ field: i.path.join('.'), message: i.message }))
+      );
     }
 
+    if (err instanceof DemoModeWriteError) {
+      return apiError(err.code, err.message, 409);
+    }
 
-
-    return apiSuccess({
-      id: newId,
-      slug,
-      sku,
-      ...body,
-      createdAt: new Date().toISOString(),
-      message: 'Product created successfully',
-    });
-  } catch (err: any) {
-    console.error('[Admin Product Create] Error creating product:', err);
-    return apiError('PRODUCT_CREATE_FAILED', err?.message || 'Failed to create product', 500);
+    // Previously this branch logged a warning and returned 200 anyway, so the
+    // admin UI reported "Product created successfully" for a write that never
+    // reached Postgres. Never swallow a write failure.
+    console.error('[POST /api/v1/admin/products] Create failed:', err);
+    return apiError(
+      'PRODUCT_CREATE_FAILED',
+      err instanceof Error ? err.message : 'Failed to create product',
+      500
+    );
   }
 }

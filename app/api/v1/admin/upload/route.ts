@@ -1,7 +1,7 @@
 // app/api/v1/admin/upload/route.ts
 // Admin media upload endpoint for PC and mobile product images (§4.2, §10)
 import { NextRequest } from 'next/server';
-import { getStorageDriver } from '@/lib/storage';
+import { getStorageDriver, StorageConfigError } from '@/lib/storage';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
 
     const imageUrl = storage.url(key, 'card');
 
+    // `key` is what the caller must send back as imageKey. The DB stores the key,
+    // never the URL, so the media migration stays a file copy (§4.2 rule 1, §20).
     return apiSuccess({
       key,
       url: imageUrl,
@@ -64,6 +66,13 @@ export async function POST(req: NextRequest) {
       contentType: file.type,
     });
   } catch (err: any) {
+    // A misconfigured driver is an operator problem, not a bad request. Say which
+    // one, rather than returning a generic 500 the admin UI cannot act on.
+    if (err instanceof StorageConfigError) {
+      console.error('[Admin Upload API] Storage driver misconfigured:', err);
+      return apiError(err.code, err.message, 503);
+    }
+
     console.error('[Admin Upload API] Error uploading file:', err);
     return apiError('UPLOAD_FAILED', err?.message || 'Failed to upload product image', 500);
   }
