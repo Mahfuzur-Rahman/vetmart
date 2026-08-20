@@ -7,7 +7,28 @@ const courierDrivers = ['mock', 'steadfast'] as const;
 const smsDrivers = ['mock', 'bulksms'] as const;
 const paymentModes = ['sandbox', 'live'] as const;
 
-const envSchema = z.object({
+/**
+ * Matches a DATABASE_URL that can only resolve on the same machine as the app.
+ *
+ * This is CORRECT on the BDIX VPS (§4.1 — Postgres runs on the same box, over a
+ * Unix socket) and always WRONG on Vercel, where a serverless function has no
+ * local Postgres. Only the Vercel case is treated as an error below.
+ */
+export function isSameHostDatabaseUrl(url: string | undefined): boolean {
+  if (!url) return true;
+  return (
+    url.includes('localhost') ||
+    url.includes('127.0.0.1') ||
+    url.includes('[::1]') ||
+    url.startsWith('postgresql:///') ||
+    url.startsWith('postgres:///')
+  );
+}
+
+export const envSchema = z.object({
+  /** Set to "1" by the Vercel build and runtime. Absent locally and on the VPS. */
+  VERCEL: z.string().optional(),
+
   // Database
   DATABASE_URL: z
     .string()
@@ -77,6 +98,42 @@ const envSchema = z.object({
     .default('http://localhost:3000'),
   JOBS_DRAIN_SECRET: z.string().optional(),
 }).superRefine((data, ctx) => {
+  // §4.3 fail-fast: a serverless deploy pointed at a same-host database can never
+  // connect. Previously this silently degraded into demo mode (lib/demo.ts), so an
+  // admin's product write was accepted by the API and then dropped. Crash instead.
+  if (data.VERCEL === '1' && !data.DEMO_MODE && isSameHostDatabaseUrl(data.DATABASE_URL)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'DATABASE_URL points at the same host (localhost/socket) but the app is running on Vercel, ' +
+        'where no local Postgres exists. Set DATABASE_URL to the Aiven pooled (PgBouncer) connection ' +
+        'string in the Vercel project settings, or set DEMO_MODE=true to run without a database.',
+      path: ['DATABASE_URL'],
+    });
+  }
+
+  // Serverless must use the PgBouncer-friendly pool size (§4.2 rule 3).
+  if (data.VERCEL === '1' && data.DB_POOL_MAX > 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        `DB_POOL_MAX=${data.DB_POOL_MAX} on Vercel will exhaust Aiven's connection cap. ` +
+        'Set DB_POOL_MAX=1 for serverless; the pool of 20 is for the VPS only.',
+      path: ['DB_POOL_MAX'],
+    });
+  }
+
+  // Local disk storage cannot work on Vercel's read-only filesystem (§4.3).
+  if (data.VERCEL === '1' && data.STORAGE_DRIVER === 'local') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "STORAGE_DRIVER=local writes to disk, but Vercel's filesystem is read-only outside /tmp " +
+        'and per-instance. Set STORAGE_DRIVER=cloudinary for the Vercel deploy.',
+      path: ['STORAGE_DRIVER'],
+    });
+  }
+
   // Cloudinary vars required when using cloudinary driver
   if (data.STORAGE_DRIVER === 'cloudinary') {
     if (!data.CLOUDINARY_CLOUD_NAME) {

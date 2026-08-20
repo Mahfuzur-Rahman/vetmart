@@ -3,20 +3,17 @@
 import { env } from '@/lib/env';
 
 /**
- * Returns true when DEMO_MODE=true in environment.
- * When true, all DB queries should be skipped and mock data used directly.
- * This eliminates the 10s connect_timeout penalty on every page navigation.
+ * Returns true only when DEMO_MODE=true is explicitly set in the environment.
+ *
+ * When true, all DB queries are skipped and seed data is served directly, which
+ * eliminates the connect_timeout penalty on every page navigation.
+ *
+ * Demo mode is NEVER inferred from a broken database configuration. An earlier
+ * version enabled it automatically when running on Vercel with a localhost
+ * DATABASE_URL; that turned a loud connection failure into a silently empty
+ * catalog and let admin product writes be accepted and then dropped. The
+ * misconfiguration is now rejected at boot by the superRefine in lib/env.ts.
  */
 export function isDemoMode(): boolean {
-  if (env.DEMO_MODE === true) return true;
-  // If running in Vercel serverless but DATABASE_URL is still the default localhost fallback, enable demo mode
-  if (
-    process.env.VERCEL === '1' &&
-    (!env.DATABASE_URL ||
-      env.DATABASE_URL.includes('localhost') ||
-      env.DATABASE_URL.includes('127.0.0.1'))
-  ) {
-    return true;
-  }
-  return false;
+  return env.DEMO_MODE === true;
 }
