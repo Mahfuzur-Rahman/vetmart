@@ -6,7 +6,6 @@ import { Footer } from '@/components/storefront/Footer';
 import { SpeciesProductsView } from '@/components/storefront/SpeciesProductsView';
 import { getSpeciesBySlug, speciesSlugToKey } from '@/lib/services/species';
 import { searchCatalog } from '@/lib/services/search';
-import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';

@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { type MockOrder, type OrderStatus } from '@/lib/mock-data/orders';
-import { BOARD_TO_DB_STATUS } from '@/lib/services/order-status';
+import { type MockOrder, type OrderStatus, BOARD_TO_DB_STATUS } from '@/lib/services/order-status';
 import { AdminIncompleteOrdersBoard } from './AdminIncompleteOrdersBoard';
 import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
 import { ThermalShippingLabelModal, type ThermalLabelData } from './ThermalShippingLabel';

@@ -1,9 +1,5 @@
 // lib/services/order-status.ts
-// Order status vocabulary shared by the server and the admin board.
-//
-// Kept separate from lib/services/orders.ts because that module imports the
-// database client; a Client Component importing it would pull postgres-js (and
-// node:fs / node:net) into the browser bundle.
+// Order status vocabulary and client-safe order models shared by the server and admin board.
 
 /** The status vocabulary the admin board renders. */
 export type AdminOrderStatus =
@@ -12,6 +8,42 @@ export type AdminOrderStatus =
   | 'dispatched'
   | 'delivered'
   | 'cancelled';
+
+export type OrderStatus = AdminOrderStatus;
+export type PaymentMethod = 'cod' | 'bkash' | 'nagad' | 'card';
+
+export interface OrderItem {
+  productId: string;
+  productSlug: string;
+  productNameEn: string;
+  productNameBn: string;
+  unitPrice: number; // integer paisa
+  quantity: number;
+  totalPrice: number; // integer paisa
+  batchNo?: string;
+}
+
+export interface MockOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerType: 'vet' | 'retail' | 'farm';
+  recipientAddress: string;
+  district: string;
+  division: string;
+  status: OrderStatus;
+  items: OrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  totalAmount: number;
+  paymentMethod: PaymentMethod | string;
+  paymentStatus: 'paid' | 'unpaid' | 'pending' | string;
+  requiresRx: boolean;
+  rxApproved?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 /**
  * The database has a finer-grained status enum than the board shows (§6). Map

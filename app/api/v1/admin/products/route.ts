@@ -5,7 +5,7 @@
 // the Flutter client can reach the same behaviour without a rewrite (§2 rule 1).
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { createProduct, DemoModeWriteError } from '@/lib/services/products';
+import { createProduct } from '@/lib/services/products';
 import { requireAdmin } from '@/lib/api/guard';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
@@ -37,13 +37,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (err instanceof DemoModeWriteError) {
-      return apiError(err.code, err.message, 409);
-    }
-
-    // Previously this branch logged a warning and returned 200 anyway, so the
-    // admin UI reported "Product created successfully" for a write that never
-    // reached Postgres. Never swallow a write failure.
     console.error('[POST /api/v1/admin/products] Create failed:', err);
     return apiError(
       'PRODUCT_CREATE_FAILED',

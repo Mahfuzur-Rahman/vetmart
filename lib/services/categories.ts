@@ -1,9 +1,8 @@
 // lib/services/categories.ts
 // Category tree and navigation queries (§6, §7)
-import { eq, and, asc, isNull } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
-import { isDemoMode } from '@/lib/demo';
 
 export interface CategoryNode {
   id: string;
@@ -19,10 +18,6 @@ export interface CategoryNode {
  * Fetch the full category tree (root categories with nested children).
  */
 export async function getCategoryTree(): Promise<CategoryNode[]> {
-  if (isDemoMode()) {
-    return [];
-  }
-
   try {
     const allCategories = await db
       .select()
@@ -66,10 +61,6 @@ export async function getCategoryTree(): Promise<CategoryNode[]> {
  * Fetch a single category by slug with its products count context.
  */
 export async function getCategoryBySlug(slug: string) {
-  if (isDemoMode()) {
-    return null;
-  }
-
   try {
     const [category] = await db
       .select()
@@ -117,4 +108,3 @@ export async function listCategories(opts?: { showOnHomepage?: boolean; isActive
     return [];
   }
 }
-

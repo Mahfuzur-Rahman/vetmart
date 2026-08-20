@@ -1,13 +1,5 @@
 // app/api/v1/admin/auth/login/route.ts
 // POST /api/v1/admin/auth/login — Issue an admin session cookie (§8, §14.1)
-//
-// Admin auth is a separate table and a separate cookie from customer auth; an
-// admin is not a user with a flag (§8).
-//
-// Before this existed, setAdminSession() was never called anywhere. The admin
-// "logged in" entirely in the browser (localStorage plus a non-httpOnly cookie
-// holding a role string), so no admin API route could authenticate anyone and
-// the RBAC gate in the admin layout was commented out.
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
@@ -17,7 +9,6 @@ import { verifyPassword } from '@/lib/auth/hash';
 import { setAdminSession } from '@/lib/auth/session';
 import { getAdminPermissions } from '@/lib/auth/permissions';
 import { rateLimit } from '@/lib/auth/rate-limit';
-import { isDemoMode } from '@/lib/demo';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 export const dynamic = 'force-dynamic';
@@ -52,23 +43,12 @@ export async function POST(req: NextRequest) {
       return apiError('RATE_LIMITED', 'Too many login attempts. Try again in a few minutes.', 429);
     }
   } catch (err) {
-    // Valkey being unreachable must not lock the owner out of their own admin.
     console.warn('[admin login] Rate limiter unavailable, continuing:', err);
-  }
-
-  if (isDemoMode()) {
-    return apiError(
-      'DEMO_MODE_NO_ADMIN_AUTH',
-      'Admin login requires a database. Set DEMO_MODE=false and configure DATABASE_URL.',
-      409
-    );
   }
 
   try {
     const [admin] = await db.select().from(admins).where(eq(admins.email, email)).limit(1);
 
-    // Same response for "no such admin" and "wrong password" so the endpoint
-    // cannot be used to enumerate which admin accounts exist.
     if (!admin || !admin.isActive || !verifyPassword(password, admin.passwordHash)) {
       return apiError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
     }

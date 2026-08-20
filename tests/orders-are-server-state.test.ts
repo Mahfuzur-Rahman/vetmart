@@ -10,7 +10,6 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BOARD_TO_DB_STATUS, DB_TO_BOARD_STATUS } from '@/lib/services/order-status';
-import * as leadsModule from '@/lib/mock-data/incomplete-orders';
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -60,12 +59,6 @@ describe('order, lead and review data is server state', () => {
     const src = readCode(relPath);
     const calls = src.match(/localStorage\s*\.\s*(get|set|remove)Item/g) ?? [];
     expect(calls, `${relPath} still calls localStorage`).toEqual([]);
-  });
-
-  it('no longer exports the browser-side lead store', () => {
-    expect(leadsModule).not.toHaveProperty('getStoredIncompleteOrders');
-    expect(leadsModule).not.toHaveProperty('saveStoredIncompleteOrders');
-    expect(leadsModule).not.toHaveProperty('INCOMPLETE_ORDERS_STORAGE_KEY');
   });
 
   it('keeps the guest cart in the browser, which is the one correct case', () => {

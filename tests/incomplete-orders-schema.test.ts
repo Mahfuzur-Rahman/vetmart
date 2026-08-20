@@ -1,6 +1,6 @@
 // tests/incomplete-orders-schema.test.ts
 import { describe, it, expect } from 'vitest';
-import { isValidBdPhone, sanitizeBdPhone } from '@/lib/mock-data/incomplete-orders';
+import { isValidBdPhone, sanitizeBdPhone } from '@/lib/validation/phone';
 
 describe('BD Phone Validation & Sanitization', () => {
   it('validates correct 11-digit BD mobile numbers', () => {

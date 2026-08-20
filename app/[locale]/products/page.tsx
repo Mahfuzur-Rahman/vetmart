@@ -4,10 +4,7 @@ import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ProductsCatalogView } from '@/components/storefront/ProductsCatalogView';
 import { searchCatalog, type SortOption } from '@/lib/services/search';
-import { SPECIES } from '@/lib/services/species';
 import { listCategories } from '@/lib/services/categories';
-import { MOCK_CATEGORIES } from '@/lib/mock-data/categories';
-import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
@@ -30,10 +27,6 @@ export default async function ProductsPage({ params, searchParams }: Props) {
   const sortOption = (sParams.sort as SortOption) || 'relevance';
   const page = parseInt(sParams.page || '1', 10);
 
-  // searchCatalog is the single source of truth and handles demo mode itself,
-  // so there is no mock fallback here. A query failure must surface as an error
-  // page: silently substituting a different catalog is what let a broken
-  // database look like an empty shop.
   const searchResult = await searchCatalog({
     q: query,
     species: speciesFilter,
@@ -43,7 +36,7 @@ export default async function ProductsPage({ params, searchParams }: Props) {
     pageSize: 24,
   });
 
-  const categories = isDemoMode() ? MOCK_CATEGORIES : await listCategories();
+  const categories = await listCategories();
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">
@@ -66,4 +59,3 @@ export default async function ProductsPage({ params, searchParams }: Props) {
     </div>
   );
 }
-

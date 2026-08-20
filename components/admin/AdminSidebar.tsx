@@ -3,7 +3,6 @@
 
 import { useState } from 'react';
 import { Link, usePathname, useRouter } from '@/lib/i18n/navigation';
-import { clearMockAdminSession } from '@/lib/mock-data/auth';
 import type { Locale } from '@/lib/i18n/config';
 
 interface AdminSidebarProps {
@@ -83,16 +82,12 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
   const router = useRouter();
 
   const handleLogout = async () => {
-    // Clear the real httpOnly session cookie on the server. Clearing only the
-    // browser-side demo session would leave the operator still authenticated to
-    // every admin API route.
     try {
       await fetch('/api/v1/admin/auth/logout', { method: 'POST' });
     } catch (err) {
       console.error('Logout request failed:', err);
     }
 
-    clearMockAdminSession();
     router.push('/admin/login');
     router.refresh();
   };

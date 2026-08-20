@@ -8,7 +8,6 @@ import {
   updateProduct,
   deleteProduct,
   ProductNotFoundError,
-  DemoModeWriteError,
 } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { requireAdmin } from '@/lib/api/guard';
@@ -28,13 +27,8 @@ function toErrorResponse(err: unknown, fallbackCode: string, fallbackMessage: st
     );
   }
 
-  // A missing row used to return 200 with "Product updated successfully".
   if (err instanceof ProductNotFoundError) {
     return apiError(err.code, err.message, 404);
-  }
-
-  if (err instanceof DemoModeWriteError) {
-    return apiError(err.code, err.message, 409);
   }
 
   console.error(`[${fallbackCode}]`, err);

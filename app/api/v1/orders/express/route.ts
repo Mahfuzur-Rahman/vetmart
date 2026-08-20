@@ -6,7 +6,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { placeGuestOrder } from '@/lib/services/checkout';
-import { isDemoMode } from '@/lib/demo';
 import { normalizeDigits } from '@/lib/i18n/number';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
@@ -72,14 +71,6 @@ export async function POST(req: NextRequest) {
       'IDEMPOTENCY_KEY_REQUIRED',
       'An Idempotency-Key header is required when placing an order.',
       400
-    );
-  }
-
-  if (isDemoMode()) {
-    return apiError(
-      'DEMO_MODE_READ_ONLY',
-      'Orders cannot be placed in demo mode. Set DEMO_MODE=false and configure DATABASE_URL.',
-      409
     );
   }
 

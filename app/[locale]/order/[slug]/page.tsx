@@ -4,9 +4,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ExpressOrderView, type ExpressProduct } from '@/components/storefront/ExpressOrderView';
-import { getProductBySlug } from '@/lib/services/products';
-import { getProductBySlug as getSeedProductBySlug, MOCK_PRODUCTS } from '@/lib/mock-data/products';
-import { isDemoMode } from '@/lib/demo';
+import { getProductBySlug, listProducts } from '@/lib/services/products';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -22,17 +20,12 @@ export default async function ExpressProductOrderPage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  let rawProduct: any = null;
-  if (!isDemoMode()) {
-    try {
-      rawProduct = await getProductBySlug(slug);
-    } catch {
-      rawProduct = null;
-    }
+  let p: any = null;
+  try {
+    p = await getProductBySlug(slug);
+  } catch {
+    p = null;
   }
-
-  const mock = getSeedProductBySlug(slug) || null;
-  const p = rawProduct || mock;
 
   if (!p) {
     return (
@@ -83,7 +76,9 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     withdrawalMilkHours: p.withdrawalMilkHours || 0,
   };
 
-  const allProducts: ExpressProduct[] = MOCK_PRODUCTS.slice(0, 6).map((item) => ({
+  const dbRelated = await listProducts({ limit: 6 });
+
+  const allProducts: ExpressProduct[] = dbRelated.map((item: any) => ({
     id: item.id,
     slug: item.slug,
     nameEn: item.nameEn,
@@ -95,10 +90,10 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     mrp: item.mrp,
     salePrice: item.salePrice,
     requiresPrescription: item.requiresPrescription,
-    requiresColdChain: item.coldChain || item.requiresColdChain,
-    coldChain: item.coldChain || item.requiresColdChain,
+    requiresColdChain: item.requiresColdChain,
+    coldChain: item.requiresColdChain,
     imageUrl: item.imageUrl,
-    stock: item.stockQty ?? 100,
+    stock: 100,
     manufacturerName: item.manufacturerName || 'Veterinary Formulary',
   }));
 

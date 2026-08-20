@@ -44,11 +44,6 @@ export const envSchema = z.object({
   SMS_DRIVER: z.enum(smsDrivers).default('mock'),
   PAYMENT_MODE: z.enum(paymentModes).default('sandbox'),
 
-  // Demo
-  DEMO_MODE: z
-    .union([z.boolean(), z.string()])
-    .transform((v) => v === true || v === 'true')
-    .default('true'),
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
@@ -99,15 +94,14 @@ export const envSchema = z.object({
   JOBS_DRAIN_SECRET: z.string().optional(),
 }).superRefine((data, ctx) => {
   // §4.3 fail-fast: a serverless deploy pointed at a same-host database can never
-  // connect. Previously this silently degraded into demo mode (lib/demo.ts), so an
-  // admin's product write was accepted by the API and then dropped. Crash instead.
-  if (data.VERCEL === '1' && !data.DEMO_MODE && isSameHostDatabaseUrl(data.DATABASE_URL)) {
+  // connect. Crash instead.
+  if (data.VERCEL === '1' && isSameHostDatabaseUrl(data.DATABASE_URL)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message:
         'DATABASE_URL points at the same host (localhost/socket) but the app is running on Vercel, ' +
         'where no local Postgres exists. Set DATABASE_URL to the Aiven pooled (PgBouncer) connection ' +
-        'string in the Vercel project settings, or set DEMO_MODE=true to run without a database.',
+        'string in the Vercel project settings.',
       path: ['DATABASE_URL'],
     });
   }
@@ -182,14 +176,12 @@ export const envSchema = z.object({
     }
   }
 
-  // Note: OTP mock bypass is safely gated in lib/auth/otp.ts via (env.DEMO_MODE && env.NODE_ENV !== 'production')
   if (
     data.SMS_DRIVER === 'mock' &&
-    data.NODE_ENV === 'production' &&
-    !data.DEMO_MODE
+    data.NODE_ENV === 'production'
   ) {
     console.warn(
-      '⚠️ Warning: SMS_DRIVER=mock is running in production with DEMO_MODE=false. SMS messages will be logged to server console.'
+      '⚠️ Warning: SMS_DRIVER=mock is running in production. SMS messages will be logged to server console.'
     );
   }
 });

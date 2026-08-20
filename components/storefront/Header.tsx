@@ -7,8 +7,12 @@ import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 import { DEFAULT_DRUG_CLASSIFICATIONS, type DrugClassificationInfo } from '@/lib/services/drug-classifications';
 import { fmtNumber } from '@/lib/i18n/number';
 import { useCart } from '@/lib/context/CartContext';
-import { getMockCustomerSession, clearMockCustomerSession, type MockCustomerSession } from '@/lib/mock-data/auth';
 import type { Locale } from '@/lib/i18n/config';
+
+interface CustomerSession {
+  phone: string;
+  name: string;
+}
 
 interface HeaderProps {
   locale: Locale;
@@ -29,7 +33,7 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
   const effectiveCartCount = cartCount > 0 ? cartCount : itemCount;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
-  const [customer, setCustomer] = useState<MockCustomerSession | null>(null);
+  const [customer, setCustomer] = useState<CustomerSession | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(
     initialSpecies && initialSpecies.length > 0
@@ -86,8 +90,6 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
 
 
   useEffect(() => {
-    setCustomer(getMockCustomerSession());
-
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
     };
@@ -287,7 +289,6 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                   </Link>
                   <button
                     onClick={() => {
-                      clearMockCustomerSession();
                       setCustomer(null);
                       window.location.reload();
                     }}
@@ -634,7 +635,6 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                     </div>
                     <button
                       onClick={() => {
-                        clearMockCustomerSession();
                         setCustomer(null);
                         window.location.reload();
                       }}

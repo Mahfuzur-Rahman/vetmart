@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/types/product';
 
 /**
  * Reads the §9 error envelope so the operator sees why a write was refused

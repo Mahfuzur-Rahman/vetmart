@@ -3,8 +3,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiSuccess, apiError } from '@/lib/api/response';
-import { updateIncompleteOrderStatus } from '@/lib/services/incomplete-orders';
-import type { IncompleteOrderStatus } from '@/lib/mock-data/incomplete-orders';
+import { updateIncompleteOrderStatus, type IncompleteOrderStatus } from '@/lib/services/incomplete-orders';
 import { requireAdmin } from '@/lib/api/guard';
 
 const updateSchema = z.object({

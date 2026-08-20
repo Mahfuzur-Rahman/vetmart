@@ -4,23 +4,11 @@ import { eq, and, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { speciesCategories } from '@/lib/db/schema';
 import { SPECIES, type SpeciesInfo } from './species';
-import { isDemoMode } from '@/lib/demo';
 
 /**
  * List species from the database with multi-criteria filtering.
  */
 export async function listSpecies(opts?: { showOnHomepage?: boolean; isActive?: boolean }): Promise<SpeciesInfo[]> {
-  if (isDemoMode()) {
-    let fallback = SPECIES;
-    if (opts?.showOnHomepage !== undefined) {
-      fallback = fallback.filter((s) => s.showOnHomepage === opts.showOnHomepage);
-    }
-    if (opts?.isActive !== undefined) {
-      fallback = fallback.filter((s) => s.isActive === opts.isActive);
-    }
-    return fallback;
-  }
-
   try {
     const conditions = [];
     if (opts?.isActive !== undefined) {

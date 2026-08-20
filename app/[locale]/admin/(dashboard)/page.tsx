@@ -2,8 +2,10 @@
 // Admin Dashboard with KPI cards and recent activity (§14.1)
 import { setRequestLocale } from 'next-intl/server';
 import type { Locale } from '@/lib/i18n/config';
-import { MOCK_ORDERS } from '@/lib/mock-data/orders';
-import { MOCK_PRESCRIPTIONS } from '@/lib/mock-data/prescriptions';
+import { listOrdersForAdmin } from '@/lib/services/orders';
+import { db } from '@/lib/db';
+import { prescriptions } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,33 @@ export default async function AdminDashboard({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
+  let recentOrders: Awaited<ReturnType<typeof listOrdersForAdmin>> = [];
+  let pendingPrescriptions: any[] = [];
+
+  try {
+    recentOrders = await listOrdersForAdmin(5);
+  } catch (err) {
+    console.error('Error fetching recent orders for dashboard:', err);
+  }
+
+  try {
+    pendingPrescriptions = await db
+      .select({
+        id: prescriptions.id,
+        vetName: prescriptions.vetName,
+        vetBvcRegNo: prescriptions.vetBvcRegNo,
+        createdAt: prescriptions.createdAt,
+      })
+      .from(prescriptions)
+      .where(eq(prescriptions.status, 'pending'))
+      .orderBy(desc(prescriptions.createdAt))
+      .limit(5);
+  } catch (err) {
+    console.warn('Error fetching pending prescriptions:', err);
+  }
+
+  const totalRevenuePaisa = recentOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -78,31 +107,31 @@ export default async function AdminDashboard({ params }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon="🧾"
-          label={loc === 'bn' ? 'আজকের অর্ডার' : "Today's Orders"}
-          value="24"
-          change="+18%"
+          label={loc === 'bn' ? 'মোট অর্ডার' : 'Total Orders'}
+          value={String(recentOrders.length)}
+          change="Real-time"
           trend="up"
         />
         <KpiCard
           icon="💰"
-          label={loc === 'bn' ? 'আজকের রাজস্ব (৳)' : "Today's Revenue (৳)"}
-          value="৳1,48,500"
-          change="+24%"
+          label={loc === 'bn' ? 'মোট রাজস্ব (৳)' : 'Revenue (৳)'}
+          value={`৳${(totalRevenuePaisa / 100).toFixed(2)}`}
+          change="Real-time"
           trend="up"
         />
         <KpiCard
           icon="📦"
           label={loc === 'bn' ? 'পেন্ডিং শিপমেন্ট' : 'Pending Shipments'}
-          value="3"
+          value={String(recentOrders.filter(o => o.status === 'pending' || o.status === 'pharmacist_review').length)}
           change="Dispatch"
           trend="flat"
         />
         <KpiCard
-          icon="⚠️"
-          label={loc === 'bn' ? 'কম স্টক সতর্কতা' : 'Low Stock Alerts'}
-          value="2"
+          icon="📋"
+          label={loc === 'bn' ? 'পেন্ডিং প্রেসক্রিপশন' : 'Pending Rx'}
+          value={String(pendingPrescriptions.length)}
           change="Action required"
-          trend="down"
+          trend={pendingPrescriptions.length > 0 ? 'down' : 'flat'}
         />
       </div>
 
@@ -133,34 +162,42 @@ export default async function AdminDashboard({ params }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAEAEA]">
-                {MOCK_ORDERS.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-[#F9F9F8] transition-colors">
-                    <td className="px-5 py-3 font-mono text-xs font-bold text-emerald-700">
-                      {ord.orderNumber}
-                    </td>
-                    <td className="px-5 py-3 text-xs text-[#2F3437]">
-                      {ord.customerName}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                          ord.status === 'delivered'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : ord.status === 'dispatched'
-                            ? 'bg-sky-50 text-sky-700 border-sky-200'
-                            : ord.status === 'pharmacist_review'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-[#F7F6F3] text-[#5F6368] border-[#EAEAEA]'
-                        }`}
-                      >
-                        {ord.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono font-bold text-[#2F3437] text-xs">
-                      ৳{(ord.totalAmount / 100).toFixed(2)}
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-xs text-[#787774]">
+                      {loc === 'bn' ? 'কোনো অর্ডার পাওয়া যায়নি।' : 'No orders recorded yet.'}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentOrders.map((ord) => (
+                    <tr key={ord.id} className="hover:bg-[#F9F9F8] transition-colors">
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-emerald-700">
+                        {ord.orderNumber}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-[#2F3437]">
+                        {ord.customerName}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                            ord.status === 'delivered'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : ord.status === 'dispatched'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : ord.status === 'pharmacist_review'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-[#F7F6F3] text-[#5F6368] border-[#EAEAEA]'
+                          }`}
+                        >
+                          {ord.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right font-mono font-bold text-[#2F3437] text-xs">
+                        ৳{(ord.totalAmount / 100).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -174,30 +211,35 @@ export default async function AdminDashboard({ params }: Props) {
               {loc === 'bn' ? 'প্রেসক্রিপশন রিভিউ কিউ' : 'Rx Review Queue'}
             </h2>
             <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold">
-              1 {loc === 'bn' ? 'পেন্ডিং' : 'pending'}
+              {pendingPrescriptions.length} {loc === 'bn' ? 'পেন্ডিং' : 'pending'}
             </span>
           </div>
 
           <div className="p-4 space-y-3">
-            {MOCK_PRESCRIPTIONS.filter((rx) => rx.status === 'pending').map((rx) => (
-              <div
-                key={rx.id}
-                className="p-3 rounded-xl bg-[#FBFBFA] border border-[#EAEAEA] flex items-center justify-between text-xs"
-              >
-                <div className="space-y-1">
-                  <div className="font-bold text-[#2F3437]">Order #{rx.orderNumber}</div>
-                  <div className="text-[#787774]">{rx.vetName}</div>
-                  <div className="text-emerald-700 font-mono text-[11px] font-bold">{rx.bvcRegNo}</div>
-                </div>
-
-                <a
-                  href={`/${loc}/admin/prescriptions`}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
-                >
-                  {loc === 'bn' ? 'রিভিউ করুন →' : 'Review Rx →'}
-                </a>
+            {pendingPrescriptions.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#787774]">
+                {loc === 'bn' ? 'কোনো পেন্ডিং প্রেসক্রিপশন নেই।' : 'No pending prescriptions.'}
               </div>
-            ))}
+            ) : (
+              pendingPrescriptions.map((rx) => (
+                <div
+                  key={rx.id}
+                  className="p-3 rounded-xl bg-[#FBFBFA] border border-[#EAEAEA] flex items-center justify-between text-xs"
+                >
+                  <div className="space-y-1">
+                    <div className="font-bold text-[#2F3437]">{rx.vetName || 'Prescription Request'}</div>
+                    <div className="text-emerald-700 font-mono text-[11px] font-bold">{rx.vetBvcRegNo || 'ID: ' + rx.id.slice(0, 8)}</div>
+                  </div>
+
+                  <a
+                    href={`/${loc}/admin/prescriptions`}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
+                  >
+                    {loc === 'bn' ? 'রিভিউ করুন →' : 'Review Rx →'}
+                  </a>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

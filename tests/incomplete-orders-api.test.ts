@@ -1,6 +1,6 @@
 // tests/incomplete-orders-api.test.ts
 import { describe, it, expect } from 'vitest';
-import { isValidBdPhone, sanitizeBdPhone, INITIAL_MOCK_INCOMPLETE_ORDERS } from '@/lib/mock-data/incomplete-orders';
+import { isValidBdPhone, sanitizeBdPhone } from '@/lib/validation/phone';
 
 describe('Incomplete Orders Business Logic & Payload Processing', () => {
   it('validates lead creation payload requirements', () => {
@@ -41,15 +41,5 @@ describe('Incomplete Orders Business Logic & Payload Processing', () => {
 
     expect(waUrl).toContain('wa.me/8801712984512');
     expect(waUrl).toContain(encodeURIComponent('VetMart'));
-  });
-
-  it('contains valid mock initial incomplete orders for demo experience', () => {
-    expect(INITIAL_MOCK_INCOMPLETE_ORDERS.length).toBeGreaterThan(0);
-    INITIAL_MOCK_INCOMPLETE_ORDERS.forEach((lead) => {
-      expect(isValidBdPhone(lead.phone)).toBe(true);
-      expect(lead.items.length).toBeGreaterThan(0);
-      expect(lead.totalAmount).toBeGreaterThan(0);
-      expect(['incomplete', 'contacted', 'converted', 'discarded']).toContain(lead.status);
-    });
   });
 });

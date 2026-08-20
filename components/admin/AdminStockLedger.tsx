@@ -1,15 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { MOCK_STOCK_LEDGER, type StockLedgerEntry } from '@/lib/mock-data/stock';
+
+export interface StockLedgerEntry {
+  id: string;
+  productId: string;
+  productNameEn: string;
+  productNameBn: string;
+  batchId: string;
+  batchNo: string;
+  delta: number;
+  reason: 'purchase' | 'customer_order' | 'adjustment' | 'expiry_damage' | string;
+  refType: 'initial_seed' | 'order_fulfill' | 'manual_audit' | string;
+  refId: string;
+  createdAt: string;
+  createdByName: string;
+}
 
 interface Props {
   locale: string;
+  initialEntries?: StockLedgerEntry[];
 }
 
-export function AdminStockLedger({ locale }: Props) {
+export function AdminStockLedger({ locale, initialEntries = [] }: Props) {
   const isBn = locale === 'bn';
-  const [entries, setEntries] = useState<StockLedgerEntry[]>(MOCK_STOCK_LEDGER);
+  const [entries, setEntries] = useState<StockLedgerEntry[]>(initialEntries);
   const [query, setQuery] = useState('');
 
   const filtered = entries.filter(
@@ -57,40 +72,48 @@ export function AdminStockLedger({ locale }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAEAEA]">
-              {filtered.map((stk) => (
-                <tr key={stk.id} className="hover:bg-[#F9F9F8] transition-colors">
-                  <td className="px-5 py-3.5 font-mono text-xs text-[#787774]">
-                    {new Date(stk.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-BD', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </td>
-                  <td className="px-5 py-3.5 font-bold text-xs text-[#2F3437]">
-                    {isBn ? stk.productNameBn : stk.productNameEn}
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-emerald-700 font-bold">
-                    {stk.batchNo}
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-mono font-extrabold text-xs">
-                    <span className={stk.delta > 0 ? 'text-emerald-700' : 'text-rose-600'}>
-                      {stk.delta > 0 ? `+${stk.delta}` : stk.delta}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-xs">
-                    <span className="px-2 py-0.5 rounded bg-[#F7F6F3] border border-[#EAEAEA] font-mono text-[#5F6368] text-[10px] uppercase">
-                      {stk.reason.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-[#787774]">
-                    {stk.refId}
-                  </td>
-                  <td className="px-5 py-3.5 text-xs text-[#787774]">
-                    {stk.createdByName}
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-xs text-[#787774]">
+                    {isBn ? 'কোনো স্টক লেজার রেকর্ড পাওয়া যায়নি।' : 'No stock movements recorded yet.'}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.map((stk) => (
+                  <tr key={stk.id} className="hover:bg-[#F9F9F8] transition-colors">
+                    <td className="px-5 py-3.5 font-mono text-xs text-[#787774]">
+                      {new Date(stk.createdAt).toLocaleDateString(isBn ? 'bn-BD' : 'en-BD', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="px-5 py-3.5 font-bold text-xs text-[#2F3437]">
+                      {isBn ? stk.productNameBn : stk.productNameEn}
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-emerald-700 font-bold">
+                      {stk.batchNo}
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-mono font-extrabold text-xs">
+                      <span className={stk.delta > 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                        {stk.delta > 0 ? `+${stk.delta}` : stk.delta}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs">
+                      <span className="px-2 py-0.5 rounded bg-[#F7F6F3] border border-[#EAEAEA] font-mono text-[#5F6368] text-[10px] uppercase">
+                        {stk.reason.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-[#787774]">
+                      {stk.refId}
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-[#787774]">
+                      {stk.createdByName}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

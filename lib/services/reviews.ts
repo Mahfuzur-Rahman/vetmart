@@ -1,10 +1,31 @@
 // lib/services/reviews.ts
-// Product Reviews service — CRUD operations, database queries, and fallback support
+// Product Reviews service — CRUD operations & database queries
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { productReviews, products } from '@/lib/db/schema';
-import { isDemoMode } from '@/lib/demo';
-import { getProductReviews as getMockReviews, type Review } from '@/lib/mock-data/reviews';
+
+export interface Review {
+  id: string;
+  productId?: string;
+  productSlug?: string;
+  authorName: string;
+  authorRole: 'dairy_farmer' | 'poultry_farmer' | 'vet_dvm' | 'pet_owner' | 'farmer';
+  authorRoleLabelEn: string;
+  authorRoleLabelBn: string;
+  location: string;
+  rating: number; // 1 to 5
+  titleEn: string;
+  titleBn: string;
+  commentEn: string;
+  commentBn: string;
+  speciesTreated?: string;
+  speciesTreatedLabelEn?: string;
+  speciesTreatedLabelBn?: string;
+  isVerifiedPurchase: boolean;
+  isVetRecommended?: boolean;
+  helpfulCount: number;
+  createdAt: string;
+}
 
 export interface CreateReviewInput {
   productId?: string;
@@ -37,17 +58,10 @@ const SPECIES_LABELS: Record<string, { en: string; bn: string }> = {
 };
 
 /**
- * Fetch approved reviews for a product by slug or ID
+ * Fetch approved reviews for a product by slug
  */
 export async function getReviewsByProductSlug(slug: string): Promise<Review[]> {
-  const seedReviews = getMockReviews(slug);
-
-  if (isDemoMode()) {
-    return seedReviews;
-  }
-
   try {
-    // 1. Find product ID
     const [p] = await db
       .select({ id: products.id })
       .from(products)
@@ -55,10 +69,9 @@ export async function getReviewsByProductSlug(slug: string): Promise<Review[]> {
       .limit(1);
 
     if (!p) {
-      return seedReviews;
+      return [];
     }
 
-    // 2. Fetch reviews from DB
     const dbReviews = await db
       .select()
       .from(productReviews)
@@ -66,10 +79,10 @@ export async function getReviewsByProductSlug(slug: string): Promise<Review[]> {
       .orderBy(desc(productReviews.createdAt));
 
     if (!dbReviews || dbReviews.length === 0) {
-      return seedReviews;
+      return [];
     }
 
-    const mappedDbReviews: Review[] = dbReviews.map((r) => {
+    return dbReviews.map((r) => {
       const role = (r.authorRole as Review['authorRole']) || 'farmer';
       const roleLabel = ROLE_LABELS[role] || { en: 'Customer', bn: 'ক্রেতা' };
       const species = r.speciesTreated || undefined;
@@ -98,14 +111,9 @@ export async function getReviewsByProductSlug(slug: string): Promise<Review[]> {
         createdAt: r.createdAt.toISOString(),
       };
     });
-
-    // Merge DB reviews with seed reviews
-    const dbIds = new Set(mappedDbReviews.map((r) => r.id));
-    const uniqueSeed = seedReviews.filter((r) => !dbIds.has(r.id));
-    return [...mappedDbReviews, ...uniqueSeed];
   } catch (error) {
-    console.error('Error fetching reviews from DB, returning seed reviews:', error);
-    return seedReviews;
+    console.error('Error fetching reviews from DB:', error);
+    return [];
   }
 }
 
@@ -130,7 +138,7 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
   const species = data.speciesTreated || undefined;
   const speciesLabel = species ? SPECIES_LABELS[species] : undefined;
 
-  if (!isDemoMode() && targetProductId) {
+  if (targetProductId) {
     try {
       const [inserted] = await db
         .insert(productReviews)
@@ -176,11 +184,10 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
         };
       }
     } catch (err) {
-      console.error('Failed to insert review into DB, falling back:', err);
+      console.error('Failed to insert review into DB:', err);
     }
   }
 
-  // Fallback returned review
   return {
     id: `rev-${Date.now()}`,
     productId: targetProductId,
@@ -209,14 +216,62 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
  * Increment helpful count for a review
  */
 export async function incrementReviewHelpful(reviewId: string) {
-  if (!isDemoMode()) {
-    try {
-      await db
-        .update(productReviews)
-        .set({ helpfulCount: sql`${productReviews.helpfulCount} + 1` })
-        .where(eq(productReviews.id, reviewId));
-    } catch (err) {
-      console.error('Failed to update review helpful count in DB:', err);
-    }
+  try {
+    await db
+      .update(productReviews)
+      .set({ helpfulCount: sql`${productReviews.helpfulCount} + 1` })
+      .where(eq(productReviews.id, reviewId));
+  } catch (err) {
+    console.error('Failed to update review helpful count in DB:', err);
   }
+}
+
+/**
+ * Calculate summary review statistics for a list of reviews
+ */
+export function calculateReviewStats(reviews: Review[]) {
+  const total = reviews.length;
+  if (total === 0) {
+    return {
+      avgRating: 5.0,
+      totalReviews: 0,
+      verifiedCount: 0,
+      recommendedPct: 100,
+      ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } as Record<number, number>,
+      ratingPercentages: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } as Record<number, number>,
+    };
+  }
+
+  const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+  const avgRating = Number((sum / total).toFixed(1));
+
+  const ratingCounts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  let verifiedCount = 0;
+  let recommendedCount = 0;
+
+  reviews.forEach((r) => {
+    const star = Math.min(5, Math.max(1, Math.round(r.rating)));
+    ratingCounts[star] = (ratingCounts[star] || 0) + 1;
+    if (r.isVerifiedPurchase) verifiedCount++;
+    if (r.rating >= 4 || r.isVetRecommended) recommendedCount++;
+  });
+
+  const ratingPercentages: Record<number, number> = {
+    5: Math.round(((ratingCounts[5] || 0) / total) * 100),
+    4: Math.round(((ratingCounts[4] || 0) / total) * 100),
+    3: Math.round(((ratingCounts[3] || 0) / total) * 100),
+    2: Math.round(((ratingCounts[2] || 0) / total) * 100),
+    1: Math.round(((ratingCounts[1] || 0) / total) * 100),
+  };
+
+  const recommendedPct = Math.round((recommendedCount / total) * 100);
+
+  return {
+    avgRating,
+    totalReviews: total,
+    verifiedCount,
+    recommendedPct,
+    ratingCounts,
+    ratingPercentages,
+  };
 }

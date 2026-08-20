@@ -5,8 +5,6 @@ import { Footer } from '@/components/storefront/Footer';
 import { ProductDetailView } from '@/components/storefront/ProductDetailView';
 import { notFound } from 'next/navigation';
 import { getProductBySlug } from '@/lib/services/products';
-import { getProductBySlug as getSeedProductBySlug } from '@/lib/mock-data/products';
-import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
@@ -21,10 +19,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // One source of truth per mode: the database, or the seed catalog in demo
-  // mode. Previously a DB miss silently fell through to the seed list, so a
-  // product that had been deleted still rendered.
-  const p = isDemoMode() ? getSeedProductBySlug(slug) : await getProductBySlug(slug);
+  const p = await getProductBySlug(slug);
 
   if (!p) {
     notFound();
@@ -42,4 +37,3 @@ export default async function ProductDetailPage({ params }: Props) {
     </div>
   );
 }
-

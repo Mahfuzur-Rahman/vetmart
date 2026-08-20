@@ -5,7 +5,7 @@ import { fmtMoney } from '@/lib/i18n/number';
 import { getSpeciesName } from '@/lib/services/species';
 import { ProductDetailAddToCart } from '@/components/storefront/ProductDetailAddToCart';
 import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection';
-import { PRODUCTS_UPDATED_EVENT } from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT } from '@/lib/types/product';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { fmtDate, fmtNumber } from '@/lib/i18n/number';
-import { calculateReviewStats, type Review } from '@/lib/mock-data/reviews';
+import { calculateReviewStats, type Review } from '@/lib/services/reviews';
 import { ProductReviewForm } from './ProductReviewForm';
 import type { Locale } from '@/lib/i18n/config';
 

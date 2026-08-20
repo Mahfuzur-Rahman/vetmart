@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 
 import { ProductCard } from '@/components/storefront/ProductCard';
-import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/types/product';
 import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';

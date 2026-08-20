@@ -4,7 +4,6 @@ import { eq, and, asc, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { drugClassifications } from '@/lib/db/schema';
 import { DEFAULT_DRUG_CLASSIFICATIONS, type DrugClassificationInfo } from './drug-classifications';
-import { isDemoMode } from '@/lib/demo';
 
 let isTableEnsured = false;
 
@@ -12,7 +11,6 @@ let isTableEnsured = false;
  * Automatically ensure table exists in PostgreSQL and seed defaults if empty.
  */
 export async function ensureDrugClassificationsTable() {
-  if (isDemoMode()) return;
   if (isTableEnsured) return;
   try {
     // 1. Create table if not exists
@@ -37,7 +35,6 @@ export async function ensureDrugClassificationsTable() {
     // 2. Check if table is empty and seed
     const countRes: any = await db.execute(sql`SELECT count(*)::int as cnt FROM "drug_classifications"`);
     const count = countRes?.[0]?.cnt ?? countRes?.rows?.[0]?.cnt ?? 0;
-
 
     if (count === 0) {
       for (const item of DEFAULT_DRUG_CLASSIFICATIONS) {
@@ -66,20 +63,6 @@ export async function listDrugClassifications(opts?: {
   showOnHomepage?: boolean;
   isActive?: boolean;
 }): Promise<DrugClassificationInfo[]> {
-  if (isDemoMode()) {
-    let fallback = DEFAULT_DRUG_CLASSIFICATIONS;
-    if (opts?.showOnMenu !== undefined) {
-      fallback = fallback.filter((d) => d.showOnMenu === opts.showOnMenu);
-    }
-    if (opts?.showOnHomepage !== undefined) {
-      fallback = fallback.filter((d) => d.showOnHomepage === opts.showOnHomepage);
-    }
-    if (opts?.isActive !== undefined) {
-      fallback = fallback.filter((d) => d.isActive === opts.isActive);
-    }
-    return fallback;
-  }
-
   try {
     await ensureDrugClassificationsTable();
 
@@ -142,10 +125,6 @@ export async function listDrugClassifications(opts?: {
  * Get a single classification by slug.
  */
 export async function getDrugClassificationBySlug(slug: string) {
-  if (isDemoMode()) {
-    const item = DEFAULT_DRUG_CLASSIFICATIONS.find((d) => d.slug === slug);
-    return item || null;
-  }
   try {
     await ensureDrugClassificationsTable();
     const [item] = await db

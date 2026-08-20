@@ -1,16 +1,44 @@
 // lib/services/incomplete-orders.ts
 // Service layer for Incomplete Orders & Social Campaign Abandoned Lead Capture
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { incompleteOrders } from '@/lib/db/schema';
-import { isDemoMode } from '@/lib/demo';
-import {
-  type IncompleteOrder,
-  type IncompleteOrderStatus,
-  isValidBdPhone,
-  sanitizeBdPhone,
-  INITIAL_MOCK_INCOMPLETE_ORDERS,
-} from '@/lib/mock-data/incomplete-orders';
+import { isValidBdPhone, sanitizeBdPhone } from '@/lib/validation/phone';
+
+export type IncompleteOrderStatus = 'incomplete' | 'contacted' | 'converted' | 'discarded';
+
+export interface IncompleteOrderItem {
+  productId: string;
+  productSlug: string;
+  productNameEn: string;
+  productNameBn: string;
+  unitPrice: number; // in paisa
+  quantity: number;
+  totalPrice: number; // in paisa
+  packSize?: string | null;
+  imageUrl?: string | null;
+}
+
+export interface IncompleteOrder {
+  id: string;
+  phone: string;
+  name?: string | null;
+  address?: string | null;
+  division?: string | null;
+  district?: string | null;
+  upazila?: string | null;
+  items: IncompleteOrderItem[];
+  subtotal: number; // in paisa
+  deliveryFee: number; // in paisa
+  totalAmount: number; // in paisa
+  utmSource?: string | null;
+  utmCampaign?: string | null;
+  utmMedium?: string | null;
+  status: IncompleteOrderStatus;
+  adminNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface IncompleteOrderInput {
   id?: string;
@@ -52,65 +80,54 @@ export async function captureIncompleteOrder(input: IncompleteOrderInput): Promi
   const totalAmount = input.totalAmount || (input.subtotal + deliveryFee);
   const now = new Date();
 
-  if (isDemoMode() || !db) {
-    const id = input.id || `inc-ord-${Date.now()}`;
-    return { id, status: 'incomplete' };
-  }
+  if (input.id) {
+    // Update existing draft
+    await db
+      .update(incompleteOrders)
+      .set({
+        phone: sanitizedPhone,
+        name: input.name ?? null,
+        address: input.address ?? null,
+        division: input.division ?? null,
+        district: input.district ?? null,
+        upazila: input.upazila ?? null,
+        items: input.items,
+        subtotal: input.subtotal,
+        deliveryFee,
+        totalAmount,
+        utmSource: input.utmSource ?? null,
+        utmCampaign: input.utmCampaign ?? null,
+        utmMedium: input.utmMedium ?? null,
+        updatedAt: now,
+      })
+      .where(eq(incompleteOrders.id, input.id));
 
-  try {
-    if (input.id) {
-      // Update existing draft
-      await db
-        .update(incompleteOrders)
-        .set({
-          phone: sanitizedPhone,
-          name: input.name ?? null,
-          address: input.address ?? null,
-          division: input.division ?? null,
-          district: input.district ?? null,
-          upazila: input.upazila ?? null,
-          items: input.items,
-          subtotal: input.subtotal,
-          deliveryFee,
-          totalAmount,
-          utmSource: input.utmSource ?? null,
-          utmCampaign: input.utmCampaign ?? null,
-          utmMedium: input.utmMedium ?? null,
-          updatedAt: now,
-        })
-        .where(eq(incompleteOrders.id, input.id));
+    return { id: input.id, status: 'incomplete' };
+  } else {
+    // Insert new lead
+    const [record] = await db
+      .insert(incompleteOrders)
+      .values({
+        phone: sanitizedPhone,
+        name: input.name ?? null,
+        address: input.address ?? null,
+        division: input.division ?? null,
+        district: input.district ?? null,
+        upazila: input.upazila ?? null,
+        items: input.items,
+        subtotal: input.subtotal,
+        deliveryFee,
+        totalAmount,
+        utmSource: input.utmSource ?? null,
+        utmCampaign: input.utmCampaign ?? null,
+        utmMedium: input.utmMedium ?? null,
+        status: 'incomplete',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: incompleteOrders.id, status: incompleteOrders.status });
 
-      return { id: input.id, status: 'incomplete' };
-    } else {
-      // Insert new lead
-      const [record] = await db
-        .insert(incompleteOrders)
-        .values({
-          phone: sanitizedPhone,
-          name: input.name ?? null,
-          address: input.address ?? null,
-          division: input.division ?? null,
-          district: input.district ?? null,
-          upazila: input.upazila ?? null,
-          items: input.items,
-          subtotal: input.subtotal,
-          deliveryFee,
-          totalAmount,
-          utmSource: input.utmSource ?? null,
-          utmCampaign: input.utmCampaign ?? null,
-          utmMedium: input.utmMedium ?? null,
-          status: 'incomplete',
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning({ id: incompleteOrders.id, status: incompleteOrders.status });
-
-      return { id: record.id, status: record.status as IncompleteOrderStatus };
-    }
-  } catch (err: any) {
-    console.error('Failed to capture incomplete order in DB, returning fallback id:', err?.message);
-    const id = input.id || `inc-ord-${Date.now()}`;
-    return { id, status: 'incomplete' };
+    return { id: record.id, status: record.status as IncompleteOrderStatus };
   }
 }
 
@@ -118,17 +135,6 @@ export async function captureIncompleteOrder(input: IncompleteOrderInput): Promi
  * List incomplete orders for admin review.
  */
 export async function getIncompleteOrders(statusFilter?: string): Promise<IncompleteOrder[]> {
-  if (isDemoMode()) {
-    return statusFilter
-      ? INITIAL_MOCK_INCOMPLETE_ORDERS.filter((l) => l.status === statusFilter)
-      : INITIAL_MOCK_INCOMPLETE_ORDERS;
-  }
-
-  // No try/catch returning seed data. A database failure used to surface as a
-  // list of invented leads, so an operator would have called fabricated phone
-  // numbers believing they were real abandoned carts.
-  // statusFilter was previously accepted and then ignored, so every caller
-  // asking for one status got the entire table back.
   const rows = await db
     .select()
     .from(incompleteOrders)
@@ -165,10 +171,6 @@ export async function updateIncompleteOrderStatus(
   status: IncompleteOrderStatus,
   adminNotes?: string
 ): Promise<boolean> {
-  if (isDemoMode() || !db) {
-    return true;
-  }
-
   try {
     await db
       .update(incompleteOrders)

@@ -1,7 +1,6 @@
 // tests/admin-product-upload-delete.test.ts
 import { describe, it, expect } from 'vitest';
 import { getStorageDriver } from '@/lib/storage';
-import { SEED_PRODUCTS } from '@/lib/mock-data/products';
 
 describe('Admin Product Image Storage & Cascade Deletion Logic', () => {
   it('instantiates storage driver properly with responsive image URL generator', () => {
@@ -20,13 +19,16 @@ describe('Admin Product Image Storage & Cascade Deletion Logic', () => {
   });
 
   it('correctly filters out deleted product IDs from catalog dataset', () => {
-    const allProducts = [...SEED_PRODUCTS];
-    const initialCount = allProducts.length;
+    const sampleProducts = [
+      { id: 'prod-1', slug: 'renaflox-100ml', nameEn: 'Renaflox 100ml' },
+      { id: 'prod-2', slug: 'rena-ws-100g', nameEn: 'Rena-WS 100g' },
+    ];
+    const initialCount = sampleProducts.length;
 
     const deletedIds = ['prod-1', 'renaflox-100ml'];
     const deletedSet = new Set(deletedIds);
 
-    const filtered = allProducts.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+    const filtered = sampleProducts.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
 
     expect(filtered.length).toBe(initialCount - 1);
     expect(filtered.find((p) => p.id === 'prod-1')).toBeUndefined();

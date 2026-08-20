@@ -4,11 +4,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link } from '@/lib/i18n/navigation';
 import { fmtMoney, fmtNumber } from '@/lib/i18n/number';
-import {
-  type IncompleteOrder,
-  isValidBdPhone,
-  sanitizeBdPhone,
-} from '@/lib/mock-data/incomplete-orders';
+import { type IncompleteOrder } from '@/lib/services/incomplete-orders';
+import { isValidBdPhone, sanitizeBdPhone } from '@/lib/validation/phone';
 import type { Locale } from '@/lib/i18n/config';
 
 export interface ExpressProduct {

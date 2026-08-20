@@ -12,7 +12,6 @@ import {
 } from '@/lib/db/schema';
 import { getStorageDriver } from '@/lib/storage';
 import { getProductStockSummary } from './stock';
-import { isDemoMode } from '@/lib/demo';
 import {
   productCreateSchema,
   productUpdateSchema,
@@ -34,10 +33,6 @@ export interface ProductFilterOptions {
  * Fetch a single active product by slug with relations and sellable stock.
  */
 export async function getProductBySlug(slug: string) {
-  if (isDemoMode()) {
-    return null;
-  }
-
   // No try/catch: a database failure must propagate. Returning null here made a
   // dead connection indistinguishable from a deleted product.
   const [product] = await db
@@ -127,10 +122,6 @@ export async function getProductBySlug(slug: string) {
  * List products with filters and search support.
  */
 export async function listProducts(opts: ProductFilterOptions = {}) {
-  if (isDemoMode()) {
-    return [];
-  }
-
   // No try/catch: a database failure must propagate rather than render an
   // empty catalog that looks like a shop with no stock.
   const conditions = [eq(products.isActive, true)];
@@ -228,15 +219,6 @@ export class ProductNotFoundError extends Error {
   }
 }
 
-/** Thrown when a write is attempted while the app is running without a database. */
-export class DemoModeWriteError extends Error {
-  readonly code = 'DEMO_MODE_READ_ONLY';
-  constructor() {
-    super('The catalog is read-only in demo mode. Set DEMO_MODE=false and configure DATABASE_URL to write products.');
-    this.name = 'DemoModeWriteError';
-  }
-}
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function productLookup(idOrSlug: string) {
@@ -253,8 +235,6 @@ function productLookup(idOrSlug: string) {
  * invisible to the stock report.
  */
 export async function createProduct(rawInput: unknown) {
-  if (isDemoMode()) throw new DemoModeWriteError();
-
   const input = productCreateSchema.parse(rawInput);
   const productRow = buildProductRow(input);
 
@@ -305,8 +285,6 @@ export async function createProduct(rawInput: unknown) {
  * silent success for a row that is not there.
  */
 export async function updateProduct(idOrSlug: string, rawInput: unknown) {
-  if (isDemoMode()) throw new DemoModeWriteError();
-
   const input = productUpdateSchema.parse(rawInput);
 
   return db.transaction(async (tx) => {
@@ -380,8 +358,6 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
  * Batches, ledger rows and images cascade in Postgres (see catalog schema).
  */
 export async function deleteProduct(idOrSlug: string) {
-  if (isDemoMode()) throw new DemoModeWriteError();
-
   const [product] = await db
     .select({ id: products.id, slug: products.slug })
     .from(products)

@@ -4,7 +4,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ExpressOrderView, type ExpressProduct } from '@/components/storefront/ExpressOrderView';
-import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
+import { listProducts } from '@/lib/services/products';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,9 @@ export default async function GenericExpressOrderPage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  const allProducts: ExpressProduct[] = MOCK_PRODUCTS.slice(0, 8).map((item) => ({
+  const dbProducts = await listProducts({ limit: 12 });
+
+  const allProducts: ExpressProduct[] = dbProducts.map((item: any) => ({
     id: item.id,
     slug: item.slug,
     nameEn: item.nameEn,
@@ -30,11 +32,11 @@ export default async function GenericExpressOrderPage({ params }: Props) {
     mrp: item.mrp,
     salePrice: item.salePrice,
     requiresPrescription: item.requiresPrescription,
-    requiresColdChain: item.coldChain || item.requiresColdChain,
-    coldChain: item.coldChain || item.requiresColdChain,
+    requiresColdChain: item.requiresColdChain,
+    coldChain: item.requiresColdChain,
     imageUrl: item.imageUrl,
-    stock: item.stockQty ?? 100,
-    manufacturerName: item.manufacturerName || 'Square Pharmaceuticals Ltd.',
+    stock: 100,
+    manufacturerName: item.manufacturerName || 'Veterinary Health',
   }));
 
   const defaultProduct = allProducts[0];

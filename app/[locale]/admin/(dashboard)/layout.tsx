@@ -3,7 +3,6 @@
 import { redirect } from 'next/navigation';
 import { setRequestLocale } from 'next-intl/server';
 import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
-import { isDemoMode } from '@/lib/demo';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -21,22 +20,14 @@ export default async function AdminLayout({ children, params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // RBAC gate. Demo mode has no admins table, and every write path refuses to
-  // run in demo mode anyway, so the panel is browsable there without a session.
-  let auth = null;
+  const auth = await getAuthenticatedAdmin();
 
-  if (!isDemoMode()) {
-    auth = await getAuthenticatedAdmin();
-
-    // This redirect used to be commented out, which left the whole admin panel
-    // readable by anyone who knew the URL on a public deployment.
-    if (!auth) {
-      redirect(`/${locale}/admin/login`);
-    }
+  if (!auth) {
+    redirect(`/${locale}/admin/login`);
   }
 
-  const adminName = auth?.admin?.name ?? 'Demo Admin';
-  const permissionKeys = auth ? Array.from(auth.permissions) : ['*'];
+  const adminName = auth.admin.name;
+  const permissionKeys = Array.from(auth.permissions);
 
   return (
     <div className="flex min-h-dvh bg-[#F7F6F3] text-[#2F3437]">

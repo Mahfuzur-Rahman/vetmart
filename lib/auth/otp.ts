@@ -12,7 +12,6 @@ export interface RequestOtpResult {
   success: boolean;
   cooldownSeconds?: number;
   message?: string;
-  demoCode?: string; // Only exposed when DEMO_MODE=true and NODE_ENV !== 'production' (§4.2, §20)
 }
 
 export interface VerifyOtpResult {
@@ -47,15 +46,7 @@ export async function requestOtp(rawPhone: string, purpose: string = 'login'): P
   }
 
   // 2. Generate 6-digit code (§8)
-  let code = '';
-  // In demo mode with mock SMS, we can generate a predictable code if needed or random
-  const isDemoBypass = env.DEMO_MODE && env.NODE_ENV !== 'production';
-  if (isDemoBypass && env.SMS_DRIVER === 'mock') {
-    code = '123456'; // Convenient default for automated demo testing
-  } else {
-    code = String(Math.floor(100000 + Math.random() * 900000));
-  }
-
+  const code = String(Math.floor(100000 + Math.random() * 900000));
   const codeHash = hashOtp(canonicalPhone, code);
   const expiresAt = new Date(Date.now() + env.OTP_TTL_SECONDS * 1000); // 3 minutes TTL
 
@@ -75,7 +66,6 @@ export async function requestOtp(rawPhone: string, purpose: string = 'login'): P
   return {
     success: true,
     cooldownSeconds: env.OTP_RESEND_COOLDOWN_SECONDS,
-    demoCode: isDemoBypass ? code : undefined,
   };
 }
 

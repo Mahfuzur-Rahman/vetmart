@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/storefront/ProductCard';
-import { PRODUCTS_UPDATED_EVENT } from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT } from '@/lib/types/product';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 

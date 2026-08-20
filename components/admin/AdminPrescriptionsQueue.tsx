@@ -1,15 +1,32 @@
 'use client';
 
 import { useState } from 'react';
-import { MOCK_PRESCRIPTIONS, type MockPrescription } from '@/lib/mock-data/prescriptions';
+
+export interface MockPrescription {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  vetName: string;
+  bvcRegNo: string;
+  species: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  rxImageUrl: string;
+  uploadedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+}
 
 interface Props {
   locale: string;
+  initialPrescriptions?: MockPrescription[];
 }
 
-export function AdminPrescriptionsQueue({ locale }: Props) {
+export function AdminPrescriptionsQueue({ locale, initialPrescriptions = [] }: Props) {
   const isBn = locale === 'bn';
-  const [prescriptions, setPrescriptions] = useState<MockPrescription[]>(MOCK_PRESCRIPTIONS);
+  const [prescriptions, setPrescriptions] = useState<MockPrescription[]>(initialPrescriptions);
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [selectedRx, setSelectedRx] = useState<MockPrescription | null>(null);
 
@@ -23,7 +40,7 @@ export function AdminPrescriptionsQueue({ locale }: Props) {
               ...rx,
               status: 'approved',
               reviewedAt: new Date().toISOString(),
-              reviewedBy: 'Registered Pharmacist (pharmacist@vetmart.bd)',
+              reviewedBy: 'Registered Pharmacist',
             }
           : rx
       )
@@ -40,7 +57,7 @@ export function AdminPrescriptionsQueue({ locale }: Props) {
               status: 'rejected',
               rejectionReason: 'Invalid BVC registration number or signature seal missing',
               reviewedAt: new Date().toISOString(),
-              reviewedBy: 'Registered Pharmacist (pharmacist@vetmart.bd)',
+              reviewedBy: 'Registered Pharmacist',
             }
           : rx
       )
@@ -58,10 +75,10 @@ export function AdminPrescriptionsQueue({ locale }: Props) {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
             activeTab === 'pending'
               ? 'bg-amber-600 text-white font-bold border-amber-600 shadow-xs'
-              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:bg-[#F7F6F3]'
           }`}
         >
-          {isBn ? 'পেন্ডিং রিভিউ' : 'Pending Review'} ({prescriptions.filter((r) => r.status === 'pending').length})
+          ⏱️ {isBn ? 'রিভিউ পেন্ডিং' : 'Pending Review'}
         </button>
         <button
           type="button"
@@ -69,10 +86,10 @@ export function AdminPrescriptionsQueue({ locale }: Props) {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
             activeTab === 'approved'
               ? 'bg-emerald-600 text-white font-bold border-emerald-600 shadow-xs'
-              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:bg-[#F7F6F3]'
           }`}
         >
-          {isBn ? 'অনুমোদিত' : 'Approved'} ({prescriptions.filter((r) => r.status === 'approved').length})
+          ✅ {isBn ? 'অনুমোদিত' : 'Approved'}
         </button>
         <button
           type="button"
@@ -80,127 +97,135 @@ export function AdminPrescriptionsQueue({ locale }: Props) {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
             activeTab === 'rejected'
               ? 'bg-rose-600 text-white font-bold border-rose-600 shadow-xs'
-              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:bg-[#F7F6F3]'
           }`}
         >
-          {isBn ? 'প্রত্যাখ্যাত' : 'Rejected'} ({prescriptions.filter((r) => r.status === 'rejected').length})
+          ❌ {isBn ? 'বাতিলকৃত' : 'Rejected'}
         </button>
       </div>
 
-      {/* Prescriptions Table */}
+      {/* Prescription Queue List */}
       <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
-                <th className="px-5 py-3.5 font-semibold">Order #</th>
-                <th className="px-5 py-3.5 font-semibold">{isBn ? 'গ্রাহক' : 'Customer'}</th>
-                <th className="px-5 py-3.5 font-semibold">{isBn ? 'ভেটেরিনারি সার্জন' : 'Vet Surgeon'}</th>
-                <th className="px-5 py-3.5 font-semibold">{isBn ? 'BVC নম্বর' : 'BVC Reg. No'}</th>
-                <th className="px-5 py-3.5 font-semibold">{isBn ? 'প্রজাতি' : 'Species'}</th>
-                <th className="px-5 py-3.5 font-semibold text-right">{isBn ? 'অ্যাকশন' : 'Actions'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EAEAEA]">
-              {filtered.length > 0 ? (
-                filtered.map((rx) => (
-                  <tr key={rx.id} className="hover:bg-[#F9F9F8] transition-colors">
-                    <td className="px-5 py-3.5 font-mono text-xs font-bold text-emerald-700">
-                      #{rx.orderNumber}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="font-bold text-[#2F3437] text-xs">{rx.customerName}</div>
-                      <div className="text-[11px] text-[#787774] font-mono">{rx.customerPhone}</div>
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-[#2F3437] font-medium">
-                      {rx.vetName}
-                    </td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-emerald-800 font-bold">
+        <div className="px-5 py-4 border-b border-[#EAEAEA] bg-[#FBFBFA] flex items-center justify-between">
+          <h2 className="font-bold text-sm text-[#2F3437]">
+            {isBn ? 'প্রেসক্রিপশন ভেরিফিকেশন কিউ' : 'Prescription Verification Queue'}
+          </h2>
+          <span className="text-xs text-amber-700 font-mono font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+            Rx §5.5
+          </span>
+        </div>
+
+        <div className="divide-y divide-[#EAEAEA]">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-xs text-[#787774]">
+              {isBn ? 'এই ক্যাটাগরিতে কোনো প্রেসক্রিপশন নেই।' : 'No prescriptions in this queue.'}
+            </div>
+          ) : (
+            filtered.map((rx) => (
+              <div key={rx.id} className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#F9F9F8] transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-emerald-700">{rx.orderNumber}</span>
+                    <span className="text-xs font-bold text-[#2F3437]">{rx.customerName}</span>
+                    <span className="text-xs text-[#787774]">({rx.customerPhone})</span>
+                  </div>
+                  <div className="text-xs text-[#5F6368] flex items-center gap-2">
+                    <span>👨‍⚕️ {rx.vetName}</span>
+                    <span className="font-mono text-[11px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                       {rx.bvcRegNo}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-[#787774]">
-                      {rx.species}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
+                    </span>
+                    <span>🐾 {rx.species}</span>
+                  </div>
+                  <div className="text-[11px] text-[#9AA0A6]">
+                    {new Date(rx.uploadedAt).toLocaleString(isBn ? 'bn-BD' : 'en-BD')}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRx(rx)}
+                    className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-[#F7F6F3] hover:bg-[#EAEAEA] text-[#2F3437] text-xs font-semibold border border-[#EAEAEA] transition-colors cursor-pointer"
+                  >
+                    🔍 {isBn ? 'ছবি দেখুন' : 'View Rx'}
+                  </button>
+                  {rx.status === 'pending' && (
+                    <>
                       <button
                         type="button"
-                        onClick={() => setSelectedRx(rx)}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
+                        onClick={() => handleApprove(rx.id)}
+                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                       >
-                        {isBn ? 'রিভিউ করুন 🔍' : 'Review Rx 🔍'}
+                        ✅ {isBn ? 'অনুমোদন' : 'Approve'}
                       </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-[#787774] text-xs">
-                    <div className="space-y-2">
-                      <div className="text-3xl">✅</div>
-                      <p>{isBn ? 'এই ক্যাটাগরিতে কোনো প্রেসক্রিপশন নেই' : 'No prescriptions found in this tab'}</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      <button
+                        type="button"
+                        onClick={() => handleReject(rx.id)}
+                        className="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200 transition-colors cursor-pointer"
+                      >
+                        ❌ {isBn ? 'বাতিল' : 'Reject'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Prescription Review Lightbox Modal */}
+      {/* Modal Preview */}
       {selectedRx && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl max-h-[90dvh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#EAEAEA] pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-[#2F3437]">
-                  Order #{selectedRx.orderNumber} — Prescription Review
-                </h3>
-                <p className="text-xs text-emerald-700 font-mono">
-                  {selectedRx.vetName} ({selectedRx.bvcRegNo})
-                </p>
-              </div>
+              <h3 className="font-bold text-sm text-[#2F3437]">
+                {isBn ? 'প্রেসক্রিপশন পর্যালোচনা' : 'Review Prescription'} — {selectedRx.orderNumber}
+              </h3>
               <button
                 type="button"
                 onClick={() => setSelectedRx(null)}
-                className="text-[#787774] hover:text-[#2F3437] text-sm font-bold p-1 rounded-lg hover:bg-[#F7F6F3]"
+                className="text-[#787774] hover:text-[#2F3437] text-lg font-bold"
               >
                 ✕
               </button>
             </div>
 
-            {/* Prescription Document Preview */}
-            <div className="w-full h-80 rounded-2xl bg-[#F7F6F3] border border-[#EAEAEA] overflow-hidden relative p-2">
+            <div className="aspect-[3/4] rounded-xl overflow-hidden bg-[#F7F6F3] border border-[#EAEAEA]">
               <img
                 src={selectedRx.rxImageUrl}
-                alt="Uploaded Prescription"
+                alt="Prescription"
                 className="w-full h-full object-contain"
               />
             </div>
 
-            {/* Approval Controls */}
-            {selectedRx.status === 'pending' ? (
-              <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-[#EAEAEA]">
-                <button
-                  type="button"
-                  onClick={() => handleReject(selectedRx.id)}
-                  className="px-5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs transition-all"
-                >
-                  ✕ {isBn ? 'বাতিল করুন' : 'Reject Prescription'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApprove(selectedRx.id)}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all"
-                >
-                  ✓ {isBn ? 'অনুমোদন করুন' : 'Approve Prescription'}
-                </button>
-              </div>
-            ) : (
-              <div className="p-3 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-xs text-[#2F3437] font-mono">
-                Status: <span className="font-bold uppercase text-emerald-700">{selectedRx.status}</span> | Reviewed by {selectedRx.reviewedBy}
-              </div>
-            )}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedRx(null)}
+                className="px-4 py-2 rounded-xl border border-[#EAEAEA] text-xs font-semibold text-[#5F6368] hover:bg-[#F7F6F3]"
+              >
+                {isBn ? 'বন্ধ করুন' : 'Close'}
+              </button>
+              {selectedRx.status === 'pending' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleReject(selectedRx.id)}
+                    className="px-4 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100"
+                  >
+                    {isBn ? 'বাতিল করুন' : 'Reject Rx'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(selectedRx.id)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-xs"
+                  >
+                    {isBn ? 'অনুমোদন দিন' : 'Approve Rx'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

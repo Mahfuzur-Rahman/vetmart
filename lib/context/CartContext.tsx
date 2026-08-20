@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
 
 export interface CartProduct {
   id: string;

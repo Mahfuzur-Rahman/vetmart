@@ -3,7 +3,6 @@
 import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { orders, orderItems, products } from '@/lib/db/schema';
-import { isDemoMode } from '@/lib/demo';
 import { DB_TO_BOARD_STATUS, type AdminOrderStatus } from './order-status';
 
 export { BOARD_TO_DB_STATUS, DB_TO_BOARD_STATUS } from './order-status';
@@ -50,8 +49,6 @@ export interface AdminOrderView {
  * admin on any other device. They are database rows now; this is the read side.
  */
 export async function listOrdersForAdmin(limit = 100): Promise<AdminOrderView[]> {
-  if (isDemoMode()) return [];
-
   const orderRows = await db
     .select()
     .from(orders)

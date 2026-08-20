@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
     return apiSuccess({
       message: 'OTP sent successfully',
       cooldownSeconds: result.cooldownSeconds,
-      demoCode: result.demoCode,
     });
   } catch (err: any) {
     return apiError('OTP_REQUEST_FAILED', err?.message || 'Failed to request OTP', 500);

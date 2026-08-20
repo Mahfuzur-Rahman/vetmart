@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { captureIncompleteOrder } from '@/lib/services/incomplete-orders';
-import { isValidBdPhone } from '@/lib/mock-data/incomplete-orders';
+import { isValidBdPhone } from '@/lib/validation/phone';
 
 const leadItemSchema = z.object({
   productId: z.string(),
