@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/storefront/ProductCard';
-import {
-  getStoredProducts,
-  PRODUCTS_UPDATED_EVENT,
-  type MockProduct,
-} from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT } from '@/lib/mock-data/products';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -31,41 +27,26 @@ export function SpeciesProductsView({
   const [products, setProducts] = useState<any[]>(initialItems);
 
   useEffect(() => {
-    if (initialItems && initialItems.length > 0) {
-      setProducts(initialItems);
-    } else {
-      const stored = getStoredProducts();
-      const filtered = stored.filter(
-        (p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)
-      );
-      setProducts(filtered);
-    }
+    setProducts(initialItems ?? []);
+  }, [initialItems]);
 
+  useEffect(() => {
+    // Species filtering happens in the query, not in the client, so an empty
+    // result genuinely means no product targets this species.
     const syncProducts = () => {
       fetch(`/api/v1/products?species=${encodeURIComponent(speciesKey)}&pageSize=48`)
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            setProducts(json.data);
-          } else {
-            const stored = getStoredProducts();
-            setProducts(stored.filter((p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)));
-          }
+          if (Array.isArray(json.data)) setProducts(json.data);
         })
-        .catch(() => {
-          const stored = getStoredProducts();
-          setProducts(stored.filter((p) => p.targetSpecies && p.targetSpecies.includes(speciesKey)));
+        .catch((err) => {
+          console.error(`Could not refresh products for species "${speciesKey}":`, err);
         });
     };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-    window.addEventListener('storage', syncProducts);
-
-    return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-      window.removeEventListener('storage', syncProducts);
-    };
-  }, [speciesKey, initialItems]);
+    return () => window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
+  }, [speciesKey]);
 
 
   return (

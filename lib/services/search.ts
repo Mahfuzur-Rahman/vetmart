@@ -1,10 +1,12 @@
 // lib/services/search.ts
 // Unified catalog search combining generic name, brand name, Banglish keywords (§6, §20)
-import { eq, and, sql as dSql, ilike, or, arrayOverlaps, asc, desc } from 'drizzle-orm';
+import { eq, and, sql as dSql, ilike, or, arrayOverlaps, asc, desc, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, productImages, categories, manufacturers, stockLedger, productBatches } from '@/lib/db/schema';
 import { normalizeDigits } from '@/lib/i18n/number';
 import { getStorageDriver } from '@/lib/storage';
+import { isDemoMode } from '@/lib/demo';
+import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
 
 export type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest';
 
@@ -62,6 +64,13 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(48, Math.max(1, params.pageSize ?? 24));
   const offset = (page - 1) * pageSize;
+
+  // Demo mode never touches the database (§4.3). Without this guard the query
+  // below throws, /api/v1/products returns 500, and every client silently falls
+  // back to its own localStorage — which is how per-device catalogs happened.
+  if (isDemoMode()) {
+    return filterSeedCatalog(params, page, pageSize);
+  }
 
   // Build WHERE conditions
   const conditions = [eq(products.isActive, true)];
@@ -153,43 +162,66 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
     .limit(pageSize)
     .offset(offset);
 
-  // Derive sellable stock & Cloudinary image for each product
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() + 60);
+  // Derive sellable stock & resolve the card image for each product.
+  //
+  // These were previously two queries PER ROW inside a Promise.all. With
+  // DB_POOL_MAX=1 on serverless those serialize, so a 48-item page issued ~96
+  // sequential round trips to Mumbai and could exceed Vercel's 10s function
+  // limit. Both are now single batched queries keyed by product id.
+  const productIds = rows.map((r) => r.id);
   const storage = getStorageDriver();
 
-  const items: CatalogSearchItem[] = await Promise.all(
-    rows.map(async (row) => {
-      const [stockResult] = await db
-        .select({
-          sellable: dSql<number>`coalesce(sum(
-            CASE WHEN ${productBatches.expiryDate} > ${cutoff.toISOString()}
-            THEN ${stockLedger.delta} ELSE 0 END
-          ), 0)::int`,
-        })
-        .from(stockLedger)
-        .innerJoin(productBatches, eq(stockLedger.batchId, productBatches.id))
-        .where(eq(stockLedger.productId, row.id));
+  const stockByProduct = new Map<string, number>();
+  const imageByProduct = new Map<string, string>();
 
-      const [imgRow] = await db
-        .select({ basePath: productImages.basePath })
-        .from(productImages)
-        .where(eq(productImages.productId, row.id))
-        .orderBy(asc(productImages.sort))
-        .limit(1);
+  if (productIds.length > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 60);
 
-      const imageUrl = imgRow?.basePath
-        ? storage.url(imgRow.basePath, 'card')
-        : '/images/cal-d-mag.jpg';
+    // Sellable stock excludes batches within 60 days of expiry (§5.3).
+    const stockRows = await db
+      .select({
+        productId: stockLedger.productId,
+        sellable: dSql<number>`coalesce(sum(
+          CASE WHEN ${productBatches.expiryDate} > ${cutoff.toISOString()}
+          THEN ${stockLedger.delta} ELSE 0 END
+        ), 0)::int`,
+      })
+      .from(stockLedger)
+      .innerJoin(productBatches, eq(stockLedger.batchId, productBatches.id))
+      .where(inArray(stockLedger.productId, productIds))
+      .groupBy(stockLedger.productId);
 
-      return {
-        ...row,
-        sellableStock: Math.max(0, stockResult?.sellable ?? 0),
-        imageUrl,
-      };
-    })
-  );
+    for (const row of stockRows) {
+      stockByProduct.set(row.productId, row.sellable);
+    }
 
+    const imageRows = await db
+      .select({
+        productId: productImages.productId,
+        basePath: productImages.basePath,
+        sort: productImages.sort,
+      })
+      .from(productImages)
+      .where(inArray(productImages.productId, productIds))
+      .orderBy(asc(productImages.sort));
+
+    // First row per product wins, matching the previous ORDER BY sort LIMIT 1.
+    for (const row of imageRows) {
+      if (!imageByProduct.has(row.productId) && row.basePath) {
+        imageByProduct.set(row.productId, row.basePath);
+      }
+    }
+  }
+
+  const items: CatalogSearchItem[] = rows.map((row) => {
+    const basePath = imageByProduct.get(row.id);
+    return {
+      ...row,
+      sellableStock: Math.max(0, stockByProduct.get(row.id) ?? 0),
+      imageUrl: basePath ? storage.url(basePath, 'card') : '/images/cal-d-mag.jpg',
+    };
+  });
 
   return {
     items,
@@ -197,5 +229,89 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
     page,
     pageSize,
     totalPages: Math.ceil(totalCount / pageSize),
+  };
+}
+
+/**
+ * Demo-mode catalog: the same filtering and sorting semantics as the SQL path,
+ * applied to the in-repo seed catalog. Keeps DEMO_MODE=true a faithful preview
+ * of the real storefront rather than a differently-behaving stub.
+ */
+function filterSeedCatalog(
+  params: CatalogSearchParams,
+  page: number,
+  pageSize: number
+): CatalogSearchResult {
+  let list = [...MOCK_PRODUCTS];
+
+  if (params.species) {
+    list = list.filter((p) => p.targetSpecies?.includes(params.species!));
+  }
+
+  if (params.categorySlug) {
+    list = list.filter((p) => p.categorySlug === params.categorySlug);
+  }
+
+  if (params.productType) {
+    list = list.filter((p) => (p.requiresPrescription ? 'drug_rx' : 'drug_otc') === params.productType);
+  }
+
+  if (params.q) {
+    const q = normalizeDigits(params.q.trim()).toLowerCase();
+    list = list.filter(
+      (p) =>
+        p.nameEn.toLowerCase().includes(q) ||
+        p.nameBn.toLowerCase().includes(q) ||
+        p.genericName.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.banglishKeywords ?? '').toLowerCase().includes(q)
+    );
+  }
+
+  switch (params.sort) {
+    case 'price_asc':
+      list.sort((a, b) => a.salePrice - b.salePrice);
+      break;
+    case 'price_desc':
+      list.sort((a, b) => b.salePrice - a.salePrice);
+      break;
+    case 'newest':
+      break; // seed order is already newest-first
+    default:
+      list.sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+      break;
+  }
+
+  const totalCount = list.length;
+  const offset = (page - 1) * pageSize;
+
+  const items = list.slice(offset, offset + pageSize).map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    sku: p.sku,
+    nameEn: p.nameEn,
+    nameBn: p.nameBn,
+    genericName: p.genericName,
+    productType: p.requiresPrescription ? 'drug_rx' : 'drug_otc',
+    dosageForm: p.dosageForm ?? null,
+    packSize: p.packSize ?? null,
+    targetSpecies: p.targetSpecies ?? [],
+    requiresPrescription: !!p.requiresPrescription,
+    requiresColdChain: !!p.requiresColdChain,
+    mrp: p.mrp,
+    salePrice: p.salePrice,
+    categoryNameEn: p.categoryNameEn ?? null,
+    categoryNameBn: p.categoryNameBn ?? null,
+    manufacturerName: p.manufacturerName ?? null,
+    sellableStock: p.stockQty ?? 0,
+    imageUrl: p.imageUrl,
+  }));
+
+  return {
+    items,
+    totalCount,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
   };
 }

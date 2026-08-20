@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/storefront/ProductCard';
-import {
-  getStoredProducts,
-  PRODUCTS_UPDATED_EVENT,
-  type MockProduct,
-} from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT } from '@/lib/mock-data/products';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -19,39 +15,28 @@ export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
   const [products, setProducts] = useState<any[]>(initialProducts);
 
   useEffect(() => {
-    // If server passed DB products, use them
-    if (initialProducts && initialProducts.length > 0) {
-      setProducts(initialProducts.slice(0, 8));
-    } else {
-      const stored = getStoredProducts();
-      setProducts(stored.slice(0, 8));
-    }
+    setProducts((initialProducts ?? []).slice(0, 8));
+  }, [initialProducts]);
 
+  useEffect(() => {
+    // Re-fetch after an admin write. The catalog is server state: an empty
+    // response means the catalog is empty, never a cue to read this browser's
+    // localStorage, which is what made products device-local.
     const syncProducts = () => {
-      // Re-fetch from API or fallback to storage
       fetch('/api/v1/products?pageSize=8')
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            setProducts(json.data);
-          } else {
-            setProducts(getStoredProducts().slice(0, 8));
-          }
+          if (Array.isArray(json.data)) setProducts(json.data.slice(0, 8));
         })
-        .catch(() => {
-          setProducts(getStoredProducts().slice(0, 8));
+        .catch((err) => {
+          // Keep the server-rendered list rather than substituting other data.
+          console.error('Could not refresh featured products:', err);
         });
     };
 
-    // Listen to custom updates (e.g. admin table add/delete) and cross-tab storage changes
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-    window.addEventListener('storage', syncProducts);
-
-    return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-      window.removeEventListener('storage', syncProducts);
-    };
-  }, [initialProducts]);
+    return () => window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
+  }, []);
 
 
   if (products.length === 0) {

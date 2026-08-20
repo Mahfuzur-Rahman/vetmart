@@ -3,11 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 
 import { ProductCard } from '@/components/storefront/ProductCard';
-import {
-  getStoredProducts,
-  PRODUCTS_UPDATED_EVENT,
-  type MockProduct,
-} from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/mock-data/products';
 import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
@@ -63,35 +59,27 @@ export function ProductsCatalogView({
 
 
   useEffect(() => {
-    if (initialItems && initialItems.length > 0) {
-      setAllProducts(initialItems as MockProduct[]);
-    } else {
-      setAllProducts(getStoredProducts());
-    }
+    setAllProducts((initialItems ?? []) as MockProduct[]);
+  }, [initialItems]);
 
+  useEffect(() => {
+    // Re-fetch after an admin write. An empty catalog renders the empty state;
+    // it never falls back to this browser's localStorage (that fallback is what
+    // made a product visible only on the device that created it).
     const syncProducts = () => {
       fetch('/api/v1/products?pageSize=48')
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            setAllProducts(json.data);
-          } else {
-            setAllProducts(getStoredProducts());
-          }
+          if (Array.isArray(json.data)) setAllProducts(json.data);
         })
-        .catch(() => {
-          setAllProducts(getStoredProducts());
+        .catch((err) => {
+          console.error('Could not refresh catalog:', err);
         });
     };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-    window.addEventListener('storage', syncProducts);
-
-    return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-      window.removeEventListener('storage', syncProducts);
-    };
-  }, [initialItems]);
+    return () => window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
+  }, []);
 
 
   // Filter and sort products client-side

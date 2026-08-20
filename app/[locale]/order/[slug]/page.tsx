@@ -5,7 +5,7 @@ import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ExpressOrderView, type ExpressProduct } from '@/components/storefront/ExpressOrderView';
 import { getProductBySlug } from '@/lib/services/products';
-import { getProductBySlug as getMockProductBySlug, getStoredProductBySlug, MOCK_PRODUCTS } from '@/lib/mock-data/products';
+import { getProductBySlug as getSeedProductBySlug, MOCK_PRODUCTS } from '@/lib/mock-data/products';
 import { isDemoMode } from '@/lib/demo';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
@@ -31,7 +31,7 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     }
   }
 
-  const mock = getMockProductBySlug(slug) || getStoredProductBySlug(slug) || null;
+  const mock = getSeedProductBySlug(slug) || null;
   const p = rawProduct || mock;
 
   if (!p) {

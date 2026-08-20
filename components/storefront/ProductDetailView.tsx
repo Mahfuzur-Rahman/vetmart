@@ -5,12 +5,7 @@ import { fmtMoney } from '@/lib/i18n/number';
 import { getSpeciesName } from '@/lib/services/species';
 import { ProductDetailAddToCart } from '@/components/storefront/ProductDetailAddToCart';
 import { ProductReviewsSection } from '@/components/storefront/ProductReviewsSection';
-import {
-  getStoredProductBySlug,
-  isProductDeleted,
-  PRODUCTS_UPDATED_EVENT,
-  type MockProduct,
-} from '@/lib/mock-data/products';
+import { PRODUCTS_UPDATED_EVENT } from '@/lib/mock-data/products';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -25,53 +20,35 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
   const [isDeleted, setIsDeleted] = useState<boolean>(false);
 
   useEffect(() => {
-    if (initialProduct) {
-      setProductData(initialProduct);
-      setIsDeleted(false);
-    } else {
-      const stored = getStoredProductBySlug(slug);
-      if (stored) {
-        setProductData(stored);
-        setIsDeleted(false);
-      } else {
-        setIsDeleted(true);
-      }
-    }
+    // The page already resolved this product server-side and calls notFound()
+    // when it does not exist, so a null here means genuinely unavailable. It is
+    // never patched up from localStorage: a device-local copy of a deleted or
+    // repriced product is worse than an honest empty state.
+    setProductData(initialProduct);
+    setIsDeleted(!initialProduct);
+  }, [initialProduct]);
 
+  useEffect(() => {
     const syncProduct = () => {
       fetch(`/api/v1/products/${slug}`)
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
           if (json.data) {
             setProductData(json.data);
             setIsDeleted(false);
           } else {
-            const stored = getStoredProductBySlug(slug);
-            if (stored) {
-              setProductData(stored);
-              setIsDeleted(false);
-            } else {
-              setIsDeleted(true);
-            }
+            setIsDeleted(true);
           }
         })
-        .catch(() => {
-          const stored = getStoredProductBySlug(slug);
-          if (stored) {
-            setProductData(stored);
-            setIsDeleted(false);
-          }
+        .catch((err) => {
+          // Keep whatever the server rendered rather than swapping in local data.
+          console.error(`Could not refresh product "${slug}":`, err);
         });
     };
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProduct);
-    window.addEventListener('storage', syncProduct);
-
-    return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProduct);
-      window.removeEventListener('storage', syncProduct);
-    };
-  }, [slug, initialProduct]);
+    return () => window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProduct);
+  }, [slug]);
 
 
   if (isDeleted || !productData) {

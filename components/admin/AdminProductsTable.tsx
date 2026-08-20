@@ -1,15 +1,25 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import {
-  MOCK_PRODUCTS,
-  getStoredProducts,
-  saveStoredCustomProduct,
-  deleteStoredProduct,
-  clearAllStoredProducts,
-  PRODUCTS_UPDATED_EVENT,
-  type MockProduct,
-} from '@/lib/mock-data/products';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { PRODUCTS_UPDATED_EVENT, type MockProduct } from '@/lib/mock-data/products';
+
+/**
+ * Reads the §9 error envelope so the operator sees why a write was refused
+ * rather than an unconditional success toast.
+ */
+async function readApiError(res: Response): Promise<string> {
+  try {
+    const json = await res.json();
+    if (json?.error?.message) {
+      return json.error.field
+        ? `${json.error.message} (${json.error.field})`
+        : json.error.message;
+    }
+  } catch {
+    // fall through to the status line
+  }
+  return `Request failed with HTTP ${res.status}`;
+}
 import { type DrugClassificationInfo, DEFAULT_DRUG_CLASSIFICATIONS } from '@/lib/services/drug-classifications';
 import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 
@@ -19,7 +29,7 @@ interface Props {
 
 export function AdminProductsTable({ locale }: Props) {
   const isBn = locale === 'bn';
-  const [products, setProducts] = useState<MockProduct[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<MockProduct[]>([]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
@@ -31,6 +41,8 @@ export function AdminProductsTable({ locale }: Props) {
   const [campaignName, setCampaignName] = useState('poultry_boost_august');
   const [isCopied, setIsCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Dynamic classifications & categories
   const [drugClassification, setDrugClassification] = useState('vitamins');
@@ -71,24 +83,28 @@ export function AdminProductsTable({ locale }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /**
+   * Reload the catalog from the server.
+   *
+   * The catalog is server state, so there is no localStorage fallback: showing
+   * this browser's own copy is exactly what made a product visible only on the
+   * device that created it. A failure surfaces as a banner instead.
+   */
+  const refreshProducts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/products?pageSize=100');
+      if (!res.ok) throw new Error(await readApiError(res));
+      const json = await res.json();
+      setProducts(Array.isArray(json.data) ? json.data : []);
+      setLoadError(null);
+    } catch (err) {
+      console.error('Could not load products:', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not load products');
+    }
+  }, []);
+
   // Load live DB products, classifications, categories, species
   useEffect(() => {
-    const fetchLiveProducts = async () => {
-      try {
-        const res = await fetch('/api/v1/products?pageSize=100');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            setProducts(json.data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('API fetch failed, using stored fallback:', err);
-      }
-      setProducts(getStoredProducts());
-    };
-
     const fetchOptions = async () => {
       try {
         const [dcRes, catRes, spRes] = await Promise.all([
@@ -122,19 +138,20 @@ export function AdminProductsTable({ locale }: Props) {
       }
     };
 
-    fetchLiveProducts();
+    refreshProducts();
     fetchOptions();
 
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, fetchLiveProducts);
-    window.addEventListener('storage', fetchLiveProducts);
+    // No 'storage' listener: catalog changes no longer travel through
+    // localStorage, so a storage event carries nothing to react to.
+    const onProductsUpdated = () => { refreshProducts(); };
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
     window.addEventListener('custom-products-updated', fetchOptions);
 
     return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, fetchLiveProducts);
-      window.removeEventListener('storage', fetchLiveProducts);
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
       window.removeEventListener('custom-products-updated', fetchOptions);
     };
-  }, []);
+  }, [refreshProducts]);
 
   // Open Edit modal with selected product's values
   const handleOpenEdit = (prod: MockProduct) => {
@@ -282,14 +299,8 @@ export function AdminProductsTable({ locale }: Props) {
           banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
         };
 
-        const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
-        setProducts(updatedList);
-
-        // Save to centralized client storage & broadcast
-        saveStoredCustomProduct(updatedProduct);
-        setProducts(getStoredProducts());
-
-        // Call PUT API route
+        // No optimistic localStorage write. The row is only replaced once the
+        // server confirms it, so what the admin sees matches what customers see.
         try {
           const res = await fetch(`/api/v1/admin/products/${editingProduct.id}`, {
             method: 'PUT',
@@ -299,22 +310,19 @@ export function AdminProductsTable({ locale }: Props) {
               imageKey,
             }),
           });
-          if (res.ok) {
-            const listRes = await fetch('/api/v1/products?pageSize=100');
-            if (listRes.ok) {
-              const json = await listRes.json();
-              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-                setProducts(json.data);
-              }
-            }
+          if (!res.ok) {
+            setErrorMessage(await readApiError(res));
+            return;
           }
-        } catch (err) {
-          console.warn('API update warning:', err);
-        }
 
-        setEditingProduct(null);
-        setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
-        setTimeout(() => setToastMessage(null), 4000);
+          await refreshProducts();
+          setEditingProduct(null);
+          setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
+          setTimeout(() => setToastMessage(null), 4000);
+        } catch (err) {
+          console.error('Product update failed:', err);
+          setErrorMessage(err instanceof Error ? err.message : 'Product update failed');
+        }
       } else {
         // ADD NEW MODE
         const slug = nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -358,10 +366,9 @@ export function AdminProductsTable({ locale }: Props) {
         };
 
 
-        // Save to centralized client storage & broadcast
-        saveStoredCustomProduct(newProduct);
-
-        // Send POST API call to create product in DB
+        // The server is the only writer. Nothing is stored client-side, so the
+        // product is either in the database and visible to everyone, or the
+        // operator gets an error explaining why it is not.
         try {
           const res = await fetch('/api/v1/admin/products', {
             method: 'POST',
@@ -371,22 +378,19 @@ export function AdminProductsTable({ locale }: Props) {
               imageKey,
             }),
           });
-          if (res.ok) {
-            const listRes = await fetch('/api/v1/products?pageSize=100');
-            if (listRes.ok) {
-              const json = await listRes.json();
-              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-                setProducts(json.data);
-              }
-            }
+          if (!res.ok) {
+            setErrorMessage(await readApiError(res));
+            return;
           }
-        } catch (err) {
-          console.warn('API create warning:', err);
-        }
 
-        setIsEnrollOpen(false);
-        setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
-        setTimeout(() => setToastMessage(null), 4000);
+          await refreshProducts();
+          setIsEnrollOpen(false);
+          setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
+          setTimeout(() => setToastMessage(null), 4000);
+        } catch (err) {
+          console.error('Product create failed:', err);
+          setErrorMessage(err instanceof Error ? err.message : 'Product create failed');
+        }
       }
     } finally {
       setIsSubmitting(false);
@@ -400,30 +404,20 @@ export function AdminProductsTable({ locale }: Props) {
     setIsDeleting(true);
 
     const targetId = productToDelete.id;
-    const targetSlug = productToDelete.slug;
-    const targetImgKey = (productToDelete as any).imageKey || productToDelete.imageUrl;
 
     try {
-      // 1. Send API cascade delete call (removes stored image and deletes DB record)
-      const res = await fetch(`/api/v1/admin/products/${targetId}?imageKey=${encodeURIComponent(targetImgKey || '')}`, {
-        method: 'DELETE',
-      }).catch((e) => console.warn('API delete warning:', e));
+      // The server owns the cascade: it resolves the product's own image rows and
+      // removes them from storage. The client no longer passes an imageKey guess,
+      // and no longer keeps a local deleted-ids list to hide rows it failed to
+      // delete — a delete either happened for everyone or it did not happen.
+      const res = await fetch(`/api/v1/admin/products/${targetId}`, { method: 'DELETE' });
 
-      // 2. Permanently delete from centralized storage & broadcast to all tabs/pages
-      deleteStoredProduct(targetId, targetSlug);
-
-      const listRes = await fetch('/api/v1/products?pageSize=100');
-      if (listRes && listRes.ok) {
-        const json = await listRes.json();
-        if (json.data && Array.isArray(json.data)) {
-          setProducts(json.data);
-        } else {
-          setProducts(getStoredProducts());
-        }
-      } else {
-        setProducts(getStoredProducts());
+      if (!res.ok) {
+        setErrorMessage(await readApiError(res));
+        return;
       }
 
+      await refreshProducts();
 
       setToastMessage(
         isBn
@@ -433,6 +427,7 @@ export function AdminProductsTable({ locale }: Props) {
       setTimeout(() => setToastMessage(null), 5000);
     } catch (err) {
       console.error('Failed to delete product:', err);
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete product');
     } finally {
       setIsDeleting(false);
       setProductToDelete(null);
@@ -465,6 +460,51 @@ export function AdminProductsTable({ locale }: Props) {
           <span>✓ {toastMessage}</span>
           <button type="button" onClick={() => setToastMessage(null)} className="text-white/80 hover:text-white text-xs">
             ✕
+          </button>
+        </div>
+      )}
+
+      {/* Write failure. Shown instead of a success toast so the operator never
+          believes a product was saved when the server refused it. */}
+      {errorMessage && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-sm shadow-sm flex items-start justify-between gap-3"
+        >
+          <div className="min-w-0">
+            <p className="font-bold">
+              {isBn ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Could not save'}
+            </p>
+            <p className="mt-0.5 break-words leading-relaxed">{errorMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            aria-label={isBn ? 'বন্ধ করুন' : 'Dismiss'}
+            className="text-red-700 hover:text-red-900 text-xs shrink-0 min-h-11 min-w-11 flex items-center justify-center"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Read failure. The table below would otherwise render as "no products",
+          which is indistinguishable from an empty catalog. */}
+      {loadError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm shadow-sm"
+        >
+          <p className="font-bold">
+            {isBn ? 'পণ্য তালিকা লোড করা যায়নি' : 'Could not load the product list'}
+          </p>
+          <p className="mt-0.5 break-words leading-relaxed">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => refreshProducts()}
+            className="mt-2 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs min-h-11"
+          >
+            {isBn ? 'আবার চেষ্টা করুন' : 'Retry'}
           </button>
         </div>
       )}

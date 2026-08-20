@@ -58,40 +58,11 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash' | 'nagad'>('cod');
 
-  // Sync product when prop changes or check custom products in localStorage
+  // The product is resolved server-side from the database. It is never merged
+  // with localStorage: a device-local override here would let one browser order
+  // against a price or stock figure no other device (or the server) agrees with.
   useEffect(() => {
     setSelectedProduct(initialProduct);
-    try {
-      const stored = localStorage.getItem('vetmart_custom_products');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const match = parsed.find((p: any) => p.slug === initialProduct.slug || p.id === initialProduct.id);
-          if (match) {
-            setSelectedProduct({
-              id: match.id,
-              slug: match.slug,
-              nameEn: match.nameEn,
-              nameBn: match.nameBn,
-              genericName: match.genericName,
-              dosageForm: match.dosageForm,
-              packSize: match.packSize,
-              packUnit: match.packUnit,
-              mrp: match.mrp,
-              salePrice: match.salePrice,
-              requiresPrescription: match.requiresPrescription,
-              requiresColdChain: match.requiresColdChain || match.coldChain,
-              coldChain: match.requiresColdChain || match.coldChain,
-              imageUrl: match.imageUrl,
-              stock: match.stockQty ?? 100,
-              manufacturerName: match.manufacturerName,
-            });
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
   }, [initialProduct]);
 
 

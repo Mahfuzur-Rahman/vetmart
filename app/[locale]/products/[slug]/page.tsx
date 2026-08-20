@@ -3,8 +3,9 @@ import { setRequestLocale } from 'next-intl/server';
 import { Header } from '@/components/storefront/Header';
 import { Footer } from '@/components/storefront/Footer';
 import { ProductDetailView } from '@/components/storefront/ProductDetailView';
+import { notFound } from 'next/navigation';
 import { getProductBySlug } from '@/lib/services/products';
-import { getProductBySlug as getMockProductBySlug } from '@/lib/mock-data/products';
+import { getProductBySlug as getSeedProductBySlug } from '@/lib/mock-data/products';
 import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -20,17 +21,14 @@ export default async function ProductDetailPage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  let rawProduct: any = null;
-  if (!isDemoMode()) {
-    try {
-      rawProduct = await getProductBySlug(slug);
-    } catch (e) {
-      rawProduct = null;
-    }
-  }
+  // One source of truth per mode: the database, or the seed catalog in demo
+  // mode. Previously a DB miss silently fell through to the seed list, so a
+  // product that had been deleted still rendered.
+  const p = isDemoMode() ? getSeedProductBySlug(slug) : await getProductBySlug(slug);
 
-  const mock = getMockProductBySlug(slug);
-  const p = rawProduct || mock || null;
+  if (!p) {
+    notFound();
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">

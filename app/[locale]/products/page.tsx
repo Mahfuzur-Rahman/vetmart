@@ -6,7 +6,6 @@ import { ProductsCatalogView } from '@/components/storefront/ProductsCatalogView
 import { searchCatalog, type SortOption } from '@/lib/services/search';
 import { SPECIES } from '@/lib/services/species';
 import { listCategories } from '@/lib/services/categories';
-import { MOCK_PRODUCTS, searchProducts } from '@/lib/mock-data/products';
 import { MOCK_CATEGORIES } from '@/lib/mock-data/categories';
 import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
@@ -31,73 +30,20 @@ export default async function ProductsPage({ params, searchParams }: Props) {
   const sortOption = (sParams.sort as SortOption) || 'relevance';
   const page = parseInt(sParams.page || '1', 10);
 
-  // Fetch search results with mock fallback
-  let searchResult = {
-    items: MOCK_PRODUCTS,
-    totalCount: MOCK_PRODUCTS.length,
-    page: 1,
+  // searchCatalog is the single source of truth and handles demo mode itself,
+  // so there is no mock fallback here. A query failure must surface as an error
+  // page: silently substituting a different catalog is what let a broken
+  // database look like an empty shop.
+  const searchResult = await searchCatalog({
+    q: query,
+    species: speciesFilter,
+    categorySlug: categoryFilter,
+    sort: sortOption,
+    page,
     pageSize: 24,
-    totalPages: 1,
-  };
+  });
 
-  if (isDemoMode()) {
-    let filtered = query ? searchProducts(query) : MOCK_PRODUCTS;
-    if (speciesFilter) {
-      filtered = filtered.filter((p) => p.targetSpecies.includes(speciesFilter));
-    }
-    if (categoryFilter) {
-      filtered = filtered.filter((p) => p.categorySlug === categoryFilter);
-    }
-    searchResult = {
-      items: filtered,
-      totalCount: filtered.length,
-      page: 1,
-      pageSize: 24,
-      totalPages: 1,
-    };
-  } else {
-    try {
-      const fetched = await searchCatalog({
-        q: query,
-        species: speciesFilter,
-        categorySlug: categoryFilter,
-        sort: sortOption,
-        page,
-        pageSize: 24,
-      });
-      if (fetched && fetched.items) {
-        searchResult = fetched as any;
-      }
-    } catch (e) {
-      let filtered = query ? searchProducts(query) : MOCK_PRODUCTS;
-      if (speciesFilter) {
-        filtered = filtered.filter((p) => p.targetSpecies.includes(speciesFilter));
-      }
-      if (categoryFilter) {
-        filtered = filtered.filter((p) => p.categorySlug === categoryFilter);
-      }
-      searchResult = {
-        items: filtered,
-        totalCount: filtered.length,
-        page: 1,
-        pageSize: 24,
-        totalPages: 1,
-      };
-    }
-  }
-
-  // Fetch categories for sidebar filter
-  let categories = MOCK_CATEGORIES;
-  if (!isDemoMode()) {
-    try {
-      const fetchedCats = await listCategories();
-      if (fetchedCats && fetchedCats.length > 0) {
-        categories = fetchedCats as any;
-      }
-    } catch (e) {
-      categories = MOCK_CATEGORIES as any;
-    }
-  }
+  const categories = isDemoMode() ? MOCK_CATEGORIES : await listCategories();
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">

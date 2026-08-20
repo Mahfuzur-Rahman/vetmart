@@ -6,7 +6,6 @@ import { Footer } from '@/components/storefront/Footer';
 import { SpeciesProductsView } from '@/components/storefront/SpeciesProductsView';
 import { getSpeciesBySlug, speciesSlugToKey } from '@/lib/services/species';
 import { searchCatalog } from '@/lib/services/search';
-import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
 import { isDemoMode } from '@/lib/demo';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -29,29 +28,11 @@ export default async function SpeciesPage({ params }: Props) {
     notFound();
   }
 
-  // Fetch products for this target species with mock fallback
-  let searchResult = {
-    items: MOCK_PRODUCTS.filter((p) => p.targetSpecies.includes(speciesKey)),
-    totalCount: MOCK_PRODUCTS.filter((p) => p.targetSpecies.includes(speciesKey)).length,
-  };
-
-  if (!isDemoMode()) {
-    try {
-      const fetched = await searchCatalog({
-        species: speciesKey,
-        pageSize: 36,
-      });
-      if (fetched && fetched.items) {
-        searchResult = fetched as any;
-      }
-    } catch (e) {
-      const filtered = MOCK_PRODUCTS.filter((p) => p.targetSpecies.includes(speciesKey));
-      searchResult = {
-        items: filtered,
-        totalCount: filtered.length,
-      };
-    }
-  }
+  // searchCatalog handles demo mode internally; no mock fallback here.
+  const searchResult = await searchCatalog({
+    species: speciesKey,
+    pageSize: 36,
+  });
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">

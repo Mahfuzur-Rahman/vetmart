@@ -5,12 +5,10 @@ import { Footer } from '@/components/storefront/Footer';
 import { SpeciesGrid } from '@/components/storefront/SpeciesGrid';
 import { HeroCarousel } from '@/components/storefront/HeroCarousel';
 import { FeaturedProductsGrid } from '@/components/storefront/FeaturedProductsGrid';
-import { listProducts } from '@/lib/services/products';
+import { searchCatalog } from '@/lib/services/search';
 import { listSpecies } from '@/lib/services/species-server';
 import { listDrugClassifications } from '@/lib/services/drug-classifications-server';
-import { MOCK_PRODUCTS } from '@/lib/mock-data/products';
 
-import { isDemoMode } from '@/lib/demo';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -26,23 +24,15 @@ export default async function HomePage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // Fetch featured products and active homepage species & drug classifications
-  let products = MOCK_PRODUCTS;
-  const [homepageSpecies, menuPharma] = await Promise.all([
+  // Featured products come from the catalog search, which serves the seed list
+  // in demo mode and the database otherwise. No mock fallback: an empty
+  // homepage must mean an empty catalog, not a hidden query failure.
+  const [homepageSpecies, menuPharma, featured] = await Promise.all([
     listSpecies({ showOnHomepage: true, isActive: true }),
     listDrugClassifications({ showOnMenu: true, isActive: true }),
+    searchCatalog({ pageSize: 8 }),
   ]);
-
-  if (!isDemoMode()) {
-    try {
-      const fetched = await listProducts({ limit: 8 });
-      if (fetched && fetched.length > 0) {
-        products = fetched as any;
-      }
-    } catch (e) {
-      products = MOCK_PRODUCTS as any;
-    }
-  }
+  const products = featured.items;
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">
