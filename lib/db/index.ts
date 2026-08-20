@@ -6,7 +6,7 @@ import { env } from '@/lib/env';
 import * as schema from './schema';
 
 // Determine if running under serverless PgBouncer connection pooling (§4.2)
-const isServerless = env.QUEUE_DRIVER === 'pg-cron';
+const isServerless = process.env.VERCEL === '1' || env.QUEUE_DRIVER === 'pg-cron';
 
 export const sql = postgres(env.DATABASE_URL, {
   max: isServerless ? 1 : env.DB_POOL_MAX,

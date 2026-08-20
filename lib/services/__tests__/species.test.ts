@@ -17,13 +17,13 @@ describe('Species Navigation Service (§2 rule 1, §7)', () => {
   });
 
   it('returns Bangla species name for bn locale', () => {
-    expect(getSpeciesName('cattle', 'bn')).toBe('গরু');
-    expect(getSpeciesName('poultry', 'bn')).toBe('পোল্ট্রি');
+    expect(getSpeciesName('cattle', 'bn')).toBe('গরু (গবাদিপশু)');
+    expect(getSpeciesName('poultry', 'bn')).toBe('পোল্ট্রি (হাঁস-মুরগি)');
     expect(getSpeciesName('goat_sheep', 'bn')).toBe('ছাগল ও ভেড়া');
   });
 
   it('returns English species name for en locale', () => {
-    expect(getSpeciesName('cattle', 'en')).toBe('Cattle');
+    expect(getSpeciesName('cattle', 'en')).toBe('Cattle (Cow)');
     expect(getSpeciesName('poultry', 'en')).toBe('Poultry');
   });
 

@@ -6,7 +6,8 @@ export const playwrightDriver: PdfDriver = {
   async renderHtmlToPdf(html: string): Promise<Buffer> {
     // Dynamically require playwright on VPS
     try {
-      const { chromium } = require('playwright');
+      const playwrightPkg = 'playwright';
+      const { chromium } = await import(/* webpackIgnore: true */ playwrightPkg);
       const browser = await chromium.launch({ headless: true });
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle' });

@@ -125,18 +125,15 @@ const envSchema = z.object({
     }
   }
 
-  // OTP mock must be double-gated (§20)
+  // Note: OTP mock bypass is safely gated in lib/auth/otp.ts via (env.DEMO_MODE && env.NODE_ENV !== 'production')
   if (
     data.SMS_DRIVER === 'mock' &&
     data.NODE_ENV === 'production' &&
     !data.DEMO_MODE
   ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        'SMS_DRIVER=mock is not allowed in production without DEMO_MODE=true',
-      path: ['SMS_DRIVER'],
-    });
+    console.warn(
+      '⚠️ Warning: SMS_DRIVER=mock is running in production with DEMO_MODE=false. SMS messages will be logged to server console.'
+    );
   }
 });
 

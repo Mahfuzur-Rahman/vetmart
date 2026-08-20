@@ -8,7 +8,7 @@ const MEDIA_ROOT = process.env.LOCAL_MEDIA_PATH || path.join(process.cwd(), 'pub
 
 export const localDriver: StorageDriver = {
   async put(key: string, buf: Buffer, _opts: { contentType: string; private?: boolean }): Promise<void> {
-    const fullPath = path.join(MEDIA_ROOT, key);
+    const fullPath = path.join(/*turbopackIgnore: true*/ MEDIA_ROOT, key);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, buf);
   },
@@ -24,7 +24,7 @@ export const localDriver: StorageDriver = {
   },
 
   async delete(key: string): Promise<void> {
-    const fullPath = path.join(MEDIA_ROOT, key);
+    const fullPath = path.join(/*turbopackIgnore: true*/ MEDIA_ROOT, key);
     try {
       await fs.unlink(fullPath);
     } catch {
