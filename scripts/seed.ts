@@ -47,6 +47,53 @@ async function seed() {
     await db.insert(schema.roles).values(r).onConflictDoNothing();
   }
 
+  // Permission catalog + role grants (§14.1). These were never seeded, so the
+  // permissions and role_permissions tables sat empty and every non-super-admin
+  // role resolved to zero permissions.
+  const permissionKeys = [
+    'product.read', 'product.write',
+    'stock.read', 'stock.adjust',
+    'order.read', 'order.write', 'order.refund',
+    'prescription.read', 'prescription.approve',
+    'customer.read', 'customer.write',
+    'settings.read', 'settings.write',
+    'translation.write',
+    'admin.manage',
+  ];
+
+  for (const key of permissionKeys) {
+    await db.insert(schema.permissions).values({ key }).onConflictDoNothing();
+  }
+
+  // Super admin is resolved from the role assignment itself and needs no rows
+  // here (see lib/auth/permissions.ts), so it is deliberately absent.
+  const roleGrants: Record<string, string[]> = {
+    pharmacist: ['product.read', 'order.read', 'prescription.read', 'prescription.approve', 'customer.read'],
+    inventory: ['product.read', 'product.write', 'stock.read', 'stock.adjust', 'order.read'],
+    order_ops: ['product.read', 'order.read', 'order.write', 'order.refund', 'customer.read', 'stock.read'],
+    content: ['product.read', 'translation.write', 'settings.read'],
+    accounts: ['order.read', 'product.read', 'settings.read'],
+    support: ['order.read', 'customer.read', 'product.read'],
+  };
+
+  const allRoles = await db.select().from(schema.roles);
+  const allPermissions = await db.select().from(schema.permissions);
+  const roleIdByKey = new Map(allRoles.map((r) => [r.key, r.id]));
+  const permissionIdByKey = new Map(allPermissions.map((p) => [p.key, p.id]));
+
+  for (const [roleKey, grants] of Object.entries(roleGrants)) {
+    const roleId = roleIdByKey.get(roleKey);
+    if (!roleId) continue;
+    for (const permKey of grants) {
+      const permissionId = permissionIdByKey.get(permKey);
+      if (!permissionId) continue;
+      await db
+        .insert(schema.rolePermissions)
+        .values({ roleId, permissionId })
+        .onConflictDoNothing();
+    }
+  }
+
   // 2. BD Delivery Zones (§6, §14.2)
   console.log('2️⃣ Seeding BD Delivery Zones...');
   const zonesData = [

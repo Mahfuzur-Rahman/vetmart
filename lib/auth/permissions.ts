@@ -24,31 +24,44 @@ export type PermissionKey =
 
 /**
  * Fetch all distinct permission keys granted to an admin operator.
+ *
+ * Roles are resolved FIRST, in their own query.
+ *
+ * The previous version resolved roles and permissions in a single chain of
+ * inner joins through role_permissions and permissions, and only checked for
+ * super_admin while iterating the resulting rows. Both of those tables are
+ * empty (scripts/seed.ts never populated them), so the join returned zero rows
+ * and even a super admin came back with an EMPTY permission set — meaning every
+ * admin write would be refused with 403. Making the super-admin check depend on
+ * the granular permission catalog being seeded was the bug; a role assignment
+ * is sufficient on its own.
  */
 export async function getAdminPermissions(adminId: string): Promise<Set<string>> {
-  // Query all permissions through admin_roles -> role_permissions -> permissions
-  const rows = await db
-    .select({
-      roleKey: roles.key,
-      permissionKey: permissions.key,
-    })
+  const assignedRoles = await db
+    .select({ roleKey: roles.key, roleId: roles.id })
     .from(adminRoles)
     .innerJoin(roles, eq(adminRoles.roleId, roles.id))
-    .innerJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
-    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
     .where(eq(adminRoles.adminId, adminId));
 
-  const permSet = new Set<string>();
+  if (assignedRoles.length === 0) return new Set();
 
-  for (const r of rows) {
-    // Super admin has all permissions implicitly
-    if (r.roleKey === 'super_admin') {
-      return new Set(['*']);
-    }
-    permSet.add(r.permissionKey);
+  // Super admin holds every permission implicitly (§14.1).
+  if (assignedRoles.some((r) => r.roleKey === 'super_admin')) {
+    return new Set(['*']);
   }
 
-  return permSet;
+  const grantedRows = await db
+    .select({ permissionKey: permissions.key })
+    .from(rolePermissions)
+    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+    .where(
+      inArray(
+        rolePermissions.roleId,
+        assignedRoles.map((r) => r.roleId)
+      )
+    );
+
+  return new Set(grantedRows.map((r) => r.permissionKey));
 }
 
 /**
