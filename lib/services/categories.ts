@@ -3,7 +3,7 @@
 import { eq, and, asc, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
-
+import { isDemoMode } from '@/lib/demo';
 
 export interface CategoryNode {
   id: string;
@@ -19,51 +19,69 @@ export interface CategoryNode {
  * Fetch the full category tree (root categories with nested children).
  */
 export async function getCategoryTree(): Promise<CategoryNode[]> {
-  const allCategories = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.isActive, true))
-    .orderBy(asc(categories.sort));
-
-  // Build a tree from the flat list
-  const nodeMap = new Map<string, CategoryNode>();
-  const roots: CategoryNode[] = [];
-
-  for (const cat of allCategories) {
-    nodeMap.set(cat.id, {
-      id: cat.id,
-      slug: cat.slug,
-      nameEn: cat.nameEn,
-      nameBn: cat.nameBn,
-      imagePath: cat.imagePath,
-      sort: cat.sort,
-      children: [],
-    });
+  if (isDemoMode()) {
+    return [];
   }
 
-  for (const cat of allCategories) {
-    const node = nodeMap.get(cat.id)!;
-    if (cat.parentId && nodeMap.has(cat.parentId)) {
-      nodeMap.get(cat.parentId)!.children.push(node);
-    } else {
-      roots.push(node);
+  try {
+    const allCategories = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.isActive, true))
+      .orderBy(asc(categories.sort));
+
+    // Build a tree from the flat list
+    const nodeMap = new Map<string, CategoryNode>();
+    const roots: CategoryNode[] = [];
+
+    for (const cat of allCategories) {
+      nodeMap.set(cat.id, {
+        id: cat.id,
+        slug: cat.slug,
+        nameEn: cat.nameEn,
+        nameBn: cat.nameBn,
+        imagePath: cat.imagePath,
+        sort: cat.sort,
+        children: [],
+      });
     }
-  }
 
-  return roots;
+    for (const cat of allCategories) {
+      const node = nodeMap.get(cat.id)!;
+      if (cat.parentId && nodeMap.has(cat.parentId)) {
+        nodeMap.get(cat.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    return roots;
+  } catch (err) {
+    console.warn('[getCategoryTree] DB fetch failed:', err);
+    return [];
+  }
 }
 
 /**
  * Fetch a single category by slug with its products count context.
  */
 export async function getCategoryBySlug(slug: string) {
-  const [category] = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.slug, slug))
-    .limit(1);
+  if (isDemoMode()) {
+    return null;
+  }
 
-  return category ?? null;
+  try {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.slug, slug))
+      .limit(1);
+
+    return category ?? null;
+  } catch (err) {
+    console.warn('[getCategoryBySlug] DB fetch failed:', err);
+    return null;
+  }
 }
 
 /**

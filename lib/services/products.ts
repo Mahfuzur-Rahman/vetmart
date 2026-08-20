@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { products, productImages, categories, manufacturers, productBatches } from '@/lib/db/schema';
 import { getStorageDriver } from '@/lib/storage';
 import { getProductStockSummary } from './stock';
+import { isDemoMode } from '@/lib/demo';
 
 export interface ProductFilterOptions {
   species?: string; // e.g. 'cattle', 'poultry', 'dog'
@@ -20,6 +21,9 @@ export interface ProductFilterOptions {
  * Fetch a single active product by slug with relations and sellable stock.
  */
 export async function getProductBySlug(slug: string) {
+  if (isDemoMode()) {
+    return null;
+  }
   try {
     const [product] = await db
       .select({
@@ -112,6 +116,9 @@ export async function getProductBySlug(slug: string) {
  * List products with filters and search support.
  */
 export async function listProducts(opts: ProductFilterOptions = {}) {
+  if (isDemoMode()) {
+    return [];
+  }
   try {
     const conditions = [eq(products.isActive, true)];
 
