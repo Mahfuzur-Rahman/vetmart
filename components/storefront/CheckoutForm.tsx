@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from '@/lib/i18n/navigation';
 import { fmtMoney, fmtNumber } from '@/lib/i18n/number';
 import { useCart } from '@/lib/context/CartContext';
+import { isValidBdPhone, sanitizeBdPhone } from '@/lib/validation/phone';
 import type { Locale } from '@/lib/i18n/config';
 
 interface Props {
@@ -15,32 +16,97 @@ export function CheckoutForm({ locale }: Props) {
   const { items, subtotal, coldChainFee, estDeliveryFee, grandTotal, clearCart, isHydrated } =
     useCart();
 
-  const [name, setName] = useState('');
+  // Contact & Shipping Form State
   const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
   const [division, setDivision] = useState('Dhaka');
   const [district, setDistrict] = useState('Dhaka');
   const [upazila, setUpazila] = useState('');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash' | 'nagad'>('cod');
+  
+  // Submission & Lead Capture State
   const [isPlacing, setIsPlacing] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [leadDraftId, setLeadDraftId] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved'>('idle');
 
   const idempotencyKeyRef = useRef<string | null>(null);
+  const lastSyncHash = useRef<string>('');
 
-  // Totals shown here are an estimate for display. The server reprices every
-  // line from the database when the order is placed, so a tampered client
-  // cannot buy at its own prices.
   const deliveryFee = estDeliveryFee;
   const totalAmount = grandTotal;
 
+  // Real-time Incomplete Order / Abandoned Cart Capture to PostgreSQL
+  useEffect(() => {
+    const cleanedPhone = sanitizeBdPhone(phone);
+    if (!isValidBdPhone(cleanedPhone) || items.length === 0) {
+      return;
+    }
+
+    const currentHash = `${cleanedPhone}|${name}|${address}|${division}|${district}|${upazila}|${items.map(i => `${i.product.id}:${i.qty}`).join(',')}`;
+    if (currentHash === lastSyncHash.current) return;
+
+    setSyncStatus('syncing');
+
+    const timer = setTimeout(async () => {
+      lastSyncHash.current = currentHash;
+
+      const leadItems = items.map((item) => ({
+        productId: item.product.id,
+        productSlug: item.product.slug,
+        productNameEn: item.product.nameEn,
+        productNameBn: item.product.nameBn,
+        unitPrice: item.product.salePrice,
+        quantity: item.qty,
+        totalPrice: item.product.salePrice * item.qty,
+        packSize: item.product.packSize ?? null,
+        imageUrl: item.product.imageUrl ?? null,
+      }));
+
+      const leadPayload = {
+        id: leadDraftId || undefined,
+        phone: cleanedPhone,
+        name: name.trim() || null,
+        address: address.trim() || null,
+        division,
+        district,
+        upazila: upazila.trim() || null,
+        items: leadItems,
+        subtotal,
+        deliveryFee,
+        totalAmount,
+        utmSource: 'storefront_cart',
+        utmMedium: 'checkout_form',
+      };
+
+      try {
+        const res = await fetch('/api/v1/incomplete-orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(leadPayload),
+        });
+
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          if (json?.data?.leadId) {
+            setLeadDraftId(json.data.leadId);
+          }
+          setSyncStatus('saved');
+          setTimeout(() => setSyncStatus('idle'), 3500);
+        }
+      } catch (err) {
+        console.error('Anonymous cart lead capture failed:', err);
+        setSyncStatus('idle');
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [phone, name, address, division, district, upazila, items, subtotal, deliveryFee, totalAmount, leadDraftId]);
+
   /**
-   * Place the order.
-   *
-   * This previously invented an order object with two hardcoded product lines
-   * and pushed it into localStorage under 'vetmart_mock_orders'. The server
-   * never saw it, so the order was invisible to the admin on every other device
-   * and no stock was ever decremented.
+   * Place the order through genuine PostgreSQL express orders endpoint.
    */
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,11 +116,19 @@ export function CheckoutForm({ locale }: Props) {
       return;
     }
 
+    const cleanedPhone = sanitizeBdPhone(phone);
+    if (!isValidBdPhone(cleanedPhone)) {
+      setOrderError(
+        isBn
+          ? 'সঠিক ১১ সংখ্যার মোবাইল নম্বর দিন (যেমন: 01712345678)'
+          : 'Please enter a valid 11-digit mobile number (e.g. 01712345678)'
+      );
+      return;
+    }
+
     setIsPlacing(true);
     setOrderError(null);
 
-    // §9: stable per attempt, so a retry over flaky mobile data replays the
-    // original order rather than creating a second one.
     const key = idempotencyKeyRef.current ?? crypto.randomUUID();
     idempotencyKeyRef.current = key;
 
@@ -67,12 +141,12 @@ export function CheckoutForm({ locale }: Props) {
         },
         body: JSON.stringify({
           items: items.map((i) => ({ productId: i.product.id, slug: i.product.slug, qty: i.qty })),
-          recipientName: name,
-          phone,
+          recipientName: name.trim() || 'Valued Customer',
+          phone: cleanedPhone,
           division,
           district,
-          upazila,
-          addressLine: address,
+          upazila: upazila.trim() || undefined,
+          addressLine: address.trim(),
           paymentMethod: paymentMethod === 'cod' ? 'cod' : 'sslcommerz',
           sourceChannel: 'storefront_checkout',
         }),
@@ -109,7 +183,7 @@ export function CheckoutForm({ locale }: Props) {
           <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-bold uppercase tracking-wider">
             {isBn ? 'অর্ডার সফলভাবে প্রাপ্ত হয়েছে' : 'Order Placed Successfully'}
           </span>
-          <h2 className="text-2xl font-extrabold text-foreground">
+          <h2 className="text-2xl font-extrabold text-foreground font-display">
             {isBn ? 'আপনার অর্ডারের জন্য ধন্যবাদ!' : 'Thank you for your order!'}
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -122,7 +196,7 @@ export function CheckoutForm({ locale }: Props) {
         <div className="p-4 rounded-2xl bg-secondary/50 border border-border text-left text-xs space-y-2 font-mono">
           <div className="flex justify-between">
             <span className="text-muted-foreground">{isBn ? 'প্রাপক:' : 'Recipient:'}</span>
-            <span className="font-bold text-foreground">{name} ({phone})</span>
+            <span className="font-bold text-foreground">{name || 'Customer'} ({phone})</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{isBn ? 'ডেলিভারি ঠিকানা:' : 'Address:'}</span>
@@ -134,7 +208,7 @@ export function CheckoutForm({ locale }: Props) {
           </div>
           <div className="flex justify-between border-t border-border pt-2 text-sm font-extrabold">
             <span>{isBn ? 'মোট পরিশোধিত:' : 'Total Amount:'}</span>
-            <span className="text-emerald-600">{fmtMoney(totalAmount, locale)}</span>
+            <span className="text-emerald-600 font-display">{fmtMoney(totalAmount, locale)}</span>
           </div>
         </div>
 
@@ -156,69 +230,103 @@ export function CheckoutForm({ locale }: Props) {
     );
   }
 
+  const isPhoneValid = isValidBdPhone(sanitizeBdPhone(phone));
+
   return (
     <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 md:grid-cols-3 gap-8">
       {/* Shipping & Payment Info */}
       <div className="md:col-span-2 space-y-6">
-        {/* Delivery Address Box */}
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <span>📍</span>
-              <span>{isBn ? 'ডেলিভারি ঠিকানা' : 'Delivery Address'}</span>
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setName('Dr. Anisur Rahman');
-                setPhone('01711000000');
-                setDivision('Dhaka');
-                setDistrict('Gazipur');
-                setUpazila('Joydebpur');
-                setAddress('Chowdhury Bari Poultry Farm, Joydebpur Road');
-              }}
-              className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
-            >
-              ⚡ {isBn ? 'ডেমো খামারের ঠিকানা পূরণ করুন' : 'Autofill Demo Farm Address'}
-            </button>
+        
+        {/* 1. Top Priority Mobile Number Card (Mandatory / First Field) */}
+        <div className="rounded-3xl border-2 border-emerald-500/40 bg-card p-5 sm:p-6 space-y-3 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📱</span>
+              <div>
+                <h2 className="text-base font-extrabold text-foreground tracking-tight">
+                  {isBn ? 'মোবাইল নম্বর' : 'Mobile Phone Number'}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {isBn ? 'অর্ডার কনফার্মেশন ও ডেলিভারি আপডেটের জন্য' : 'For order confirmation and SMS updates'}
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-extrabold tracking-wide border border-emerald-500/30 uppercase">
+              {isBn ? 'বাধ্যতামূলক' : 'Required'}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                {isBn ? 'প্রাপকের নাম' : 'Recipient Name'}
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground"
-              />
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs font-bold text-muted-foreground border-r border-border pr-2.5">
+              <span>🇧🇩</span>
+              <span>+880</span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                {isBn ? 'মোবাইল নম্বর (৮৮০১...)' : 'Mobile Phone'}
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-mono text-foreground"
-              />
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="017XXXXXXXX"
+              required
+              className={`w-full pl-24 pr-10 py-3.5 rounded-2xl border ${
+                isPhoneValid
+                  ? 'border-emerald-500 focus:ring-2 focus:ring-emerald-500/30'
+                  : 'border-input focus:ring-2 focus:ring-primary/40'
+              } bg-background font-mono text-foreground font-bold text-base transition-all`}
+            />
+            {isPhoneValid && (
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-bold text-lg">
+                ✓
+              </div>
+            )}
+          </div>
+
+          {/* Auto-save sync status feedback */}
+          {syncStatus === 'syncing' && (
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+              <span className="w-2.5 h-2.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <span>{isBn ? 'ড্রাফট আপডেট হচ্ছে...' : 'Saving draft order...'}</span>
             </div>
+          )}
+          {syncStatus === 'saved' && (
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 pt-0.5">
+              <span>✓</span>
+              <span>{isBn ? 'ড্রাফট সংরক্ষিত হয়েছে' : 'Draft auto-saved securely'}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Recipient & Delivery Address Box */}
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-4 shadow-xs">
+          <div className="border-b border-border pb-3">
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span>📍</span>
+              <span>{isBn ? 'প্রাপকের নাম ও ডেলিভারি ঠিকানা' : 'Recipient Name & Delivery Address'}</span>
+            </h2>
+          </div>
+
+          <div className="text-sm">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+              {isBn ? 'প্রাপকের নাম / খামারের নাম' : 'Recipient / Farm / Doctor Name'}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isBn ? 'উদা: মোঃ রফিকুল ইসলাম / রফিক ডেইরি ফার্ম' : 'e.g. Dr. Rafiqul Islam / Rafiq Dairy Farm'}
+              required
+              className="w-full px-3.5 py-3 rounded-xl border border-input bg-background font-medium text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                 {isBn ? 'বিভাগ' : 'Division'}
               </label>
               <select
                 value={division}
                 onChange={(e) => setDivision(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-xs font-medium text-foreground"
+                className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               >
                 <option value="Dhaka">Dhaka (ঢাকা)</option>
                 <option value="Chattogram">Chattogram (চট্টগ্রাম)</option>
@@ -231,48 +339,51 @@ export function CheckoutForm({ locale }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                 {isBn ? 'জেলা' : 'District'}
               </label>
               <input
                 type="text"
                 value={district}
                 onChange={(e) => setDistrict(e.target.value)}
+                placeholder={isBn ? 'উদা: গাজীপুর / ময়মনসিংহ' : 'e.g. Gazipur / Mymensingh'}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                {isBn ? 'উপজেলা' : 'Upazila'}
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                {isBn ? 'উপজেলা / থানা' : 'Upazila / Thana'}
               </label>
               <input
                 type="text"
                 value={upazila}
                 onChange={(e) => setUpazila(e.target.value)}
+                placeholder={isBn ? 'উদা: জয়দেবপুর / ভালুকা' : 'e.g. Joydebpur / Bhaluka'}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1">
-              {isBn ? 'পূর্ণাঙ্গ ঠিকানা (গ্রাম/পাড়া/বাড়ি)' : 'Full Address'}
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+              {isBn ? 'পূর্ণাঙ্গ ঠিকানা (গ্রাম/পাড়া/রোড/বাড়ি নম্বর)' : 'Full Detailed Address'}
             </label>
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
+              placeholder={isBn ? 'উদা: চৌধুরী বাড়ি পোল্ট্রি খামার, জয়দেবপুর রোড' : 'e.g. Farm name, village, road, ward or landmark'}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background font-medium text-foreground"
+              className="w-full px-3.5 py-3 rounded-xl border border-input bg-background font-medium text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
             />
           </div>
         </div>
 
-        {/* Payment Method Selector */}
+        {/* 3. Payment Method Selector */}
         <div className="rounded-3xl border border-border bg-card p-6 space-y-4 shadow-xs">
-          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
             <span>💳</span>
             <span>{isBn ? 'পেমেন্ট মাধ্যম' : 'Payment Method'}</span>
           </h2>
@@ -294,7 +405,7 @@ export function CheckoutForm({ locale }: Props) {
                 className="accent-emerald-600"
               />
               <div>
-                <span className="font-bold text-foreground block">
+                <span className="font-bold text-foreground block text-xs">
                   {isBn ? 'ক্যাশ অন ডেলিভারি (COD)' : 'Cash on Delivery'}
                 </span>
                 <span className="text-[11px] text-muted-foreground block">
@@ -319,7 +430,7 @@ export function CheckoutForm({ locale }: Props) {
                 className="accent-pink-600"
               />
               <div>
-                <span className="font-bold text-foreground block">bKash (বিকাশ)</span>
+                <span className="font-bold text-foreground block text-xs">bKash (বিকাশ)</span>
                 <span className="text-[11px] text-muted-foreground block">
                   {isBn ? 'ইনস্ট্যান্ট পেমেন্ট' : 'Instant mobile wallet'}
                 </span>
@@ -342,7 +453,7 @@ export function CheckoutForm({ locale }: Props) {
                 className="accent-orange-600"
               />
               <div>
-                <span className="font-bold text-foreground block">Nagad (নগদ)</span>
+                <span className="font-bold text-foreground block text-xs">Nagad (নগদ)</span>
                 <span className="text-[11px] text-muted-foreground block">
                   {isBn ? 'ডিজিটাল পেমেন্ট' : 'Digital MFS payment'}
                 </span>
@@ -354,7 +465,7 @@ export function CheckoutForm({ locale }: Props) {
 
       {/* Order Summary Side Panel */}
       <div className="space-y-6">
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-4 shadow-xs h-fit">
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-4 shadow-xs h-fit sticky top-24">
           <h3 className="font-bold text-base text-foreground border-b border-border pb-3">
             {isBn ? 'অর্ডার সামারি' : 'Order Summary'}
           </h3>
@@ -366,24 +477,24 @@ export function CheckoutForm({ locale }: Props) {
                   ? `ওষুধের মূল্য (${fmtNumber(items.length, locale)} টি পণ্য)`
                   : `Subtotal (${items.length} ${items.length === 1 ? 'item' : 'items'})`}
               </span>
-              <span className="font-semibold text-foreground">{fmtMoney(subtotal, locale)}</span>
+              <span className="font-semibold text-foreground font-display">{fmtMoney(subtotal, locale)}</span>
             </div>
 
             {coldChainFee > 0 && (
               <div className="flex justify-between text-blue-600 dark:text-blue-400 text-xs">
                 <span>{isBn ? '❄️ কোল্ড চেইন কুলার বক্স' : '❄️ Cold Chain Cooler Box'}</span>
-                <span className="font-bold">{fmtMoney(coldChainFee, locale)}</span>
+                <span className="font-bold font-display">{fmtMoney(coldChainFee, locale)}</span>
               </div>
             )}
 
             <div className="flex justify-between text-muted-foreground text-xs">
               <span>{isBn ? 'ডেলিভারি চার্জ' : 'Shipping Fee'}</span>
-              <span className="font-semibold text-foreground">{fmtMoney(deliveryFee, locale)}</span>
+              <span className="font-semibold text-foreground font-display">{fmtMoney(deliveryFee, locale)}</span>
             </div>
 
             <div className="flex justify-between border-t border-border pt-3 text-base font-extrabold text-foreground">
               <span>{isBn ? 'সর্বমোট' : 'Total Payable'}</span>
-              <span className="text-emerald-600 dark:text-emerald-400">
+              <span className="text-emerald-600 dark:text-emerald-400 font-display">
                 {fmtMoney(totalAmount, locale)}
               </span>
             </div>
@@ -401,7 +512,7 @@ export function CheckoutForm({ locale }: Props) {
           <button
             type="submit"
             disabled={isPlacing || !isHydrated || items.length === 0}
-            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all text-center"
+            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all text-center cursor-pointer"
           >
             {isPlacing
               ? isBn

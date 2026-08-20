@@ -164,16 +164,6 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
     return () => clearTimeout(timer);
   }, [phone, name, address, division, district, upazila, selectedProduct, quantity, totalAmount, leadDraftId, utmSource, utmCampaign, utmMedium]);
 
-  // Autofill demo for quick testing
-  const handleAutofillDemo = () => {
-    setName('Dr. Anisur Rahman');
-    setPhone('01711223344');
-    setDivision('Dhaka');
-    setDistrict('Gazipur');
-    setUpazila('Joydebpur');
-    setAddress('Rahman Dairy & Poultry Complex, Joydebpur Bus Stand Road');
-  };
-
   // Submit Final Express Order
   //
   // This used to fabricate an order object and push it into localStorage under
@@ -528,13 +518,6 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                 <span>📍</span>
                 <span>{isBn ? 'ডেলিভারি ঠিকানা ও ফোন নম্বর' : 'Delivery Details & Phone'}</span>
               </h3>
-              <button
-                type="button"
-                onClick={handleAutofillDemo}
-                className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
-              >
-                ⚡ {isBn ? 'ডেমো খামারের ঠিকানা দিন' : 'Autofill Demo Farm'}
-              </button>
             </div>
 
             {/* Real-time Draft Saving Status Indicator */}
