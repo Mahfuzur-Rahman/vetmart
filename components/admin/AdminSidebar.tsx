@@ -82,7 +82,16 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear the real httpOnly session cookie on the server. Clearing only the
+    // browser-side demo session would leave the operator still authenticated to
+    // every admin API route.
+    try {
+      await fetch('/api/v1/admin/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout request failed:', err);
+    }
+
     clearMockAdminSession();
     router.push('/admin/login');
     router.refresh();

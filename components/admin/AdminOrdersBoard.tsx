@@ -5,7 +5,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { type MockOrder, type OrderStatus } from '@/lib/mock-data/orders';
 import { BOARD_TO_DB_STATUS } from '@/lib/services/order-status';
 import { AdminIncompleteOrdersBoard } from './AdminIncompleteOrdersBoard';
-import { getStoredIncompleteOrders } from '@/lib/mock-data/incomplete-orders';
 import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
 import { ThermalShippingLabelModal, type ThermalLabelData } from './ThermalShippingLabel';
 import { CallLogDrawer, type CallLogEntry, type CallOutcome } from './CallLogDrawer';
@@ -44,15 +43,21 @@ export function AdminOrdersBoard({ locale }: Props) {
   // Fraud reports cache
   const [fraudCache, setFraudCache] = useState<Record<string, CourierFraudReport>>({});
 
-  // Sync with local storage & incomplete leads count
+  // Pending abandoned-cart leads badge. Read from the server: the leads are
+  // captured on customers' phones, so a localStorage count was always zero here.
   useEffect(() => {
-    try {
-      const storedLeads = getStoredIncompleteOrders();
-      const count = storedLeads.filter((l) => l.status === 'incomplete').length;
-      setPendingLeadsCount(count);
-    } catch {
-      // Ignore
-    }
+    let cancelled = false;
+
+    fetch('/api/v1/admin/incomplete-orders?status=incomplete')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((json) => {
+        if (!cancelled) setPendingLeadsCount(Array.isArray(json.data) ? json.data.length : 0);
+      })
+      .catch((err) => console.error('Could not load pending lead count:', err));
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeFilter]);
 
   /**

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { fmtDate, fmtNumber } from '@/lib/i18n/number';
-import { getProductReviews, calculateReviewStats, type Review } from '@/lib/mock-data/reviews';
+import { calculateReviewStats, type Review } from '@/lib/mock-data/reviews';
 import { ProductReviewForm } from './ProductReviewForm';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -17,73 +17,47 @@ type FilterType = 'all' | '5' | '4' | '3' | 'verified' | 'vet';
 
 export function ProductReviewsSection({ locale, productId, productSlug, productName }: Props) {
   const isBn = locale === 'bn';
-  const storageKey = `vetmart_reviews_${productSlug}`;
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [showForm, setShowForm] = useState(false);
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [justSubmittedSuccess, setJustSubmittedSuccess] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Load reviews on mount (from API, seed reviews + local persisted reviews)
-  useEffect(() => {
-    const seed = getProductReviews(productSlug, productId);
-    let initialList = seed;
-
+  /**
+   * Load reviews from the server.
+   *
+   * Reviews used to be merged with a per-browser localStorage list under
+   * `vetmart_reviews_{slug}`, so a review someone wrote was only ever visible
+   * to that person and looked published to them. Reviews are social proof: a
+   * review only one device can see is worse than no review at all.
+   */
+  const loadReviews = useCallback(async () => {
     try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const userAdded: Review[] = JSON.parse(stored);
-        if (Array.isArray(userAdded)) {
-          const userIds = new Set(userAdded.map((r) => r.id));
-          const filteredSeed = seed.filter((r) => !userIds.has(r.id));
-          initialList = [...userAdded, ...filteredSeed];
-        }
-      }
-    } catch {
-      // ignore
+      const res = await fetch(`/api/v1/products/${productSlug}/reviews`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json();
+      setReviews(Array.isArray(payload?.data) ? payload.data : []);
+      setLoadError(null);
+    } catch (err) {
+      console.error('Could not load reviews:', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not load reviews');
     }
-    setReviews(initialList);
+  }, [productSlug]);
 
-    // Fetch from backend API
-    fetch(`/api/v1/products/${productSlug}/reviews`)
-      .then((res) => res.json())
-      .then((payload) => {
-        if (payload?.data && Array.isArray(payload.data) && payload.data.length > 0) {
-          setReviews((prev) => {
-            const apiIds = new Set(payload.data.map((r: Review) => r.id));
-            const localOnly = prev.filter((r) => !apiIds.has(r.id) && r.id.startsWith('rev-user-'));
-            return [...localOnly, ...payload.data];
-          });
-        }
-      })
-      .catch(() => {
-        // graceful offline fallback
-      });
-  }, [productSlug, productId, storageKey]);
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
 
   // Review stats
   const stats = useMemo(() => calculateReviewStats(reviews), [reviews]);
 
   // Handle new review submission
   const handleReviewSubmitted = async (newReview: Review) => {
-    setReviews((prev) => {
-      const updated = [newReview, ...prev];
-      try {
-        const stored = localStorage.getItem(storageKey);
-        const existing: Review[] = stored ? JSON.parse(stored) : [];
-        localStorage.setItem(storageKey, JSON.stringify([newReview, ...existing]));
-      } catch (e) {
-        console.error('Failed to save review to localStorage', e);
-      }
-      return updated;
-    });
+    setSubmitError(null);
 
-    setShowForm(false);
-    setJustSubmittedSuccess(true);
-    setTimeout(() => setJustSubmittedSuccess(false), 4000);
-
-    // Sync to PostgreSQL DB via API
     try {
       const res = await fetch(`/api/v1/products/${productSlug}/reviews`, {
         method: 'POST',
@@ -101,17 +75,26 @@ export function ProductReviewsSection({ locale, productId, productSlug, productN
         }),
       });
 
-      if (res.ok) {
-        const payload = await res.json();
-        if (payload?.data?.id) {
-          // Update the local id with the persisted DB id
-          setReviews((prev) =>
-            prev.map((r) => (r.id === newReview.id ? { ...r, id: payload.data.id } : r))
-          );
-        }
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setSubmitError(
+          json?.error?.message ??
+            (isBn ? 'রিভিউ জমা দেওয়া যায়নি।' : 'Could not submit your review.')
+        );
+        return;
       }
-    } catch (e) {
-      console.error('Error syncing review to DB:', e);
+
+      // Re-read from the server so the list shows exactly what was persisted.
+      await loadReviews();
+
+      setShowForm(false);
+      setJustSubmittedSuccess(true);
+      setTimeout(() => setJustSubmittedSuccess(false), 4000);
+    } catch (err) {
+      console.error('Review submission failed:', err);
+      setSubmitError(
+        isBn ? 'সার্ভারের সাথে সংযোগ করা যায়নি।' : 'Could not reach the server.'
+      );
     }
   };
 
@@ -209,6 +192,33 @@ export function ProductReviewsSection({ locale, productId, productSlug, productN
               ? 'আপনার রিভিউ সফলভাবে জমা হয়েছে এবং নিচে যুক্ত করা হয়েছে!'
               : 'Thank you! Your verified review has been submitted and added below.'}
           </span>
+        </div>
+      )}
+
+      {/* A rejected review must not look submitted. */}
+      {submitError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-xs sm:text-sm leading-relaxed"
+        >
+          {submitError}
+        </div>
+      )}
+
+      {/* An empty review list and a failed request must not look the same. */}
+      {loadError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs sm:text-sm leading-relaxed flex flex-wrap items-center gap-3"
+        >
+          <span>{isBn ? 'রিভিউ লোড করা যায়নি।' : 'Could not load reviews.'}</span>
+          <button
+            type="button"
+            onClick={() => loadReviews()}
+            className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs min-h-11"
+          >
+            {isBn ? 'আবার চেষ্টা করুন' : 'Retry'}
+          </button>
         </div>
       )}
 

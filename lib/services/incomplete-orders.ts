@@ -118,37 +118,43 @@ export async function captureIncompleteOrder(input: IncompleteOrderInput): Promi
  * List incomplete orders for admin review.
  */
 export async function getIncompleteOrders(statusFilter?: string): Promise<IncompleteOrder[]> {
-  if (isDemoMode() || !db) {
-    return INITIAL_MOCK_INCOMPLETE_ORDERS;
+  if (isDemoMode()) {
+    return statusFilter
+      ? INITIAL_MOCK_INCOMPLETE_ORDERS.filter((l) => l.status === statusFilter)
+      : INITIAL_MOCK_INCOMPLETE_ORDERS;
   }
 
-  try {
-    let query = db.select().from(incompleteOrders).orderBy(desc(incompleteOrders.createdAt));
-    const results = await query;
-    return results.map((r: any) => ({
-      id: r.id,
-      phone: r.phone,
-      name: r.name,
-      address: r.address,
-      division: r.division,
-      district: r.district,
-      upazila: r.upazila,
-      items: r.items as any,
-      subtotal: r.subtotal,
-      deliveryFee: r.deliveryFee,
-      totalAmount: r.totalAmount,
-      utmSource: r.utmSource,
-      utmCampaign: r.utmCampaign,
-      utmMedium: r.utmMedium,
-      status: r.status as IncompleteOrderStatus,
-      adminNotes: r.adminNotes,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-    }));
-  } catch (err: any) {
-    console.error('Failed to fetch incomplete orders from DB:', err?.message);
-    return INITIAL_MOCK_INCOMPLETE_ORDERS;
-  }
+  // No try/catch returning seed data. A database failure used to surface as a
+  // list of invented leads, so an operator would have called fabricated phone
+  // numbers believing they were real abandoned carts.
+  // statusFilter was previously accepted and then ignored, so every caller
+  // asking for one status got the entire table back.
+  const rows = await db
+    .select()
+    .from(incompleteOrders)
+    .where(statusFilter ? eq(incompleteOrders.status, statusFilter) : undefined)
+    .orderBy(desc(incompleteOrders.createdAt));
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    phone: r.phone,
+    name: r.name,
+    address: r.address,
+    division: r.division,
+    district: r.district,
+    upazila: r.upazila,
+    items: r.items as any,
+    subtotal: r.subtotal,
+    deliveryFee: r.deliveryFee,
+    totalAmount: r.totalAmount,
+    utmSource: r.utmSource,
+    utmCampaign: r.utmCampaign,
+    utmMedium: r.utmMedium,
+    status: r.status as IncompleteOrderStatus,
+    adminNotes: r.adminNotes,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
 }
 
 /**

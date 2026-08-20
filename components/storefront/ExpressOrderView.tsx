@@ -6,11 +6,8 @@ import { Link } from '@/lib/i18n/navigation';
 import { fmtMoney, fmtNumber } from '@/lib/i18n/number';
 import {
   type IncompleteOrder,
-  INCOMPLETE_ORDERS_STORAGE_KEY,
   isValidBdPhone,
   sanitizeBdPhone,
-  getStoredIncompleteOrders,
-  saveStoredIncompleteOrders,
 } from '@/lib/mock-data/incomplete-orders';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -142,38 +139,29 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
         updatedAt: new Date().toISOString(),
       };
 
-      // 1. Save to client localStorage for immediate admin board availability
-      try {
-        const storedLeads = getStoredIncompleteOrders();
-        const existingIdx = storedLeads.findIndex((l) => l.phone === cleanedPhone || l.id === draftId);
-        if (existingIdx > -1) {
-          storedLeads[existingIdx] = {
-            ...storedLeads[existingIdx],
-            ...leadData,
-            createdAt: storedLeads[existingIdx].createdAt,
-          };
-          saveStoredIncompleteOrders(storedLeads);
-        } else {
-          saveStoredIncompleteOrders([leadData, ...storedLeads]);
-        }
-        setLeadDraftId(draftId);
-      } catch (err) {
-        console.error('Storage sync error', err);
-      }
+      // The lead goes straight to the server. It used to be written to this
+      // browser's localStorage as well "for immediate admin board availability",
+      // but the admin board runs on a different device — the local copy was only
+      // ever visible to the customer who abandoned the cart.
+      setLeadDraftId(draftId);
 
-      // 2. Fire background API sync
       try {
-        await fetch('/api/v1/incomplete-orders', {
+        const res = await fetch('/api/v1/incomplete-orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(leadData),
         });
-      } catch {
-        // Continue silently on offline/mock mode
-      }
 
-      setSyncStatus('saved');
-      setTimeout(() => setSyncStatus('idle'), 3000);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        setSyncStatus('saved');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      } catch (err) {
+        // Lead capture is best-effort and must never block the customer, but it
+        // should not claim to have saved when it did not.
+        console.error('Lead capture failed:', err);
+        setSyncStatus('idle');
+      }
     }, 600);
 
     return () => clearTimeout(timer);

@@ -36,7 +36,6 @@ export interface IncompleteOrder {
   updatedAt: string;
 }
 
-export const INCOMPLETE_ORDERS_STORAGE_KEY = 'vetmart_incomplete_orders_v1';
 
 /**
  * Validates Bangladesh mobile phone numbers.
@@ -178,31 +177,13 @@ export const INITIAL_MOCK_INCOMPLETE_ORDERS: IncompleteOrder[] = [
 ];
 
 /**
- * Client-safe storage helper to get incomplete orders
+ * The browser-side lead store that used to live here has been removed.
+ *
+ * getStoredIncompleteOrders / saveStoredIncompleteOrders persisted abandoned
+ * carts in localStorage. Leads are captured on the customer's own phone, so the
+ * operator who is supposed to call them back — on a different device — never
+ * saw a single one. That defeats the entire purpose of capturing them.
+ *
+ * Leads are database rows now. Read them from /api/v1/admin/incomplete-orders
+ * and write them through POST /api/v1/incomplete-orders.
  */
-export function getStoredIncompleteOrders(): IncompleteOrder[] {
-  if (typeof window === 'undefined') return INITIAL_MOCK_INCOMPLETE_ORDERS;
-  try {
-    const raw = localStorage.getItem(INCOMPLETE_ORDERS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(INCOMPLETE_ORDERS_STORAGE_KEY, JSON.stringify(INITIAL_MOCK_INCOMPLETE_ORDERS));
-      return INITIAL_MOCK_INCOMPLETE_ORDERS;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_MOCK_INCOMPLETE_ORDERS;
-  } catch {
-    return INITIAL_MOCK_INCOMPLETE_ORDERS;
-  }
-}
-
-/**
- * Client-safe storage helper to save incomplete orders
- */
-export function saveStoredIncompleteOrders(orders: IncompleteOrder[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(INCOMPLETE_ORDERS_STORAGE_KEY, JSON.stringify(orders));
-  } catch (e) {
-    console.error('Failed to save incomplete orders to localStorage', e);
-  }
-}

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { updateIncompleteOrderStatus } from '@/lib/services/incomplete-orders';
 import type { IncompleteOrderStatus } from '@/lib/mock-data/incomplete-orders';
+import { requireAdmin } from '@/lib/api/guard';
 
 const updateSchema = z.object({
   status: z.enum(['incomplete', 'contacted', 'converted', 'discarded'] as const),
@@ -16,6 +17,9 @@ type Props = {
 };
 
 export async function PATCH(req: NextRequest, { params }: Props) {
+  const guard = await requireAdmin('order.write');
+  if (!guard.ok) return guard.response;
+
   try {
     const { id } = await params;
     const body = await req.json();

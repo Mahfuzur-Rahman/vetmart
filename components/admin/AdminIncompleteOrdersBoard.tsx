@@ -1,12 +1,10 @@
 // components/admin/AdminIncompleteOrdersBoard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   type IncompleteOrder,
   type IncompleteOrderStatus,
-  getStoredIncompleteOrders,
-  saveStoredIncompleteOrders,
 } from '@/lib/mock-data/incomplete-orders';
 import { fmtMoney } from '@/lib/i18n/number';
 import type { Locale } from '@/lib/i18n/config';
@@ -25,25 +23,40 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
   const [selectedLead, setSelectedLead] = useState<IncompleteOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<string>('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Modals state
   const [callDrawerLead, setCallDrawerLead] = useState<IncompleteOrder | null>(null);
   const [whatsappContext, setWhatsappContext] = useState<WhatsAppOrderContext | null>(null);
   const [fraudCache, setFraudCache] = useState<Record<string, CourierFraudReport>>({});
 
-  // Load leads from storage or API
-  const loadLeads = () => {
+  /**
+   * Load abandoned-cart leads from the server.
+   *
+   * These used to be read from localStorage, so a lead captured on a customer's
+   * phone was invisible to the operator meant to call them back — which defeats
+   * the entire point of capturing it.
+   */
+  const loadLeads = useCallback(async () => {
     try {
-      const stored = getStoredIncompleteOrders();
-      setLeads(stored);
-    } catch (e) {
-      console.error('Failed to load incomplete leads', e);
+      const res = await fetch('/api/v1/admin/incomplete-orders');
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      setLeads(Array.isArray(json.data) ? json.data : []);
+      setLoadError(null);
+    } catch (err) {
+      console.error('Failed to load incomplete leads:', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not load leads');
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadLeads();
-  }, []);
+  }, [loadLeads]);
 
   // Compute fraud scores for leads
   useEffect(() => {
@@ -66,81 +79,114 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
     fetchFraud();
   }, [leads]);
 
-  const saveUpdatedLeads = (updated: IncompleteOrder[]) => {
-    setLeads(updated);
-    saveStoredIncompleteOrders(updated);
+  /**
+   * Persist a lead's status/notes on the server, then reflect it locally.
+   * This used to write the whole list to localStorage, which is what made lead
+   * state device-local.
+   */
+  const persistLead = async (
+    leadId: string,
+    patch: { status: IncompleteOrderStatus; adminNotes?: string }
+  ): Promise<boolean> => {
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/v1/admin/incomplete-orders/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setActionError(json?.error?.message ?? `Could not update the lead (HTTP ${res.status}).`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Lead update failed:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not update the lead');
+      return false;
+    }
   };
 
-  // Convert an Incomplete Lead directly into a Confirmed Order
-  const handleConvertLeadToOrder = (lead: IncompleteOrder) => {
-    const generatedOrderNo = `VM-REC-${Math.floor(70000 + Math.random() * 29999)}`;
-    const nowIso = new Date().toISOString();
+  /**
+   * Convert a recovered lead into a real order.
+   *
+   * This used to invent an order number with Math.random and push the order
+   * into localStorage, so the "recovered" order existed only in the operator's
+   * browser: no stock was allocated, no ledger row was written, and nobody else
+   * could see it. It now goes through the same guest-order endpoint the
+   * storefront uses, which allocates batches FEFO and writes the stock ledger.
+   */
+  const handleConvertLeadToOrder = async (lead: IncompleteOrder) => {
+    setActionError(null);
 
-    const newConfirmedOrder = {
-      id: `ord-rec-${Date.now()}`,
-      orderNumber: generatedOrderNo,
-      customerName: lead.name || (isBn ? 'রিকভার্ড কাস্টমার' : 'Recovered Customer'),
-      customerPhone: lead.phone,
-      customerType: 'phone_recovered_lead',
-      recipientAddress: lead.address || (isBn ? 'ঠিকানা যাচাইকৃত' : 'Address Verified by Phone'),
-      district: lead.district || 'Dhaka',
-      division: lead.division || 'Dhaka',
-      upazila: lead.upazila || '',
-      status: 'pending',
-      items: lead.items.map((item) => ({
-        productId: item.productId,
-        productSlug: item.productSlug,
-        productNameEn: item.productNameEn,
-        productNameBn: item.productNameBn,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        totalPrice: item.totalPrice,
-        batchNo: 'B-REC-2026',
-      })),
-      subtotal: lead.subtotal,
-      deliveryFee: lead.deliveryFee,
-      totalAmount: lead.totalAmount,
-      paymentMethod: 'cod',
-      paymentStatus: 'unpaid',
-      utmSource: lead.utmSource || 'phone_recovery',
-      utmCampaign: lead.utmCampaign || 'incomplete_lead_recovery',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    };
+    // Stable per lead, so a double click cannot create two orders (§9).
+    const key = `lead-recovery-${lead.id}`;
 
-    // 1. Add to active orders
     try {
-      const existing = localStorage.getItem('vetmart_mock_orders');
-      const ordersList = existing ? JSON.parse(existing) : [];
-      localStorage.setItem('vetmart_mock_orders', JSON.stringify([newConfirmedOrder, ...ordersList]));
-    } catch (e) {
-      console.error('Failed to save converted order to localStorage', e);
+      const res = await fetch('/api/v1/orders/express', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body: JSON.stringify({
+          items: lead.items.map((i) => ({ productId: i.productId, slug: i.productSlug, qty: i.quantity })),
+          recipientName: lead.name || 'Recovered Customer',
+          phone: lead.phone,
+          division: lead.division || 'Dhaka',
+          district: lead.district || 'Dhaka',
+          upazila: lead.upazila || undefined,
+          addressLine: lead.address || '',
+          paymentMethod: 'cod',
+          note: 'Recovered from an abandoned cart by phone follow-up.',
+          sourceChannel: 'incomplete_lead_recovery',
+          utmSource: lead.utmSource || undefined,
+          utmCampaign: lead.utmCampaign || undefined,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setActionError(
+          json?.error?.message ??
+            (isBn ? 'লিডটি অর্ডারে রূপান্তর করা যায়নি।' : 'Could not convert this lead into an order.')
+        );
+        return;
+      }
+
+      const orderNo = json.data.orderNo;
+
+      if (await persistLead(lead.id, { status: 'converted' })) {
+        await loadLeads();
+        if (selectedLead && selectedLead.id === lead.id) {
+          setSelectedLead((prev) => (prev ? { ...prev, status: 'converted' } : null));
+        }
+      }
+
+      setToastMessage(
+        isBn
+          ? `অসম্পূর্ণ লিড সফলভাবে সক্রিয় অর্ডারে #${orderNo} রূপান্তরিত হয়েছে!`
+          : `Lead successfully converted to confirmed order #${orderNo}!`
+      );
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err) {
+      console.error('Lead conversion failed:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not convert this lead');
     }
-
-    // 2. Mark lead as converted
-    const updated = leads.map((l) =>
-      l.id === lead.id ? { ...l, status: 'converted' as IncompleteOrderStatus, updatedAt: nowIso } : l
-    );
-    saveUpdatedLeads(updated);
-
-    if (selectedLead && selectedLead.id === lead.id) {
-      setSelectedLead((prev) => (prev ? { ...prev, status: 'converted', updatedAt: nowIso } : null));
-    }
-
-    setToastMessage(
-      isBn
-        ? `অসম্পূর্ণ লিড সফলভাবে সক্রিয় অর্ডারে #${generatedOrderNo} রূপান্তরিত হয়েছে!`
-        : `Lead successfully converted to confirmed order #${generatedOrderNo}!`
-    );
-    setTimeout(() => setToastMessage(null), 5000);
   };
 
   // Change lead status (contacted, discarded, etc.)
-  const handleStatusChange = (leadId: string, newStatus: IncompleteOrderStatus) => {
-    const updated = leads.map((l) =>
-      l.id === leadId ? { ...l, status: newStatus, updatedAt: new Date().toISOString() } : l
+  const handleStatusChange = async (leadId: string, newStatus: IncompleteOrderStatus) => {
+    if (!(await persistLead(leadId, { status: newStatus }))) return;
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId ? { ...l, status: newStatus, updatedAt: new Date().toISOString() } : l
+      )
     );
-    saveUpdatedLeads(updated);
     if (selectedLead && selectedLead.id === leadId) {
       setSelectedLead((prev) => (prev ? { ...prev, status: newStatus } : null));
     }
@@ -149,11 +195,17 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
   };
 
   // Save notes
-  const handleSaveNotes = (leadId: string) => {
-    const updated = leads.map((l) =>
-      l.id === leadId ? { ...l, adminNotes: editingNotes, updatedAt: new Date().toISOString() } : l
+  const handleSaveNotes = async (leadId: string) => {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+
+    if (!(await persistLead(leadId, { status: lead.status, adminNotes: editingNotes }))) return;
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId ? { ...l, adminNotes: editingNotes, updatedAt: new Date().toISOString() } : l
+      )
     );
-    saveUpdatedLeads(updated);
     if (selectedLead && selectedLead.id === leadId) {
       setSelectedLead((prev) => (prev ? { ...prev, adminNotes: editingNotes } : null));
     }
@@ -184,6 +236,44 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
             className="text-white/80 hover:text-white text-xs cursor-pointer"
           >
             ✕
+          </button>
+        </div>
+      )}
+
+      {/* A rejected update must not look like it succeeded. */}
+      {actionError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-sm shadow-sm flex items-start justify-between gap-3"
+        >
+          <p className="min-w-0 break-words leading-relaxed">{actionError}</p>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label={isBn ? 'বন্ধ করুন' : 'Dismiss'}
+            className="text-red-700 hover:text-red-900 text-xs shrink-0 min-h-11 min-w-11 flex items-center justify-center cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* "No leads" and "could not load leads" must not look identical. */}
+      {loadError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm shadow-sm"
+        >
+          <p className="font-bold">
+            {isBn ? 'লিড তালিকা লোড করা যায়নি' : 'Could not load leads'}
+          </p>
+          <p className="mt-0.5 break-words leading-relaxed">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => loadLeads()}
+            className="mt-2 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs min-h-11 cursor-pointer"
+          >
+            {isBn ? 'আবার চেষ্টা করুন' : 'Retry'}
           </button>
         </div>
       )}
@@ -476,13 +566,20 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
           deliveryAddress={`${callDrawerLead.address || ''}, ${callDrawerLead.district || ''}`}
           totalAmountPaisa={callDrawerLead.totalAmount}
           fraudReport={fraudCache[callDrawerLead.phone] || null}
-          onAddLog={(entry: CallLogEntry) => {
-            const updated = leads.map((l) =>
-              l.id === callDrawerLead.id
-                ? { ...l, adminNotes: `[${entry.outcome.toUpperCase()}] ${entry.note}`, updatedAt: new Date().toISOString() }
-                : l
+          onAddLog={async (entry: CallLogEntry) => {
+            // The call outcome is persisted as the lead's admin note so the
+            // next operator to pick up this lead can see it.
+            const note = `[${entry.outcome.toUpperCase()}] ${entry.note}`;
+            if (!(await persistLead(callDrawerLead.id, { status: callDrawerLead.status, adminNotes: note }))) {
+              return;
+            }
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === callDrawerLead.id
+                  ? { ...l, adminNotes: note, updatedAt: new Date().toISOString() }
+                  : l
+              )
             );
-            saveUpdatedLeads(updated);
           }}
           locale={locale}
         />
