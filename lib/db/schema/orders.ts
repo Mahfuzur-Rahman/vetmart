@@ -1,6 +1,6 @@
 // lib/db/schema/orders.ts
 // Carts, Orders, Snapshots, Prescriptions, Shipments, Invoices (§5.5, §6, §11, §12)
-import { pgTable, text, timestamp, boolean, integer, numeric, jsonb, uuid, index, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, numeric, jsonb, uuid, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core';
 import { users } from './auth';
 import { products, productBatches } from './catalog';
 
@@ -98,6 +98,21 @@ export const orders = pgTable('orders', {
   fulfilmentChannel: text('fulfilment_channel').notNull().default('steadfast'), // steadfast, own_rider, cold_chain
   rxId: uuid('rx_id').references(() => prescriptions.id),
 
+  // Guest / social express orders carry the contact details inline because
+  // there is no user row or address book entry to point at.
+  guestName: text('guest_name'),
+  guestPhone: text('guest_phone'), // canonical 8801XXXXXXXXX (§20)
+
+  // Marketing attribution for social express orders (§14.2 Marketing).
+  sourceChannel: text('source_channel'),
+  utmSource: text('utm_source'),
+  utmCampaign: text('utm_campaign'),
+
+  // §9: POST /orders requires an Idempotency-Key. BD mobile data drops
+  // mid-request constantly; without this a retry creates a duplicate order and
+  // a duplicate Steadfast consignment. The unique index is what enforces it.
+  idempotencyKey: text('idempotency_key'),
+
   placedAt: timestamp('placed_at', { withTimezone: true }).defaultNow().notNull(),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -105,6 +120,8 @@ export const orders = pgTable('orders', {
   index('orders_user_placed_idx').on(t.userId, t.placedAt),
   index('orders_status_idx').on(t.status),
   index('orders_order_no_idx').on(t.orderNo),
+  index('orders_guest_phone_idx').on(t.guestPhone),
+  uniqueIndex('orders_idempotency_key_idx').on(t.idempotencyKey),
 ]);
 
 // 4. Order Items (Snapshot everything: generic, batch, expiry, withdrawal periods §6)

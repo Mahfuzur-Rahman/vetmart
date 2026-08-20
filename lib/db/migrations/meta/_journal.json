@@ -15,6 +15,13 @@
       "when": 1786736424618,
       "tag": "0001_needy_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787209951066,
+      "tag": "0002_brave_callisto",
+      "breakpoints": true
     }
   ]
 }

@@ -46,7 +46,10 @@ export async function setAdminSession(adminId: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/admin',
+    // Path must be '/', not '/admin'. Scoped to '/admin' the browser never sent
+    // this cookie to /api/v1/admin/*, so every admin API route saw an
+    // unauthenticated request and no admin write could ever be authorized.
+    path: '/',
     maxAge: ADMIN_SESSION_TTL_SECONDS,
   });
 }
@@ -63,5 +66,6 @@ export async function getAdminSessionId(): Promise<string | null> {
 
 export async function clearAdminSession() {
   const cookieStore = await cookies();
-  cookieStore.delete(ADMIN_SESSION_COOKIE);
+  // Must match the path the cookie was written with, or the delete is a no-op.
+  cookieStore.set(ADMIN_SESSION_COOKIE, '', { path: '/', maxAge: 0 });
 }

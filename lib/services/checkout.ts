@@ -10,6 +10,7 @@ import { getCartView, clearCart } from './cart';
 import { getProductStockSummary, allocateFEFO, recordStockMovement } from './stock';
 import { calculateOrderTotals, type PricingItem } from './pricing';
 import { getDeliveryQuote } from './delivery';
+import { normalizePhone } from '@/lib/i18n/number';
 import type { CouponValidationResult } from './coupons';
 
 export interface CheckoutInput {
@@ -266,4 +267,298 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     orderNo,
     total: totals.total,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Guest express orders (§9, §13 — COD is the default and the majority path)
+// ---------------------------------------------------------------------------
+
+export interface GuestOrderLineInput {
+  /** Either a product UUID or a catalog slug. */
+  productId?: string;
+  slug?: string;
+  qty: number;
+}
+
+export interface GuestOrderInput {
+  items: GuestOrderLineInput[];
+  recipientName: string;
+  phone: string; // any BD format; normalized to 8801XXXXXXXXX before storing (§20)
+  division: string;
+  district: string;
+  upazila?: string;
+  area?: string;
+  addressLine: string;
+  paymentMethod?: 'cod' | 'sslcommerz' | 'bkash_direct';
+  note?: string;
+  sourceChannel?: string;
+  utmSource?: string;
+  utmCampaign?: string;
+  /** §9: required by the route so a dropped connection cannot duplicate an order. */
+  idempotencyKey: string;
+}
+
+export interface GuestOrderResult {
+  success: boolean;
+  orderId?: string;
+  orderNo?: string;
+  total?: number;
+  /** True when this key was already used and the original order is returned. */
+  replayed?: boolean;
+  errorCode?: string;
+  error?: string;
+  insufficientItems?: CheckoutResult['insufficientItems'];
+}
+
+/** Look up a previously placed order by its Idempotency-Key (§9). */
+async function findOrderByIdempotencyKey(key: string) {
+  const [row] = await db
+    .select({ id: orders.id, orderNo: orders.orderNo, total: orders.total })
+    .from(orders)
+    .where(eq(orders.idempotencyKey, key))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Place an order for a customer who has no account, no DB cart and no saved
+ * address — the social/express COD flow, which is the majority path in BD.
+ *
+ * Shares the pipeline placeOrder uses: FEFO allocation (§5.3), the stock ledger
+ * (§2 rule 3), full line snapshots (§6), an order event and an invoice row. The
+ * only differences are that line items arrive inline rather than from a cart,
+ * and userId stays null.
+ *
+ * Previously this flow wrote the order to localStorage and never contacted the
+ * server, so an order placed on a phone was invisible to the admin on every
+ * other device and never decremented stock.
+ */
+export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrderResult> {
+  if (input.items.length === 0) {
+    return { success: false, errorCode: 'EMPTY_ORDER', error: 'Order contains no items.' };
+  }
+
+  // Replay an earlier submit of the same key rather than creating a duplicate.
+  const alreadyPlaced = await findOrderByIdempotencyKey(input.idempotencyKey);
+  if (alreadyPlaced) {
+    return {
+      success: true,
+      replayed: true,
+      orderId: alreadyPlaced.id,
+      orderNo: alreadyPlaced.orderNo,
+      total: alreadyPlaced.total,
+    };
+  }
+
+  // 1. Resolve every line against the live catalog. Prices come from the
+  //    database, never from the client payload — a client-supplied price is a
+  //    free discount for anyone with dev tools open.
+  const resolved: Array<{ product: typeof products.$inferSelect; qty: number }> = [];
+
+  for (const line of input.items) {
+    if (!Number.isInteger(line.qty) || line.qty <= 0) {
+      return {
+        success: false,
+        errorCode: 'INVALID_QTY',
+        error: 'Quantity must be a positive whole number.',
+      };
+    }
+
+    const where = line.productId
+      ? eq(products.id, line.productId)
+      : eq(products.slug, line.slug ?? '');
+
+    const [product] = await db.select().from(products).where(where).limit(1);
+
+    if (!product || !product.isActive) {
+      return {
+        success: false,
+        errorCode: 'PRODUCT_UNAVAILABLE',
+        error: `Product "${line.slug ?? line.productId}" is not available.`,
+      };
+    }
+
+    // §5.5: a guest cannot attach a prescription, so Rx items cannot be bought
+    // through this flow. Easier to relax later than to retrofit.
+    if (product.requiresPrescription) {
+      return {
+        success: false,
+        errorCode: 'PRESCRIPTION_REQUIRED',
+        error: `"${product.nameEn}" is prescription-only and cannot be ordered without an approved prescription.`,
+      };
+    }
+
+    resolved.push({ product, qty: line.qty });
+  }
+
+  // 2. Delivery quote and cold-chain serviceability (§5.4).
+  const deliveryQuote = await getDeliveryQuote(input.division, input.district);
+  const shippingFeePaisa = deliveryQuote?.rate ?? 13000; // 130 taka default outside Dhaka
+
+  const hasColdChain = resolved.some((r) => r.product.requiresColdChain);
+  if (hasColdChain && deliveryQuote && !deliveryQuote.coldChainEnabled) {
+    return {
+      success: false,
+      errorCode: 'COLD_CHAIN_UNAVAILABLE',
+      error: `Cold-chain delivery is not available for ${input.district}.`,
+    };
+  }
+
+  // 3. FEFO allocation (§5.3) — checked at confirm time, never at cart time.
+  const allocationMap = new Map<string, ReturnType<typeof allocateFEFO>>();
+  const insufficientItems: CheckoutResult['insufficientItems'] = [];
+
+  for (const { product, qty } of resolved) {
+    const stockSummary = await getProductStockSummary(product.id);
+    const allocation = allocateFEFO(
+      stockSummary.batches.map((b) => ({
+        batchId: b.batchId,
+        batchNo: b.batchNo,
+        expiryDate: new Date(b.expiryDate),
+        availableStock: Number(b.currentStock),
+      })),
+      qty
+    );
+
+    allocationMap.set(product.id, allocation);
+
+    if (allocation.unfulfilledQty > 0) {
+      insufficientItems!.push({
+        productId: product.id,
+        nameEn: product.nameEn,
+        requested: qty,
+        available: qty - allocation.unfulfilledQty,
+      });
+    }
+  }
+
+  if (insufficientItems!.length > 0) {
+    return {
+      success: false,
+      errorCode: 'OUT_OF_STOCK',
+      error: 'Some products do not have sufficient sellable stock.',
+      insufficientItems,
+    };
+  }
+
+  // 4. Totals, integer paisa throughout (§2 rule 5).
+  const totals = calculateOrderTotals({
+    items: resolved.map(({ product, qty }) => ({
+      qty,
+      unitPrice: product.salePrice,
+      vatRatePercent: parseFloat(product.vatRate) || 0,
+    })),
+    shippingFeePaisa,
+    discountPaisa: 0,
+  });
+
+  const orderNo = generateOrderNo();
+  const invoiceNo = generateInvoiceNo();
+  const canonicalPhone = normalizePhone(input.phone);
+
+  const addressSnapshot = {
+    recipientName: input.recipientName,
+    phone: canonicalPhone,
+    division: input.division,
+    district: input.district,
+    upazila: input.upazila ?? null,
+    area: input.area ?? null,
+    addressLine: input.addressLine,
+  };
+
+  try {
+    const orderId = await db.transaction(async (tx) => {
+      const [order] = await tx
+        .insert(orders)
+        .values({
+          orderNo,
+          userId: null,
+          status: 'placed',
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          vat: totals.vat,
+          shipping: totals.shipping,
+          total: totals.total,
+          paymentMethod: input.paymentMethod ?? 'cod',
+          paymentStatus: 'pending',
+          addressSnapshot,
+          guestName: input.recipientName,
+          guestPhone: canonicalPhone,
+          sourceChannel: input.sourceChannel ?? null,
+          utmSource: input.utmSource ?? null,
+          utmCampaign: input.utmCampaign ?? null,
+          idempotencyKey: input.idempotencyKey,
+          // Cold-chain orders never go to Steadfast standard (§12 rule 5).
+          fulfilmentChannel: hasColdChain ? 'cold_chain' : 'steadfast',
+        })
+        .returning();
+
+      for (const { product } of resolved) {
+        const allocation = allocationMap.get(product.id)!;
+
+        for (const alloc of allocation.allocations) {
+          // Snapshot everything: the order must be reconstructible years later
+          // even if the product row changes or is deactivated (§6).
+          await tx.insert(orderItems).values({
+            orderId: order.id,
+            productId: product.id,
+            batchId: alloc.batchId,
+            nameSnapshotEn: product.nameEn,
+            nameSnapshotBn: product.nameBn,
+            genericSnapshot: product.genericName,
+            batchNo: alloc.batchNo,
+            expiryDate: alloc.expiryDate,
+            qty: alloc.qtyAllocated,
+            unitPrice: product.salePrice,
+            vatRate: product.vatRate,
+            lineTotal: alloc.qtyAllocated * product.salePrice,
+            withdrawalMeatDays: product.withdrawalMeatDays ?? 0,
+            withdrawalMilkHours: product.withdrawalMilkHours ?? 0,
+          });
+
+          await recordStockMovement(
+            {
+              productId: product.id,
+              batchId: alloc.batchId,
+              delta: -alloc.qtyAllocated, // negative = outgoing
+              reason: 'sale',
+              refType: 'order',
+              refId: order.id,
+            },
+            tx
+          );
+        }
+      }
+
+      await tx.insert(orderEvents).values({
+        orderId: order.id,
+        fromStatus: null,
+        toStatus: 'placed',
+        actor: 'customer',
+        note: input.note || null,
+      });
+
+      await tx.insert(invoices).values({ orderId: order.id, invoiceNo });
+
+      return order.id;
+    });
+
+    return { success: true, orderId, orderNo, total: totals.total };
+  } catch (err: any) {
+    // Two concurrent submits of the same key: one wins the unique index, the
+    // other reads the winner's row rather than reporting a failure.
+    if (err?.code === '23505') {
+      const replayed = await findOrderByIdempotencyKey(input.idempotencyKey);
+      if (replayed) {
+        return {
+          success: true,
+          replayed: true,
+          orderId: replayed.id,
+          orderNo: replayed.orderNo,
+          total: replayed.total,
+        };
+      }
+    }
+    throw err;
+  }
 }

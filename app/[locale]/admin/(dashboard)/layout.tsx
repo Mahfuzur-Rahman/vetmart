@@ -21,25 +21,21 @@ export default async function AdminLayout({ children, params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // RBAC gate — redirect to admin login if not authenticated
-  let auth;
-  if (isDemoMode()) {
-    auth = null; // Skip DB entirely in demo mode
-  } else {
-    try {
-      auth = await getAuthenticatedAdmin();
-    } catch {
-      // DB connection unavailable — allow through for dev mode
-      auth = null;
+  // RBAC gate. Demo mode has no admins table, and every write path refuses to
+  // run in demo mode anyway, so the panel is browsable there without a session.
+  let auth = null;
+
+  if (!isDemoMode()) {
+    auth = await getAuthenticatedAdmin();
+
+    // This redirect used to be commented out, which left the whole admin panel
+    // readable by anyone who knew the URL on a public deployment.
+    if (!auth) {
+      redirect(`/${locale}/admin/login`);
     }
   }
 
-  // In production, uncomment this redirect:
-  // if (!auth) {
-  //   redirect(`/${locale}/admin/login`);
-  // }
-
-  const adminName = auth?.admin?.name ?? 'Admin';
+  const adminName = auth?.admin?.name ?? 'Demo Admin';
   const permissionKeys = auth ? Array.from(auth.permissions) : ['*'];
 
   return (

@@ -11,6 +11,7 @@ import {
   DemoModeWriteError,
 } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { requireAdmin } from '@/lib/api/guard';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -41,6 +42,9 @@ function toErrorResponse(err: unknown, fallbackCode: string, fallbackMessage: st
 }
 
 export async function PUT(req: NextRequest, { params }: Props) {
+  const guard = await requireAdmin('product.write');
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
 
   let body: unknown;
@@ -59,6 +63,9 @@ export async function PUT(req: NextRequest, { params }: Props) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Props) {
+  const guard = await requireAdmin('product.write');
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
 
   try {

@@ -6,9 +6,13 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
 import { createProduct, DemoModeWriteError } from '@/lib/services/products';
+import { requireAdmin } from '@/lib/api/guard';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin('product.write');
+  if (!guard.ok) return guard.response;
+
   let body: unknown;
   try {
     body = await req.json();

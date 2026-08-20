@@ -3,6 +3,7 @@
 import { NextRequest } from 'next/server';
 import { getStorageDriver, StorageConfigError } from '@/lib/storage';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { requireAdmin } from '@/lib/api/guard';
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -16,6 +17,10 @@ const ALLOWED_MIME_TYPES = new Set([
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
 
 export async function POST(req: NextRequest) {
+  // Unauthenticated uploads let anyone fill the Cloudinary account.
+  const guard = await requireAdmin('product.write');
+  if (!guard.ok) return guard.response;
+
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;

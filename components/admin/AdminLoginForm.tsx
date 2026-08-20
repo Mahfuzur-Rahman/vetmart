@@ -15,6 +15,7 @@ export function AdminLoginForm({ locale }: Props) {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const isBn = locale === 'bn';
 
@@ -29,27 +30,69 @@ export function AdminLoginForm({ locale }: Props) {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  /**
+   * Authenticate against the server.
+   *
+   * This previously matched the email against a hardcoded list, IGNORED the
+   * password entirely, and fell back to the first admin account when the email
+   * did not match — so any input at all logged you in as a super admin. It also
+   * only wrote a client-side session, which no API route could read.
+   */
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorText(null);
 
-    const match = MOCK_ADMIN_ACCOUNTS.find(
-      (a) => a.email.toLowerCase() === email.toLowerCase()
-    ) || MOCK_ADMIN_ACCOUNTS[0];
+    try {
+      const res = await fetch('/api/v1/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    setMockAdminSession({
-      email: match.email,
-      name: match.name,
-      roleKey: match.roleKey,
-      roleName: match.roleName,
-      isLoggedIn: true,
-    });
+      const json = await res.json().catch(() => null);
 
-    setTimeout(() => {
+      if (res.ok) {
+        router.push('/admin');
+        router.refresh();
+        return;
+      }
+
+      // Demo mode has no admins table, so fall back to the local demo session
+      // and let the operator explore the panel. Every write path still refuses
+      // to run in demo mode, so nothing can be changed from here.
+      if (json?.error?.code === 'DEMO_MODE_NO_ADMIN_AUTH') {
+        const match =
+          MOCK_ADMIN_ACCOUNTS.find((a) => a.email.toLowerCase() === email.trim().toLowerCase()) ??
+          MOCK_ADMIN_ACCOUNTS[0];
+
+        setMockAdminSession({
+          email: match.email,
+          name: match.name,
+          roleKey: match.roleKey,
+          roleName: match.roleName,
+          isLoggedIn: true,
+        });
+
+        router.push('/admin');
+        router.refresh();
+        return;
+      }
+
+      setErrorText(
+        json?.error?.message ??
+          (isBn ? 'লগইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।' : 'Login failed. Please try again.')
+      );
+    } catch (err) {
+      console.error('Admin login failed:', err);
+      setErrorText(
+        isBn
+          ? 'সার্ভারের সাথে সংযোগ করা যায়নি।'
+          : 'Could not reach the server.'
+      );
+    } finally {
       setLoading(false);
-      router.push('/admin');
-      router.refresh();
-    }, 400);
+    }
   };
 
 
@@ -96,6 +139,15 @@ export function AdminLoginForm({ locale }: Props) {
       {notification && (
         <div className="p-3 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs animate-fade-in font-medium">
           {notification}
+        </div>
+      )}
+
+      {errorText && (
+        <div
+          role="alert"
+          className="p-3 rounded-lg bg-red-50 border border-red-300 text-red-900 text-xs font-medium leading-relaxed"
+        >
+          {errorText}
         </div>
       )}
 
