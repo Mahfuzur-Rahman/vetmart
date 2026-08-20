@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from '@/lib/i18n/navigation';
-import { fmtMoney } from '@/lib/i18n/number';
+import { fmtMoney, fmtNumber } from '@/lib/i18n/number';
+import { useCart } from '@/lib/context/CartContext';
 import type { Locale } from '@/lib/i18n/config';
 
 interface Props {
@@ -11,82 +12,90 @@ interface Props {
 
 export function CheckoutForm({ locale }: Props) {
   const isBn = locale === 'bn';
+  const { items, subtotal, coldChainFee, estDeliveryFee, grandTotal, clearCart, isHydrated } =
+    useCart();
 
-  const [name, setName] = useState('Dr. Anisur Rahman');
-  const [phone, setPhone] = useState('01711000000');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [division, setDivision] = useState('Dhaka');
   const [district, setDistrict] = useState('Dhaka');
-  const [upazila, setUpazila] = useState('Dhanmondi');
-  const [address, setAddress] = useState('House 42, Road 7, Dhanmondi R/A');
+  const [upazila, setUpazila] = useState('');
+  const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash' | 'nagad'>('cod');
   const [isPlacing, setIsPlacing] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
-  const subtotal = 27500; // ৳275.00
-  const coldChainFee = 3000; // ৳30.00
-  const deliveryFee = division === 'Dhaka' ? 7000 : 13000; // ৳70 or ৳130
-  const totalAmount = subtotal + coldChainFee + deliveryFee;
+  const idempotencyKeyRef = useRef<string | null>(null);
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  // Totals shown here are an estimate for display. The server reprices every
+  // line from the database when the order is placed, so a tampered client
+  // cannot buy at its own prices.
+  const deliveryFee = estDeliveryFee;
+  const totalAmount = grandTotal;
+
+  /**
+   * Place the order.
+   *
+   * This previously invented an order object with two hardcoded product lines
+   * and pushed it into localStorage under 'vetmart_mock_orders'. The server
+   * never saw it, so the order was invisible to the admin on every other device
+   * and no stock was ever decremented.
+   */
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (items.length === 0) {
+      setOrderError(isBn ? 'আপনার কার্ট খালি।' : 'Your cart is empty.');
+      return;
+    }
+
     setIsPlacing(true);
+    setOrderError(null);
 
-    setTimeout(() => {
-      setIsPlacing(false);
-      const generatedOrderNo = `VM-BD-${Math.floor(90000 + Math.random() * 9999)}`;
-      setPlacedOrder(generatedOrderNo);
+    // §9: stable per attempt, so a retry over flaky mobile data replays the
+    // original order rather than creating a second one.
+    const key = idempotencyKeyRef.current ?? crypto.randomUUID();
+    idempotencyKeyRef.current = key;
 
-      // Persist to mock orders storage for admin board
-      try {
-        const newOrder = {
-          id: `ord-${Date.now()}`,
-          orderNumber: generatedOrderNo,
-          customerName: name,
-          customerPhone: phone,
-          customerType: 'vet',
-          recipientAddress: address,
-          district: district,
-          division: division,
-          status: 'pending',
-          items: [
-            {
-              productId: 'prod-1',
-              productSlug: 'renaflox-100ml',
-              productNameEn: 'Renaflox 100ml Oral Solution',
-              productNameBn: 'রেনাফ্লক্স ১০০মি.লি. ওরাল সলিউশন',
-              unitPrice: 16500,
-              quantity: 1,
-              totalPrice: 16500,
-              batchNo: 'B-REN-8912',
-            },
-            {
-              productId: 'prod-2',
-              productSlug: 'rena-ws-100g',
-              productNameEn: 'Rena-WS 100g Soluble Powder',
-              productNameBn: 'রেনা-ডব্লিউএস ১০০গ্রাম পাউডার',
-              unitPrice: 11000,
-              quantity: 1,
-              totalPrice: 11000,
-              batchNo: 'B-RWS-4410',
-            },
-          ],
-          subtotal,
-          deliveryFee,
-          totalAmount,
-          paymentMethod,
-          paymentStatus: paymentMethod === 'cod' ? 'unpaid' : 'paid',
-          requiresRx: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+    try {
+      const res = await fetch('/api/v1/orders/express', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body: JSON.stringify({
+          items: items.map((i) => ({ productId: i.product.id, slug: i.product.slug, qty: i.qty })),
+          recipientName: name,
+          phone,
+          division,
+          district,
+          upazila,
+          addressLine: address,
+          paymentMethod: paymentMethod === 'cod' ? 'cod' : 'sslcommerz',
+          sourceChannel: 'storefront_checkout',
+        }),
+      });
 
-        const existing = localStorage.getItem('vetmart_mock_orders');
-        const ordersList = existing ? JSON.parse(existing) : [];
-        localStorage.setItem('vetmart_mock_orders', JSON.stringify([newOrder, ...ordersList]));
-      } catch (err) {
-        console.error('Failed to save order to localStorage', err);
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setOrderError(
+          json?.error?.message ??
+            (isBn ? 'অর্ডার সম্পন্ন করা যায়নি।' : 'Could not place the order.')
+        );
+        return;
       }
-    }, 600);
+
+      setPlacedOrder(json.data.orderNo);
+      clearCart();
+    } catch (err) {
+      console.error('Checkout failed:', err);
+      setOrderError(isBn ? 'সার্ভারের সাথে সংযোগ করা যায়নি।' : 'Could not reach the server.');
+    } finally {
+      setIsPlacing(false);
+    }
   };
 
   if (placedOrder) {
@@ -352,14 +361,20 @@ export function CheckoutForm({ locale }: Props) {
 
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-muted-foreground">
-              <span>{isBn ? 'ওষুধের মূল্য (২ টি পণ্য)' : 'Subtotal (2 items)'}</span>
+              <span>
+                {isBn
+                  ? `ওষুধের মূল্য (${fmtNumber(items.length, locale)} টি পণ্য)`
+                  : `Subtotal (${items.length} ${items.length === 1 ? 'item' : 'items'})`}
+              </span>
               <span className="font-semibold text-foreground">{fmtMoney(subtotal, locale)}</span>
             </div>
 
-            <div className="flex justify-between text-blue-600 dark:text-blue-400 text-xs">
-              <span>{isBn ? '❄️ কোল্ড চেইন কুলার বক্স' : '❄️ Cold Chain Cooler Box'}</span>
-              <span className="font-bold">{fmtMoney(coldChainFee, locale)}</span>
-            </div>
+            {coldChainFee > 0 && (
+              <div className="flex justify-between text-blue-600 dark:text-blue-400 text-xs">
+                <span>{isBn ? '❄️ কোল্ড চেইন কুলার বক্স' : '❄️ Cold Chain Cooler Box'}</span>
+                <span className="font-bold">{fmtMoney(coldChainFee, locale)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between text-muted-foreground text-xs">
               <span>{isBn ? 'ডেলিভারি চার্জ' : 'Shipping Fee'}</span>
@@ -374,9 +389,18 @@ export function CheckoutForm({ locale }: Props) {
             </div>
           </div>
 
+          {orderError && (
+            <div
+              role="alert"
+              className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-xs leading-relaxed"
+            >
+              {orderError}
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={isPlacing}
+            disabled={isPlacing || !isHydrated || items.length === 0}
             className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all text-center"
           >
             {isPlacing

@@ -12,11 +12,18 @@ interface Props {
 }
 
 export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
-  const [products, setProducts] = useState<any[]>(initialProducts);
+  // Server data is the default; a client refetch overrides it. Derived during
+  // render rather than mirrored via an effect (React's "adjusting state when a
+  // prop changes" pattern), so there is no setState-in-effect cascade.
+  const [refetched, setRefetched] = useState<any[] | null>(null);
+  const [syncedFrom, setSyncedFrom] = useState(initialProducts);
 
-  useEffect(() => {
-    setProducts((initialProducts ?? []).slice(0, 8));
-  }, [initialProducts]);
+  if (initialProducts !== syncedFrom) {
+    setSyncedFrom(initialProducts);
+    setRefetched(null);
+  }
+
+  const products = (refetched ?? initialProducts ?? []).slice(0, 8);
 
   useEffect(() => {
     // Re-fetch after an admin write. The catalog is server state: an empty
@@ -26,7 +33,7 @@ export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
       fetch('/api/v1/products?pageSize=8')
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (Array.isArray(json.data)) setProducts(json.data.slice(0, 8));
+          if (Array.isArray(json.data)) setRefetched(json.data);
         })
         .catch((err) => {
           // Keep the server-rendered list rather than substituting other data.

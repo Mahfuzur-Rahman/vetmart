@@ -16,29 +16,29 @@ interface Props {
 }
 
 export function ProductDetailView({ locale, slug, initialProduct }: Props) {
-  const [productData, setProductData] = useState<any | null>(initialProduct);
-  const [isDeleted, setIsDeleted] = useState<boolean>(false);
+  // The page already resolved this product server-side and calls notFound() when
+  // it does not exist, so a null here means genuinely unavailable. It is never
+  // patched up from localStorage: a device-local copy of a deleted or repriced
+  // product is worse than an honest empty state.
+  //
+  // Derived during render rather than mirrored through an effect.
+  const [refetched, setRefetched] = useState<any | null | undefined>(undefined);
+  const [syncedFrom, setSyncedFrom] = useState(initialProduct);
 
-  useEffect(() => {
-    // The page already resolved this product server-side and calls notFound()
-    // when it does not exist, so a null here means genuinely unavailable. It is
-    // never patched up from localStorage: a device-local copy of a deleted or
-    // repriced product is worse than an honest empty state.
-    setProductData(initialProduct);
-    setIsDeleted(!initialProduct);
-  }, [initialProduct]);
+  if (initialProduct !== syncedFrom) {
+    setSyncedFrom(initialProduct);
+    setRefetched(undefined);
+  }
+
+  const productData = refetched === undefined ? initialProduct : refetched;
+  const isDeleted = !productData;
 
   useEffect(() => {
     const syncProduct = () => {
       fetch(`/api/v1/products/${slug}`)
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (json.data) {
-            setProductData(json.data);
-            setIsDeleted(false);
-          } else {
-            setIsDeleted(true);
-          }
+          setRefetched(json.data ?? null);
         })
         .catch((err) => {
           // Keep whatever the server rendered rather than swapping in local data.

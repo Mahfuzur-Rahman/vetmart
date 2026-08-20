@@ -24,11 +24,17 @@ export function SpeciesProductsView({
   speciesInfo,
   initialItems,
 }: Props) {
-  const [products, setProducts] = useState<any[]>(initialItems);
+  // Server data is the default; a client refetch overrides it. Derived during
+  // render rather than mirrored via an effect.
+  const [refetched, setRefetched] = useState<any[] | null>(null);
+  const [syncedFrom, setSyncedFrom] = useState(initialItems);
 
-  useEffect(() => {
-    setProducts(initialItems ?? []);
-  }, [initialItems]);
+  if (initialItems !== syncedFrom) {
+    setSyncedFrom(initialItems);
+    setRefetched(null);
+  }
+
+  const products = refetched ?? initialItems ?? [];
 
   useEffect(() => {
     // Species filtering happens in the query, not in the client, so an empty
@@ -37,7 +43,7 @@ export function SpeciesProductsView({
       fetch(`/api/v1/products?species=${encodeURIComponent(speciesKey)}&pageSize=48`)
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (Array.isArray(json.data)) setProducts(json.data);
+          if (Array.isArray(json.data)) setRefetched(json.data);
         })
         .catch((err) => {
           console.error(`Could not refresh products for species "${speciesKey}":`, err);

@@ -47,6 +47,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
 
   // Selected product (if user switches on general /order page)
   const [selectedProduct, setSelectedProduct] = useState<ExpressProduct>(initialProduct);
+  const [syncedFromProduct, setSyncedFromProduct] = useState<ExpressProduct>(initialProduct);
   const [quantity, setQuantity] = useState<number>(1);
 
   // Customer Delivery Info
@@ -61,15 +62,20 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   // The product is resolved server-side from the database. It is never merged
   // with localStorage: a device-local override here would let one browser order
   // against a price or stock figure no other device (or the server) agrees with.
-  useEffect(() => {
+  //
+  // Re-synced during render rather than through an effect.
+  if (initialProduct !== syncedFromProduct) {
+    setSyncedFromProduct(initialProduct);
     setSelectedProduct(initialProduct);
-  }, [initialProduct]);
+  }
 
 
   // Lead capture and order submission states
   const [leadDraftId, setLeadDraftId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved'>('idle');
   const [isPlacing, setIsPlacing] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [placedOrder, setPlacedOrder] = useState<any | null>(null);
 
   // Marketing attribution from query string
@@ -184,79 +190,91 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   };
 
   // Submit Final Express Order
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  //
+  // This used to fabricate an order object and push it into localStorage under
+  // 'vetmart_mock_orders'. The server never heard about it, so the order was
+  // invisible to the admin on every other device and stock was never
+  // decremented. It now goes through POST /api/v1/orders/express, which
+  // allocates batches FEFO and writes the stock ledger.
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!phone || !isValidBdPhone(phone)) {
-      alert(isBn ? 'অনুগ্রহ করে সঠিক ১১-সংখ্যার মোবাইল নম্বর দিন' : 'Please provide a valid 11-digit mobile number');
+      setOrderError(
+        isBn
+          ? 'অনুগ্রহ করে সঠিক ১১-সংখ্যার মোবাইল নম্বর দিন'
+          : 'Please provide a valid 11-digit mobile number'
+      );
       return;
     }
 
     setIsPlacing(true);
+    setOrderError(null);
 
-    setTimeout(() => {
-      setIsPlacing(false);
-      const generatedOrderNo = `VM-SOC-${Math.floor(80000 + Math.random() * 19999)}`;
-      const cleanedPhone = sanitizeBdPhone(phone);
+    // §9: a stable key per attempt, so a retry over flaky mobile data replays
+    // the original order instead of creating a duplicate.
+    const key = idempotencyKeyRef.current ?? crypto.randomUUID();
+    idempotencyKeyRef.current = key;
 
-      const newOrder = {
-        id: `ord-soc-${Date.now()}`,
-        orderNumber: generatedOrderNo,
-        customerName: name.trim() || (isBn ? 'সম্মানিত খামারি' : 'Valued Customer'),
-        customerPhone: cleanedPhone,
-        customerType: 'social_direct_order',
+    try {
+      const res = await fetch('/api/v1/orders/express', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body: JSON.stringify({
+          items: [{ productId: selectedProduct.id, slug: selectedProduct.slug, qty: quantity }],
+          recipientName: name.trim() || (isBn ? 'সম্মানিত খামারি' : 'Valued Customer'),
+          phone,
+          division,
+          district,
+          upazila,
+          addressLine: address,
+          paymentMethod: paymentMethod === 'cod' ? 'cod' : 'sslcommerz',
+          sourceChannel: 'social_direct_order',
+          utmSource,
+          utmCampaign,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setOrderError(
+          json?.error?.message ??
+            (isBn ? 'অর্ডার সম্পন্ন করা যায়নি।' : 'Could not place the order.')
+        );
+        return;
+      }
+
+      setPlacedOrder({
+        orderNumber: json.data.orderNo,
+        totalAmount: json.data.total,
+        customerName: name.trim(),
+        customerPhone: phone,
         recipientAddress: address,
         district,
         division,
-        upazila,
-        status: 'pending',
+        paymentMethod,
         items: [
           {
-            productId: selectedProduct.id,
-            productSlug: selectedProduct.slug,
             productNameEn: selectedProduct.nameEn,
             productNameBn: selectedProduct.nameBn,
             unitPrice: selectedProduct.salePrice,
             quantity,
             totalPrice: selectedProduct.salePrice * quantity,
-            batchNo: 'B-SOC-2026',
           },
         ],
-        subtotal,
-        deliveryFee,
-        totalAmount,
-        paymentMethod,
-        paymentStatus: paymentMethod === 'cod' ? 'unpaid' : 'paid',
-        utmSource,
-        utmCampaign,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      // 1. Add to active orders storage
-      try {
-        const existingOrders = localStorage.getItem('vetmart_mock_orders');
-        const ordersList = existingOrders ? JSON.parse(existingOrders) : [];
-        localStorage.setItem('vetmart_mock_orders', JSON.stringify([newOrder, ...ordersList]));
-      } catch (err) {
-        console.error('Failed to save order to localStorage', err);
-      }
-
-      // 2. Mark incomplete lead as CONVERTED so it leaves incomplete queue
-      try {
-        const storedLeads = getStoredIncompleteOrders();
-        const updatedLeads = storedLeads.map((l) => {
-          if (l.phone === cleanedPhone || l.id === leadDraftId) {
-            return { ...l, status: 'converted' as const, updatedAt: new Date().toISOString() };
-          }
-          return l;
-        });
-        saveStoredIncompleteOrders(updatedLeads);
-      } catch (err) {
-        console.error('Failed to update lead status', err);
-      }
-
-      setPlacedOrder(newOrder);
-    }, 800);
+      });
+    } catch (err) {
+      console.error('Express order failed:', err);
+      setOrderError(
+        isBn ? 'সার্ভারের সাথে সংযোগ করা যায়নি।' : 'Could not reach the server.'
+      );
+    } finally {
+      setIsPlacing(false);
+    }
   };
 
   // 🎉 ORDER SUCCESS CONFIRMATION RECEIPT
@@ -759,6 +777,17 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                 </label>
               </div>
             </div>
+
+            {/* Server-side rejection: out of stock, unserviceable cold-chain
+                zone, prescription required. Shown instead of a fake receipt. */}
+            {orderError && (
+              <div
+                role="alert"
+                className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-sm leading-relaxed"
+              >
+                {orderError}
+              </div>
+            )}
 
             {/* Big Express Order Placement CTA */}
             <button

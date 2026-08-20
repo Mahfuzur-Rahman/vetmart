@@ -38,7 +38,17 @@ export function ProductsCatalogView({
   categoryFilter,
   initialSort = 'relevance',
 }: Props) {
-  const [allProducts, setAllProducts] = useState<MockProduct[]>(initialItems as MockProduct[]);
+  // Server data is the default; a client refetch overrides it. Derived during
+  // render rather than mirrored via an effect.
+  const [refetched, setRefetched] = useState<MockProduct[] | null>(null);
+  const [syncedFrom, setSyncedFrom] = useState(initialItems);
+
+  if (initialItems !== syncedFrom) {
+    setSyncedFrom(initialItems);
+    setRefetched(null);
+  }
+
+  const allProducts = (refetched ?? (initialItems as MockProduct[]) ?? []) as MockProduct[];
   const [selectedSort, setSelectedSort] = useState<string>(initialSort);
   const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(
     initialSpecies && initialSpecies.length > 0
@@ -59,10 +69,6 @@ export function ProductsCatalogView({
 
 
   useEffect(() => {
-    setAllProducts((initialItems ?? []) as MockProduct[]);
-  }, [initialItems]);
-
-  useEffect(() => {
     // Re-fetch after an admin write. An empty catalog renders the empty state;
     // it never falls back to this browser's localStorage (that fallback is what
     // made a product visible only on the device that created it).
@@ -70,7 +76,7 @@ export function ProductsCatalogView({
       fetch('/api/v1/products?pageSize=48')
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
-          if (Array.isArray(json.data)) setAllProducts(json.data);
+          if (Array.isArray(json.data)) setRefetched(json.data);
         })
         .catch((err) => {
           console.error('Could not refresh catalog:', err);

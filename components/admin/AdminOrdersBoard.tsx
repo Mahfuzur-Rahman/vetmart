@@ -1,8 +1,9 @@
 // components/admin/AdminOrdersBoard.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { MOCK_ORDERS, type MockOrder, type OrderStatus } from '@/lib/mock-data/orders';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { type MockOrder, type OrderStatus } from '@/lib/mock-data/orders';
+import { BOARD_TO_DB_STATUS } from '@/lib/services/order-status';
 import { AdminIncompleteOrdersBoard } from './AdminIncompleteOrdersBoard';
 import { getStoredIncompleteOrders } from '@/lib/mock-data/incomplete-orders';
 import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
@@ -22,14 +23,14 @@ export interface ExtendedOrder extends MockOrder {
   callLogs?: CallLogEntry[];
 }
 
-const ORDERS_STORAGE_KEY = 'vetmart_mock_orders';
-
 export function AdminOrdersBoard({ locale }: Props) {
   const isBn = locale === 'bn';
-  const [orders, setOrders] = useState<ExtendedOrder[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<ExtendedOrder[]>([]);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<ExtendedOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pendingLeadsCount, setPendingLeadsCount] = useState<number>(0);
 
   // Multi-select state
@@ -54,22 +55,33 @@ export function AdminOrdersBoard({ locale }: Props) {
     }
   }, [activeFilter]);
 
-  // Load custom stored orders
-  useEffect(() => {
+  /**
+   * Load orders from the server.
+   *
+   * Orders used to be read from localStorage ('vetmart_mock_orders'), so an
+   * order placed on a customer's phone never appeared here, and a status change
+   * made on one admin device was invisible on another. They are database rows
+   * now and this is the only read path.
+   */
+  const refreshOrders = useCallback(async () => {
     try {
-      const stored = localStorage.getItem(ORDERS_STORAGE_KEY);
-      if (stored) {
-        const customOrders = JSON.parse(stored);
-        if (Array.isArray(customOrders) && customOrders.length > 0) {
-          const customIds = new Set(customOrders.map((o: ExtendedOrder) => o.id));
-          const rest = MOCK_ORDERS.filter((o) => !customIds.has(o.id));
-          setOrders([...customOrders, ...rest]);
-        }
+      const res = await fetch('/api/v1/admin/orders?limit=200');
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
       }
-    } catch (e) {
-      console.error('Failed to load orders from storage', e);
+      const json = await res.json();
+      setOrders(Array.isArray(json.data) ? json.data : []);
+      setLoadError(null);
+    } catch (err) {
+      console.error('Failed to load orders:', err);
+      setLoadError(err instanceof Error ? err.message : 'Could not load orders');
     }
   }, []);
+
+  useEffect(() => {
+    refreshOrders();
+  }, [refreshOrders]);
 
   // Compute and cache fraud scores for all orders
   useEffect(() => {
@@ -92,109 +104,159 @@ export function AdminOrdersBoard({ locale }: Props) {
     fetchFraudScores();
   }, [orders]);
 
-  const saveOrders = (updated: ExtendedOrder[]) => {
+  /**
+   * Apply a server-confirmed change to the local view.
+   *
+   * This used to persist the whole board to localStorage, which is what made
+   * order state device-local. Mutations now go to the API first and this only
+   * reflects the result; refreshOrders() re-reads the authoritative rows.
+   */
+  const applyLocal = (updated: ExtendedOrder[]) => {
     setOrders(updated);
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    setActionError(null);
     try {
-      localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error('Storage save error', err);
-    }
-  };
+      const res = await fetch(`/api/v1/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        // The board's vocabulary is coarser than the DB enum; the service layer
+        // owns the mapping (lib/services/orders.ts).
+        body: JSON.stringify({ status: BOARD_TO_DB_STATUS[newStatus] }),
+      });
 
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    const updated = orders.map((o) => {
-      if (o.id === orderId) {
-        return { ...o, status: newStatus, updatedAt: new Date().toISOString() };
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setActionError(json?.error?.message ?? `Could not update the order (HTTP ${res.status}).`);
+        return;
       }
-      return o;
-    });
-    saveOrders(updated);
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
-    }
-    setToastMessage(
-      isBn
-        ? `অর্ডার #${orderId} স্ট্যাটাস '${newStatus}' এ পরিবর্তিত হয়েছে`
-        : `Order status updated to '${newStatus}'`
-    );
-    setTimeout(() => setToastMessage(null), 3000);
-  };
 
-  // Single Order Dispatch
-  const handleDispatchCourier = (order: ExtendedOrder) => {
-    const consignmentId = `SF-${Math.floor(100000 + Math.random() * 900000)}-DH`;
-    const trackingCode = `TRK-${order.orderNumber.replace(/[^0-9]/g, '') || Math.floor(10000 + Math.random() * 90000)}`;
-    const nowIso = new Date().toISOString();
-
-    const updated = orders.map((o) => {
-      if (o.id === order.id) {
-        return {
-          ...o,
-          status: 'dispatched' as OrderStatus,
-          courierConsignmentId: consignmentId,
-          trackingCode,
-          dispatchedAt: nowIso,
-          updatedAt: nowIso,
-        };
-      }
-      return o;
-    });
-
-    saveOrders(updated);
-    if (selectedOrder && selectedOrder.id === order.id) {
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'dispatched',
-              courierConsignmentId: consignmentId,
-              trackingCode,
-              dispatchedAt: nowIso,
-            }
-          : null
+      applyLocal(
+        orders.map((o) =>
+          o.id === orderId ? { ...o, status: newStatus, updatedAt: new Date().toISOString() } : o
+        )
       );
-    }
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
 
-    setToastMessage(
-      isBn
-        ? `অর্ডার #${order.orderNumber} Steadfast কুরিয়ারে বুকিং সফল হয়েছে! কনসাইনমেন্ট: #${consignmentId}`
-        : `Order #${order.orderNumber} dispatched via Steadfast Courier! Consignment #${consignmentId}`
-    );
-    setTimeout(() => setToastMessage(null), 4000);
+      setToastMessage(
+        isBn
+          ? `অর্ডার স্ট্যাটাস '${newStatus}' এ পরিবর্তিত হয়েছে`
+          : `Order status updated to '${newStatus}'`
+      );
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err) {
+      console.error('Status change failed:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not update the order');
+    }
+  };
+
+  /**
+   * Book one order with the courier.
+   *
+   * The consignment id and tracking code used to be invented in the browser
+   * with Math.random and stored only in localStorage, so they matched nothing
+   * at Steadfast and no other device could see them. The server now books
+   * through the courier driver and returns the real identifiers (§12 rule 1).
+   */
+  const handleDispatchCourier = async (order: ExtendedOrder) => {
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${order.id}/ship`, { method: 'POST' });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setActionError(json?.error?.message ?? `Could not dispatch the order (HTTP ${res.status}).`);
+        return;
+      }
+
+      const { consignmentId, trackingCode } = json.data;
+      const nowIso = new Date().toISOString();
+
+      applyLocal(
+        orders.map((o) =>
+          o.id === order.id
+            ? {
+                ...o,
+                status: 'dispatched' as OrderStatus,
+                courierConsignmentId: consignmentId,
+                trackingCode,
+                dispatchedAt: nowIso,
+                updatedAt: nowIso,
+              }
+            : o
+        )
+      );
+
+      if (selectedOrder && selectedOrder.id === order.id) {
+        setSelectedOrder((prev) =>
+          prev
+            ? { ...prev, status: 'dispatched', courierConsignmentId: consignmentId, trackingCode, dispatchedAt: nowIso }
+            : null
+        );
+      }
+
+      setToastMessage(
+        isBn
+          ? `অর্ডার #${order.orderNumber} কুরিয়ারে বুকিং সফল হয়েছে! কনসাইনমেন্ট: #${consignmentId}`
+          : `Order #${order.orderNumber} dispatched. Consignment #${consignmentId}`
+      );
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Dispatch failed:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not dispatch the order');
+    }
   };
 
   // Bulk Dispatch to Steadfast
-  const handleBulkDispatch = () => {
+  const handleBulkDispatch = async () => {
     if (selectedIds.size === 0) return;
 
-    const nowIso = new Date().toISOString();
+    setActionError(null);
+
+    // Booked one at a time so a single courier rejection does not silently
+    // mark the rest as dispatched. Failures are reported, not swallowed.
+    const targets = orders.filter(
+      (o) => selectedIds.has(o.id) && o.status !== 'dispatched' && o.status !== 'delivered'
+    );
+
+    const failures: string[] = [];
     let count = 0;
 
-    const updated = orders.map((o) => {
-      if (selectedIds.has(o.id) && o.status !== 'dispatched' && o.status !== 'delivered') {
+    for (const order of targets) {
+      try {
+        const res = await fetch(`/api/v1/admin/orders/${order.id}/ship`, { method: 'POST' });
+        if (!res.ok) {
+          const json = await res.json().catch(() => null);
+          failures.push(`${order.orderNumber}: ${json?.error?.message ?? `HTTP ${res.status}`}`);
+          continue;
+        }
         count++;
-        const consignmentId = `SF-${Math.floor(100000 + Math.random() * 900000)}-DH`;
-        const trackingCode = `TRK-${o.orderNumber.replace(/[^0-9]/g, '') || Math.floor(10000 + Math.random() * 90000)}`;
-        return {
-          ...o,
-          status: 'dispatched' as OrderStatus,
-          courierConsignmentId: consignmentId,
-          trackingCode,
-          dispatchedAt: nowIso,
-          updatedAt: nowIso,
-        };
+      } catch (err) {
+        failures.push(`${order.orderNumber}: ${err instanceof Error ? err.message : 'request failed'}`);
       }
-      return o;
-    });
+    }
 
-    saveOrders(updated);
+    await refreshOrders();
     setSelectedIds(new Set());
-    setToastMessage(
-      isBn
-        ? `সফলভাবে ${count} টি অর্ডার Steadfast কুরিয়ারে এক ক্লিকে বুকিং সম্পন্ন হয়েছে!`
-        : `Successfully bulk-dispatched ${count} orders to Steadfast Courier!`
-    );
-    setTimeout(() => setToastMessage(null), 5000);
+
+    if (failures.length > 0) {
+      setActionError(
+        (isBn ? 'কিছু অর্ডার বুকিং করা যায়নি: ' : 'Some orders could not be dispatched: ') +
+          failures.join('; ')
+      );
+    }
+
+    if (count > 0) {
+      setToastMessage(
+        isBn
+          ? `সফলভাবে ${count} টি অর্ডার কুরিয়ারে বুকিং সম্পন্ন হয়েছে!`
+          : `Successfully dispatched ${count} order${count === 1 ? '' : 's'} to the courier.`
+      );
+      setTimeout(() => setToastMessage(null), 5000);
+    }
   };
 
   // Build Thermal Label Data for Printing
@@ -246,18 +308,39 @@ export function AdminOrdersBoard({ locale }: Props) {
     }
   };
 
-  // Save Call Log
-  const handleAddCallLog = (orderId: string, entry: CallLogEntry) => {
-    const updated = orders.map((o) => {
-      if (o.id === orderId) {
-        const existing = o.callLogs || [];
-        return { ...o, callLogs: [entry, ...existing] };
+  /**
+   * Record a COD confirmation call against the order's timeline.
+   *
+   * This used to live only in the operator's own browser. COD screening is the
+   * highest-ROI habit in this market (§12 rule 3), so the record has to be
+   * visible to whoever picks the order up next — it is an order_event now.
+   */
+  const handleAddCallLog = async (orderId: string, entry: CallLogEntry) => {
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${orderId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: entry.note || entry.outcome, outcome: entry.outcome }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setActionError(json?.error?.message ?? `Could not save the call log (HTTP ${res.status}).`);
+        return;
       }
-      return o;
-    });
-    saveOrders(updated);
-    setToastMessage(isBn ? 'কল রেকর্ড সংরক্ষিত হয়েছে' : 'Call log entry saved');
-    setTimeout(() => setToastMessage(null), 3000);
+
+      applyLocal(
+        orders.map((o) =>
+          o.id === orderId ? { ...o, callLogs: [entry, ...(o.callLogs || [])] } : o
+        )
+      );
+      setToastMessage(isBn ? 'কল রেকর্ড সংরক্ষিত হয়েছে' : 'Call log entry saved');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err) {
+      console.error('Call log save failed:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not save the call log');
+    }
   };
 
   return (
@@ -272,6 +355,44 @@ export function AdminOrdersBoard({ locale }: Props) {
             className="text-white/80 hover:text-white text-xs cursor-pointer"
           >
             ✕
+          </button>
+        </div>
+      )}
+
+      {/* A rejected mutation must not look like a successful one. */}
+      {actionError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-sm shadow-sm flex items-start justify-between gap-3"
+        >
+          <p className="min-w-0 break-words leading-relaxed">{actionError}</p>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label={isBn ? 'বন্ধ করুন' : 'Dismiss'}
+            className="text-red-700 hover:text-red-900 text-xs shrink-0 min-h-11 min-w-11 flex items-center justify-center"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* An empty board and a failed request must not look the same. */}
+      {loadError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm shadow-sm"
+        >
+          <p className="font-bold">
+            {isBn ? 'অর্ডার তালিকা লোড করা যায়নি' : 'Could not load orders'}
+          </p>
+          <p className="mt-0.5 break-words leading-relaxed">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => refreshOrders()}
+            className="mt-2 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs min-h-11"
+          >
+            {isBn ? 'আবার চেষ্টা করুন' : 'Retry'}
           </button>
         </div>
       )}

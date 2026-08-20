@@ -2,17 +2,18 @@
 // STORAGE_DRIVER must mean what it says (§4.3). Previously, having Cloudinary
 // credentials present silently overrode an explicit STORAGE_DRIVER=local, and
 // the local driver's fs.writeFile was reachable on Vercel's read-only disk.
+//
+// Every case mocks '@/lib/env' directly rather than setting process.env and
+// letting the env singleton re-parse it. Going through the singleton made these
+// tests depend on module-load ordering, which made them intermittently fail in
+// a full-suite run.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const ORIGINAL_ENV = { ...process.env };
 
-function resetEnv() {
+function reset() {
   process.env = { ...ORIGINAL_ENV };
   delete process.env.VERCEL;
-  delete process.env.STORAGE_DRIVER;
-  delete process.env.CLOUDINARY_CLOUD_NAME;
-  delete process.env.CLOUDINARY_API_KEY;
-  delete process.env.CLOUDINARY_API_SECRET;
   vi.resetModules();
   vi.doUnmock('@/lib/env');
 }
@@ -23,24 +24,32 @@ const CLOUDINARY_CREDS = {
   CLOUDINARY_API_SECRET: 'secret',
 };
 
+/** Load lib/storage with a stubbed env module. */
+async function loadStorageWith(env: Record<string, unknown>) {
+  vi.doMock('@/lib/env', () => ({ env }));
+  return import('@/lib/storage');
+}
+
 describe('getStorageDriver()', () => {
-  beforeEach(resetEnv);
-  afterEach(resetEnv);
+  beforeEach(reset);
+  afterEach(reset);
 
   it('honours an explicit STORAGE_DRIVER=local even when Cloudinary creds are present', async () => {
-    process.env.STORAGE_DRIVER = 'local';
-    Object.assign(process.env, CLOUDINARY_CREDS);
+    const { getStorageDriver } = await loadStorageWith({
+      STORAGE_DRIVER: 'local',
+      ...CLOUDINARY_CREDS,
+    });
 
-    const { getStorageDriver } = await import('@/lib/storage');
     // The local driver serves from a /media path; Cloudinary emits res.cloudinary.com.
     expect(getStorageDriver().url('vetmart/products/x', 'card')).toContain('/media/');
   });
 
   it('uses Cloudinary when STORAGE_DRIVER=cloudinary', async () => {
-    process.env.STORAGE_DRIVER = 'cloudinary';
-    Object.assign(process.env, CLOUDINARY_CREDS);
+    const { getStorageDriver } = await loadStorageWith({
+      STORAGE_DRIVER: 'cloudinary',
+      ...CLOUDINARY_CREDS,
+    });
 
-    const { getStorageDriver } = await import('@/lib/storage');
     expect(getStorageDriver().url('vetmart/products/x', 'card')).toContain('res.cloudinary.com');
   });
 
@@ -53,16 +62,14 @@ describe('getStorageDriver()', () => {
     // Vercel's filesystem is read-only outside /tmp, and /tmp is per-instance.
     // Writing there produces images that only one lambda can see.
     process.env.VERCEL = '1';
-    vi.doMock('@/lib/env', () => ({ env: { STORAGE_DRIVER: 'local' } }));
+    const { getStorageDriver } = await loadStorageWith({ STORAGE_DRIVER: 'local' });
 
-    const { getStorageDriver } = await import('@/lib/storage');
     expect(() => getStorageDriver()).toThrow(/LOCAL_STORAGE_ON_SERVERLESS/);
   });
 
   it('never silently falls back to the local driver when Cloudinary creds are missing', async () => {
-    vi.doMock('@/lib/env', () => ({ env: { STORAGE_DRIVER: 'cloudinary' } }));
+    const { getStorageDriver } = await loadStorageWith({ STORAGE_DRIVER: 'cloudinary' });
 
-    const { getStorageDriver } = await import('@/lib/storage');
     expect(() => getStorageDriver()).toThrow(/CLOUDINARY_NOT_CONFIGURED/);
   });
 });
