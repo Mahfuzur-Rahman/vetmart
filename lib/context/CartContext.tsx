@@ -85,6 +85,47 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, isHydrated]);
 
+  // Sync latest product details (images, prices) from server on mount
+  useEffect(() => {
+    if (!isHydrated) return;
+    
+    fetch('/api/v1/cart')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data.items) && json.data.items.length > 0) {
+          const serverItems = json.data.items;
+          setItems((prev) => {
+            // Only update if the user hasn't cleared the cart in the meantime
+            if (prev.length === 0) return prev;
+            
+            // Map server items, falling back to local item for any missing props
+            return serverItems.map((apiItem: any) => {
+              const localMatch = prev.find(p => p.product.id === apiItem.productId);
+              return {
+                qty: apiItem.qty,
+                product: {
+                  ...localMatch?.product,
+                  id: apiItem.productId,
+                  slug: apiItem.product.slug,
+                  nameEn: apiItem.product.nameEn,
+                  nameBn: apiItem.product.nameBn,
+                  genericName: apiItem.product.genericName,
+                  dosageForm: apiItem.product.dosageForm,
+                  packSize: apiItem.product.packSize,
+                  mrp: apiItem.product.mrp,
+                  salePrice: apiItem.product.salePrice,
+                  requiresPrescription: apiItem.product.requiresPrescription,
+                  requiresColdChain: apiItem.product.requiresColdChain,
+                  imageUrl: apiItem.product.imageUrl,
+                },
+              };
+            });
+          });
+        }
+      })
+      .catch(() => {});
+  }, [isHydrated]);
+
   const addToCart = useCallback((product: CartProduct, qtyToAdd: number = 1) => {
     if (qtyToAdd <= 0) return;
     setItems((prev) => {

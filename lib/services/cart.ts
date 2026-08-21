@@ -1,8 +1,9 @@
 // lib/services/cart.ts
 // Cart operations — add, remove, update, get, merge guest→user (§6)
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { carts, cartItems, products } from '@/lib/db/schema';
+import { carts, cartItems, products, productImages } from '@/lib/db/schema';
+import { getStorageDriver } from '@/lib/storage';
 
 export interface CartItemView {
   id: string;
@@ -21,6 +22,7 @@ export interface CartItemView {
     requiresPrescription: boolean;
     requiresColdChain: boolean;
     isActive: boolean;
+    imageUrl?: string | null;
   };
 }
 
@@ -151,10 +153,35 @@ export async function getCartView(cartId: string): Promise<CartView> {
     .innerJoin(products, eq(cartItems.productId, products.id))
     .where(eq(cartItems.cartId, cartId));
 
+  const storage = getStorageDriver();
+
+  const itemsWithImages = await Promise.all(
+    items.map(async (item) => {
+      const [imgRow] = await db
+        .select({ basePath: productImages.basePath })
+        .from(productImages)
+        .where(eq(productImages.productId, item.productId))
+        .orderBy(asc(productImages.sort))
+        .limit(1);
+
+      const imageUrl = imgRow?.basePath
+        ? storage.url(imgRow.basePath, 'card')
+        : null;
+
+      return {
+        ...item,
+        product: {
+          ...item.product,
+          imageUrl,
+        },
+      };
+    })
+  );
+
   return {
     cartId,
-    items,
-    itemCount: items.reduce((sum, i) => sum + i.qty, 0),
+    items: itemsWithImages,
+    itemCount: itemsWithImages.reduce((sum, i) => sum + i.qty, 0),
   };
 }
 
