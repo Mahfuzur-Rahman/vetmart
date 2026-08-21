@@ -3,6 +3,8 @@
 import { getCategoryTree } from '@/lib/services/categories';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const tree = await getCategoryTree();

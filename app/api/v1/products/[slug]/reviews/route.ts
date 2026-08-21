@@ -21,6 +21,8 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest, { params }: Props) {
   try {
     const { slug } = await params;

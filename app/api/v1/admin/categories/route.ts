@@ -6,6 +6,8 @@ import { categories } from '@/lib/db/schema';
 import { listCategories } from '@/lib/services/categories';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const items = await listCategories();

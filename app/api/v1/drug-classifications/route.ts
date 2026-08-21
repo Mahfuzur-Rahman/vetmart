@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import { listDrugClassifications } from '@/lib/services/drug-classifications-server';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);

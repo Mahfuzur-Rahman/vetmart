@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import { searchCatalog, type SortOption } from '@/lib/services/search';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);

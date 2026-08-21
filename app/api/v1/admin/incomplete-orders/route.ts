@@ -5,6 +5,8 @@ import { apiSuccess, apiError } from '@/lib/api/response';
 import { getIncompleteOrders } from '@/lib/services/incomplete-orders';
 import { requireAdmin } from '@/lib/api/guard';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   // Leads carry customer name, phone and address; never publicly readable.
   const guard = await requireAdmin('order.read');

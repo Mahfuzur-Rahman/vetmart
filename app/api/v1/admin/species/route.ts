@@ -4,6 +4,7 @@ import { speciesCategories } from '@/lib/db/schema';
 import { listSpecies } from '@/lib/services/species-server';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

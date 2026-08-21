@@ -6,6 +6,8 @@ import { drugClassifications } from '@/lib/db/schema';
 import { listDrugClassifications, ensureDrugClassificationsTable } from '@/lib/services/drug-classifications-server';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const items = await listDrugClassifications();
