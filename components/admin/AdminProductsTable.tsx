@@ -326,6 +326,7 @@ export function AdminProductsTable({ locale }: Props) {
         const slug = nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const newProduct: MockProduct & { imageKey?: string } = {
           id: `prod-custom-${Date.now()}`,
+          isActive: true,
           slug: slug || `custom-sku-${Date.now()}`,
           sku: `VET-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           nameEn,

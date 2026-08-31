@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import { searchCatalog, type SortOption } from '@/lib/services/search';
 import { apiSuccess, apiError } from '@/lib/api/response';
-import { resolveUser } from '@/lib/auth/resolve';
+import { getAdminSessionId } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
 
     let includeInactive = false;
     if (url.searchParams.get('includeInactive') === 'true') {
-      const user = await resolveUser(req);
-      if (user?.role === 'admin' || user?.role === 'superadmin') {
+      const adminId = await getAdminSessionId();
+      if (adminId) {
         includeInactive = true;
       }
     }

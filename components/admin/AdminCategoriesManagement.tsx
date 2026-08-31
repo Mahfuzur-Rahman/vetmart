@@ -383,23 +383,7 @@ export function AdminCategoriesManagement({
     }
   };
 
-  // Toggle Species Active
-  const handleToggleSpeciesActive = async (sp: SpeciesInfo) => {
-    try {
-      const res = await fetch(`/api/v1/admin/species/${sp.key}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !(sp.isActive ?? true) }),
-      });
-      if (res.ok) {
-        showToast(isBn ? 'স্ট্যাটাস আপডেট করা হয়েছে!' : 'Status updated!');
-        await refreshSpecies();
-        window.dispatchEvent(new CustomEvent('custom-products-updated'));
-      }
-    } catch (err) {
-      console.error('Error toggling species status:', err);
-    }
-  };
+
 
   // Open Create Drug Classification Modal
   const handleOpenNewDrugClass = () => {
@@ -487,23 +471,7 @@ export function AdminCategoriesManagement({
     }
   };
 
-  // Toggle Drug Classification Active
-  const handleToggleDrugClassActive = async (dc: DrugClassificationInfo) => {
-    const identifier = dc.id || dc.slug;
-    try {
-      const res = await fetch(`/api/v1/admin/drug-classifications/${identifier}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !(dc.isActive ?? true) }),
-      });
-      if (res.ok) {
-        showToast(isBn ? 'স্ট্যাটাস আপডেট করা হয়েছে!' : 'Status updated!');
-        await refreshDrugClassifications();
-      }
-    } catch (err) {
-      console.error('Error toggling drug classification status:', err);
-    }
-  };
+
 
   // Open Create Category Modal
   const handleOpenNewCategory = () => {
