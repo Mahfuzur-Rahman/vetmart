@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Locale } from '@/lib/i18n/config';
-import type { Review } from '@/lib/services/reviews';
+import type { Review } from '@/lib/types/reviews';
 
 interface Props {
   locale: Locale;
