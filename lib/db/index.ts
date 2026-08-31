@@ -16,3 +16,16 @@ export const sql = postgres(env.DATABASE_URL, {
 });
 
 export const db = drizzle(sql, { schema });
+
+/**
+ * Quick health check to see if the database is reachable.
+ * Useful for fast-failing layouts or API routes during an outage.
+ */
+export async function checkDbConnection(): Promise<boolean> {
+  try {
+    await sql`SELECT 1`;
+    return true;
+  } catch (err) {
+    return false;
+  }
+}

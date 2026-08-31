@@ -36,7 +36,6 @@ export function AdminCategoriesManagement({
   const [speciesList, setSpeciesList] = useState<SpeciesInfo[]>(initialSpecies);
   const [editingSpecies, setEditingSpecies] = useState<SpeciesInfo | null>(null);
   const [isNewSpeciesOpen, setIsNewSpeciesOpen] = useState(false);
-  const [speciesToDelete, setSpeciesToDelete] = useState<SpeciesInfo | null>(null);
 
   // Drug Classification state
   const [drugClassList, setDrugClassList] = useState<DrugClassificationInfo[]>(
@@ -46,14 +45,11 @@ export function AdminCategoriesManagement({
   );
   const [editingDrugClass, setEditingDrugClass] = useState<DrugClassificationInfo | null>(null);
   const [isNewDrugClassOpen, setIsNewDrugClassOpen] = useState(false);
-  const [drugClassToDelete, setDrugClassToDelete] = useState<DrugClassificationInfo | null>(null);
 
   // Category state
   const [categoryList, setCategoryList] = useState<CategoryItem[]>(initialCategories);
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [isNewCategoryOpen, setIsNewCategoryOpen] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<CategoryItem | null>(null);
-
   // Common UI state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
@@ -387,21 +383,21 @@ export function AdminCategoriesManagement({
     }
   };
 
-  // Delete Species
-  const handleDeleteSpecies = async () => {
-    if (!speciesToDelete) return;
+  // Toggle Species Active
+  const handleToggleSpeciesActive = async (sp: SpeciesInfo) => {
     try {
-      const res = await fetch(`/api/v1/admin/species/${speciesToDelete.key}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/v1/admin/species/${sp.key}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !(sp.isActive ?? true) }),
       });
       if (res.ok) {
-        showToast(isBn ? 'প্রজাতি মুছে ফেলা হয়েছে!' : 'Species deleted!');
-        setSpeciesToDelete(null);
+        showToast(isBn ? 'স্ট্যাটাস আপডেট করা হয়েছে!' : 'Status updated!');
         await refreshSpecies();
         window.dispatchEvent(new CustomEvent('custom-products-updated'));
       }
     } catch (err) {
-      console.error('Error deleting species:', err);
+      console.error('Error toggling species status:', err);
     }
   };
 
@@ -491,21 +487,21 @@ export function AdminCategoriesManagement({
     }
   };
 
-  // Delete Drug Classification
-  const handleDeleteDrugClass = async () => {
-    if (!drugClassToDelete) return;
-    const identifier = drugClassToDelete.id || drugClassToDelete.slug;
+  // Toggle Drug Classification Active
+  const handleToggleDrugClassActive = async (dc: DrugClassificationInfo) => {
+    const identifier = dc.id || dc.slug;
     try {
       const res = await fetch(`/api/v1/admin/drug-classifications/${identifier}`, {
-        method: 'DELETE',
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !(dc.isActive ?? true) }),
       });
       if (res.ok) {
-        showToast(isBn ? 'শ্রেণিবিভাগ মুছে ফেলা হয়েছে!' : 'Drug classification deleted!');
-        setDrugClassToDelete(null);
+        showToast(isBn ? 'স্ট্যাটাস আপডেট করা হয়েছে!' : 'Status updated!');
         await refreshDrugClassifications();
       }
     } catch (err) {
-      console.error('Error deleting drug classification:', err);
+      console.error('Error toggling drug classification status:', err);
     }
   };
 
@@ -578,20 +574,20 @@ export function AdminCategoriesManagement({
     }
   };
 
-  // Delete Category
-  const handleDeleteCategory = async () => {
-    if (!categoryToDelete) return;
+  // Toggle Category Active
+  const handleToggleCategoryActive = async (cat: CategoryItem) => {
     try {
-      const res = await fetch(`/api/v1/admin/categories/${categoryToDelete.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/v1/admin/categories/${cat.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !cat.isActive }),
       });
       if (res.ok) {
-        showToast(isBn ? 'ক্যাটাগরি মুছে ফেলা হয়েছে!' : 'Category deleted!');
-        setCategoryToDelete(null);
+        showToast(isBn ? 'স্ট্যাটাস আপডেট করা হয়েছে!' : 'Status updated!');
         await refreshCategories();
       }
     } catch (err) {
-      console.error('Error deleting category:', err);
+      console.error('Error toggling category status:', err);
     }
   };
 
@@ -791,13 +787,6 @@ export function AdminCategoriesManagement({
                             >
                               সম্পাদনা
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setSpeciesToDelete(sp)}
-                              className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-semibold text-[11px] cursor-pointer"
-                            >
-                              মুছুন
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -895,13 +884,6 @@ export function AdminCategoriesManagement({
                             >
                               সম্পাদনা
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDrugClassToDelete(dc)}
-                              className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-semibold text-[11px] cursor-pointer"
-                            >
-                              মুছুন
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -977,13 +959,6 @@ export function AdminCategoriesManagement({
                               className="px-2.5 py-1 rounded-lg border border-[#EAEAEA] hover:bg-slate-50 text-[#2F3437] font-semibold text-[11px] cursor-pointer"
                             >
                               সম্পাদনা
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setCategoryToDelete(cat)}
-                              className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-semibold text-[11px] cursor-pointer"
-                            >
-                              মুছুন
                             </button>
                           </div>
                         </td>
@@ -1462,99 +1437,7 @@ export function AdminCategoriesManagement({
         </div>
       )}
 
-      {/* ════════════════════════ DELETE CONFIRMATION MODALS ════════════════════════ */}
-      {speciesToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-base text-[#2F3437]">
-              {isBn ? 'প্রজাতি মুছে ফেলতে চান?' : 'Delete Species Category?'}
-            </h3>
-            <p className="text-xs text-[#787774]">
-              {isBn
-                ? `আপনি কি নিশ্চিতভাবে '${speciesToDelete.nameBn}' মুছে ফেলতে চান?`
-                : `Are you sure you want to delete '${speciesToDelete.nameEn}'?`}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setSpeciesToDelete(null)}
-                className="px-3 py-1.5 rounded-xl border border-[#EAEAEA] text-xs font-bold text-[#787774]"
-              >
-                {isBn ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteSpecies}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
-              >
-                {isBn ? 'মুছে ফেলুন' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {drugClassToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-base text-[#2F3437]">
-              {isBn ? 'শ্রেণিবিভাগ মুছে ফেলতে চান?' : 'Delete Drug Classification?'}
-            </h3>
-            <p className="text-xs text-[#787774]">
-              {isBn
-                ? `আপনি কি নিশ্চিতভাবে '${drugClassToDelete.nameBn}' মুছে ফেলতে চান?`
-                : `Are you sure you want to delete '${drugClassToDelete.nameEn}'?`}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDrugClassToDelete(null)}
-                className="px-3 py-1.5 rounded-xl border border-[#EAEAEA] text-xs font-bold text-[#787774]"
-              >
-                {isBn ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteDrugClass}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
-              >
-                {isBn ? 'মুছে ফেলুন' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {categoryToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="font-bold text-base text-[#2F3437]">
-              {isBn ? 'ক্যাটাগরি মুছে ফেলতে চান?' : 'Delete Category?'}
-            </h3>
-            <p className="text-xs text-[#787774]">
-              {isBn
-                ? `আপনি কি নিশ্চিতভাবে '${categoryToDelete.nameBn}' মুছে ফেলতে চান?`
-                : `Are you sure you want to delete '${categoryToDelete.nameEn}'?`}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setCategoryToDelete(null)}
-                className="px-3 py-1.5 rounded-xl border border-[#EAEAEA] text-xs font-bold text-[#787774]"
-              >
-                {isBn ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteCategory}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
-              >
-                {isBn ? 'মুছে ফেলুন' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

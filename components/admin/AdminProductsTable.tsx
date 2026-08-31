@@ -35,8 +35,6 @@ export function AdminProductsTable({ locale }: Props) {
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<MockProduct | null>(null);
   const [campaignModalProduct, setCampaignModalProduct] = useState<MockProduct | null>(null);
-  const [productToDelete, setProductToDelete] = useState<MockProduct | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | 'tiktok' | 'whatsapp' | 'youtube'>('facebook');
   const [campaignName, setCampaignName] = useState('poultry_boost_august');
   const [isCopied, setIsCopied] = useState(false);
@@ -92,7 +90,7 @@ export function AdminProductsTable({ locale }: Props) {
    */
   const refreshProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/products?pageSize=100');
+      const res = await fetch('/api/v1/products?pageSize=100&includeInactive=true');
       if (!res.ok) throw new Error(await readApiError(res));
       const json = await res.json();
       setProducts(Array.isArray(json.data) ? json.data : []);
@@ -397,40 +395,23 @@ export function AdminProductsTable({ locale }: Props) {
     }
   };
 
-
-  // Cascade Delete Product and Images
-  const handleDeleteConfirm = async () => {
-    if (!productToDelete) return;
-    setIsDeleting(true);
-
-    const targetId = productToDelete.id;
-
+  const handleToggleActive = async (prod: MockProduct) => {
     try {
-      // The server owns the cascade: it resolves the product's own image rows and
-      // removes them from storage. The client no longer passes an imageKey guess,
-      // and no longer keeps a local deleted-ids list to hide rows it failed to
-      // delete — a delete either happened for everyone or it did not happen.
-      const res = await fetch(`/api/v1/admin/products/${targetId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/v1/admin/products/${prod.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !prod.isActive }),
+      });
 
-      if (!res.ok) {
-        setErrorMessage(await readApiError(res));
-        return;
-      }
-
-      await refreshProducts();
-
+      if (!res.ok) throw new Error(await readApiError(res));
       setToastMessage(
-        isBn
-          ? `পণ্য '${productToDelete.nameBn}' এবং এর সকল ছবি স্থায়ীভাবে মুছে ফেলা হয়েছে!`
-          : `Product '${productToDelete.nameEn}' and all its image files permanently deleted!`
+        isBn 
+          ? `পণ্য '${prod.nameBn}' ${prod.isActive ? 'নিষ্ক্রিয়' : 'সক্রিয়'} করা হয়েছে!`
+          : `Product '${prod.nameEn}' is now ${prod.isActive ? 'Inactive' : 'Active'}!`
       );
-      setTimeout(() => setToastMessage(null), 5000);
-    } catch (err) {
-      console.error('Failed to delete product:', err);
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete product');
-    } finally {
-      setIsDeleting(false);
-      setProductToDelete(null);
+      refreshProducts();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to update product status');
     }
   };
 
@@ -679,15 +660,23 @@ export function AdminProductsTable({ locale }: Props) {
                           <span>{isBn ? 'সম্পাদনা' : 'Edit'}</span>
                         </button>
 
-                        {/* Delete Button */}
+                        {/* Toggle Active Button */}
                         <button
                           type="button"
-                          onClick={() => setProductToDelete(prod)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                          title={isBn ? 'পণ্য ও ছবি সম্পূর্ণ মুছে ফেলুন' : 'Delete product and associated images'}
+                          onClick={() => handleToggleActive(prod)}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 ${
+                            prod.isActive
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border-emerald-200'
+                          }`}
+                          title={isBn ? 'স্ট্যাটাস পরিবর্তন করুন' : 'Toggle Active Status'}
                         >
-                          <span>🗑️</span>
-                          <span>{isBn ? 'মুছুন' : 'Delete'}</span>
+                          <span>{prod.isActive ? '⏸️' : '▶️'}</span>
+                          <span>
+                            {prod.isActive 
+                              ? (isBn ? 'নিষ্ক্রিয় করুন' : 'Deactivate')
+                              : (isBn ? 'সক্রিয় করুন' : 'Activate')}
+                          </span>
                         </button>
                       </div>
                     </td>
@@ -1173,77 +1162,7 @@ export function AdminProductsTable({ locale }: Props) {
         </div>
       )}
 
-      {/* Delete Product Safety Confirmation Modal */}
-      {productToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl font-bold shrink-0">
-                🗑️
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-[#2F3437]">
-                  {isBn ? 'পণ্য ও ছবি সম্পূর্ণ মুছে ফেলতে চান?' : 'Permanently Delete Product & Images?'}
-                </h3>
-                <p className="text-xs text-[#787774]">
-                  {isBn ? 'এই কাজটি আর ফিরিয়ে আনা যাবে না।' : 'This action cannot be undone.'}
-                </p>
-              </div>
-            </div>
 
-            {/* Product Summary Card */}
-            <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-100 flex items-center gap-3">
-              {productToDelete.imageUrl ? (
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shrink-0 border border-rose-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={productToDelete.imageUrl} alt="" className="w-full h-full object-cover" />
-                </div>
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <div className="font-bold text-xs text-[#2F3437] truncate">
-                  {isBn ? productToDelete.nameBn : productToDelete.nameEn}
-                </div>
-                <div className="text-[11px] font-mono text-emerald-800 font-semibold">
-                  SKU: {productToDelete.sku}
-                </div>
-                <div className="text-[10px] text-rose-700 font-medium">
-                  {isBn
-                    ? '⚠️ সমস্ত সংরক্ষিত ছবি এবং ডাটাবেজ রেকর্ড স্থায়ীভাবে মুছে ফেলা হবে।'
-                    : '⚠️ All stored image files and database entries will be permanently removed.'}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setProductToDelete(null)}
-                className="px-4 py-2.5 rounded-xl border border-[#EAEAEA] text-[#5F6368] hover:bg-[#F7F6F3] font-semibold text-xs transition-colors cursor-pointer"
-              >
-                {isBn ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteConfirm}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:bg-rose-400 text-white font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <span>{isDeleting ? '⏳' : '🗑️'}</span>
-                <span>
-                  {isDeleting
-                    ? isBn
-                      ? 'মুছে ফেলা হচ্ছে...'
-                      : 'Deleting...'
-                    : isBn
-                    ? 'হ্যাঁ, স্থায়ীভাবে মুছুন'
-                    : 'Yes, Delete Permanently'}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Campaign Link Generator Modal */}
       {campaignModalProduct && (

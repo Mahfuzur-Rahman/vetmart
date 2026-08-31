@@ -4,6 +4,7 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/lib/i18n/navigation';
 import { inter, outfit, hindSiliguri } from '@/app/fonts';
+import { checkDbConnection } from '@/lib/db';
 import { TopProgressBar } from '@/components/TopProgressBar';
 import { CartProvider } from '@/lib/context/CartContext';
 import '@/app/globals.css';
@@ -44,6 +45,28 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   setRequestLocale(locale);
   const messages = await getMessages();
+
+  // If DB is down, show a global maintenance screen instead of trying to render the app
+  const isDbUp = await checkDbConnection();
+  if (!isDbUp) {
+    return (
+      <html lang={locale} className={`${inter.variable} ${outfit.variable} ${hindSiliguri.variable} antialiased`} suppressHydrationWarning>
+        <body className="min-h-dvh flex items-center justify-center bg-background text-foreground">
+          <div className="text-center p-8 max-w-md bg-card border rounded-2xl shadow-sm">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h1 className="text-2xl font-bold text-destructive mb-3">
+              {locale === 'bn' ? 'সিস্টেম মেইনটেন্যান্স' : 'System Maintenance'}
+            </h1>
+            <p className="text-muted-foreground">
+              {locale === 'bn' 
+                ? 'আমাদের ডাটাবেস সার্ভার সাময়িকভাবে বন্ধ আছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।' 
+                : 'Our database server is temporarily unavailable. Please try again in a few minutes.'}
+            </p>
+          </div>
+        </body>
+      </html>
+    );
+  }
 
   return (
     <html lang={locale} className={`${inter.variable} ${outfit.variable} ${hindSiliguri.variable} antialiased`} suppressHydrationWarning>

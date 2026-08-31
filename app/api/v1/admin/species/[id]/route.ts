@@ -52,29 +52,3 @@ export async function PUT(req: NextRequest, { params }: Props) {
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: Props) {
-  try {
-    const { id } = await params;
-
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    const lookup = isUuid ? eq(speciesCategories.id, id) : or(eq(speciesCategories.key, id), eq(speciesCategories.slug, id))!;
-
-    const [deleted] = await db
-      .delete(speciesCategories)
-      .where(lookup)
-      .returning({ id: speciesCategories.id, key: speciesCategories.key });
-
-    if (!deleted) {
-      return apiError('NOT_FOUND', 'Species not found', 404);
-    }
-
-    return apiSuccess({
-      deletedId: deleted.id,
-      deletedKey: deleted.key,
-      message: 'Species category deleted successfully',
-    });
-  } catch (err: any) {
-    console.error('[Admin Species Delete] Error:', err);
-    return apiError('SPECIES_DELETE_FAILED', err?.message || 'Failed to delete species', 500);
-  }
-}

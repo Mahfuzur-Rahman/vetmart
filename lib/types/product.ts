@@ -26,6 +26,7 @@ export interface Product {
   vetPrice?: number;
   requiresPrescription: boolean;
   requiresColdChain: boolean;
+  isActive: boolean;
   isAntimicrobial: boolean;
   coldChain: boolean;
   dgdaRegNo: string;

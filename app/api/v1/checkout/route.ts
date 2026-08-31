@@ -2,6 +2,7 @@
 // POST /api/v1/checkout — Place an order (§9)
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { checkDbConnection } from '@/lib/db';
 import { resolveUser } from '@/lib/auth/resolve';
 import { findOrCreateCart } from '@/lib/services/cart';
 import { placeOrder } from '@/lib/services/checkout';
@@ -18,6 +19,10 @@ const checkoutSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await checkDbConnection())) {
+      return apiError('SERVICE_UNAVAILABLE', 'Service is currently unavailable', 503);
+    }
+
     const user = await resolveUser(req);
     if (!user) {
       return apiError('UNAUTHORIZED', 'Login required to place an order.', 401);

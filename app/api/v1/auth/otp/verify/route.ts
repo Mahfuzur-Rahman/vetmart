@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { verifyOtp } from '@/lib/auth/otp';
+import { checkDbConnection } from '@/lib/db';
 import { signJwt } from '@/lib/auth/jwt';
 import { setCustomerSession } from '@/lib/auth/session';
 import { apiSuccess, apiError } from '@/lib/api/response';
@@ -14,6 +15,10 @@ const verifySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await checkDbConnection())) {
+      return apiError('SERVICE_UNAVAILABLE', 'Service is currently unavailable', 503);
+    }
+
     const body = await req.json();
     const parsed = verifySchema.safeParse(body);
 

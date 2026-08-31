@@ -17,6 +17,7 @@ export interface CatalogSearchParams {
   sort?: SortOption;
   page?: number;
   pageSize?: number;
+  includeInactive?: boolean;
 }
 
 export interface CatalogSearchResult {
@@ -40,6 +41,7 @@ export interface CatalogSearchItem {
   targetSpecies: string[];
   requiresPrescription: boolean;
   requiresColdChain: boolean;
+  isActive: boolean;
   mrp: number;
   salePrice: number;
   categoryNameEn: string | null;
@@ -64,7 +66,7 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
   const offset = (page - 1) * pageSize;
 
   // Build WHERE conditions
-  const conditions = [eq(products.isActive, true)];
+  const conditions = params.includeInactive ? [] : [eq(products.isActive, true)];
 
   if (params.species) {
     conditions.push(arrayOverlaps(products.targetSpecies, [params.species]));
@@ -139,6 +141,7 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
       targetSpecies: products.targetSpecies,
       requiresPrescription: products.requiresPrescription,
       requiresColdChain: products.requiresColdChain,
+      isActive: products.isActive,
       mrp: products.mrp,
       salePrice: products.salePrice,
       categoryNameEn: categories.nameEn,

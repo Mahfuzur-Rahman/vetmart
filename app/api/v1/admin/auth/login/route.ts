@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import { db } from '@/lib/db';
+import { db, checkDbConnection } from '@/lib/db';
 import { admins } from '@/lib/db/schema';
 import { verifyPassword } from '@/lib/auth/hash';
 import { setAdminSession } from '@/lib/auth/session';
@@ -19,6 +19,10 @@ const loginSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  if (!(await checkDbConnection())) {
+    return apiError('SERVICE_UNAVAILABLE', 'Service is currently unavailable', 503);
+  }
+
   let body: unknown;
   try {
     body = await req.json();

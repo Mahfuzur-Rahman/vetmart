@@ -3,12 +3,21 @@
 import { NextRequest } from 'next/server';
 import { searchCatalog, type SortOption } from '@/lib/services/search';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { resolveUser } from '@/lib/auth/resolve';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
+
+    let includeInactive = false;
+    if (url.searchParams.get('includeInactive') === 'true') {
+      const user = await resolveUser(req);
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        includeInactive = true;
+      }
+    }
 
     const result = await searchCatalog({
       q: url.searchParams.get('q') || undefined,
@@ -19,6 +28,7 @@ export async function GET(req: NextRequest) {
       sort: (url.searchParams.get('sort') as SortOption) || undefined,
       page: parseInt(url.searchParams.get('page') || '1', 10),
       pageSize: parseInt(url.searchParams.get('pageSize') || '24', 10),
+      includeInactive,
     });
 
     return apiSuccess(result.items, {

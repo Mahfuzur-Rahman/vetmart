@@ -47,29 +47,3 @@ export async function PUT(req: NextRequest, { params }: Props) {
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: Props) {
-  try {
-    const { id } = await params;
-
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    const lookup = isUuid ? eq(categories.id, id) : eq(categories.slug, id);
-
-    const [deleted] = await db
-      .delete(categories)
-      .where(lookup)
-      .returning({ id: categories.id, slug: categories.slug });
-
-    if (!deleted) {
-      return apiError('NOT_FOUND', 'Category not found', 404);
-    }
-
-    return apiSuccess({
-      deletedId: deleted.id,
-      deletedSlug: deleted.slug,
-      message: 'Category deleted successfully',
-    });
-  } catch (err: any) {
-    console.error('[Admin Category Delete] Error:', err);
-    return apiError('CATEGORY_DELETE_FAILED', err?.message || 'Failed to delete category', 500);
-  }
-}

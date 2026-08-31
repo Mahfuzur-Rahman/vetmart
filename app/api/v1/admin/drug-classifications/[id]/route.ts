@@ -45,22 +45,3 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await ensureDrugClassificationsTable();
-    const { id } = await params;
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-    await db
-      .delete(drugClassifications)
-      .where(isUuid ? or(eq(drugClassifications.id, id), eq(drugClassifications.slug, id)) : eq(drugClassifications.slug, id));
-
-    return apiSuccess({ deleted: true, id });
-  } catch (err: any) {
-    console.error('[Admin Drug Classification Delete] Error:', err);
-    return apiError('DRUG_CLASSIFICATION_DELETE_FAILED', err?.message || 'Failed to delete drug classification', 500);
-  }
-}

@@ -6,7 +6,6 @@ import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
 import {
   updateProduct,
-  deleteProduct,
   ProductNotFoundError,
 } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
@@ -56,16 +55,3 @@ export async function PUT(req: NextRequest, { params }: Props) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
-  const guard = await requireAdmin('product.write');
-  if (!guard.ok) return guard.response;
-
-  const { id } = await params;
-
-  try {
-    const deleted = await deleteProduct(id);
-    return apiSuccess(deleted);
-  } catch (err) {
-    return toErrorResponse(err, 'PRODUCT_DELETE_FAILED', 'Failed to delete product');
-  }
-}
