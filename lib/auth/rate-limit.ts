@@ -6,8 +6,13 @@ let redisConnection: IORedis | null = null;
 export function getRedis() {
   if (!redisConnection) {
     redisConnection = new IORedis(env.VALKEY_URL, {
-      maxRetriesPerRequest: null,
+      maxRetriesPerRequest: 0,
+      connectTimeout: 500,
+      lazyConnect: true,
     });
+    
+    // Suppress unhandled error events so they don't crash the Node process
+    redisConnection.on('error', () => {});
   }
   return redisConnection;
 }

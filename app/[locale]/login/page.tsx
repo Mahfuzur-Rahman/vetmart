@@ -46,11 +46,11 @@ export default async function CustomerLoginPage({ params }: Props) {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* 24/7 Helpline pill (Desktop) */}
           <a
-            href="tel:16624"
+            href="tel:01353920501"
             className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
           >
             <span>📞</span>
-            <span>16624 ({loc === 'bn' ? '২৪/৭ সাপোর্ট' : 'Support'})</span>
+            <span>01353920501 ({loc === 'bn' ? '২৪/৭ সাপোর্ট' : 'Support'})</span>
           </a>
 
           {/* Language Switcher */}

@@ -102,6 +102,6 @@ describe('Invoice HTML Renderer (§11)', () => {
     expect(html).toContain('VetMart');
     expect(html).toContain('BD');
     expect(html).toContain('support@vetmart.com.bd');
-    expect(html).toContain('16624');
+    expect(html).toContain('01353920501');
   });
 });

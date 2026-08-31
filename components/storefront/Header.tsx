@@ -23,7 +23,7 @@ interface HeaderProps {
 
 const SERVICES_LINKS = [
   { href: '/products?category=vaccine', nameEn: 'Cold-Chain Delivery Specs', nameBn: 'কোল্ড-চেইন শিপিং তথ্য', emoji: '❄️', tagEn: '2°C–8°C Icebox', tagBn: '২°-৮° সে. কোল্ড বক্স' },
-  { href: 'tel:16624', nameEn: 'Emergency Vet Line (16624)', nameBn: 'জরুরি ভেট হেল্পলাইন (১৬৬২৪)', emoji: '📞', tagEn: '24/7 Live Doctor', tagBn: '২৪/৭ রেজিস্টার্ড ভেট' },
+  { href: 'tel:01353920501', nameEn: 'Emergency Vet Line (01353920501)', nameBn: 'জরুরি ভেট হেল্পলাইন (০১৩৫৩৯২০৫০১)', emoji: '📞', tagEn: '24/7 Live Doctor', tagBn: '২৪/৭ রেজিস্টার্ড ভেট' },
   { href: '/products', nameEn: 'Upload Vet Prescription', nameBn: 'প্রেসক্রিপশন আপলোড করুন', emoji: '📋', tagEn: 'Pharmacist Review', tagBn: 'ফার্মাসিস্ট ভেরিফিকেশন' },
   { href: '/products', nameEn: 'Bulk Farm Supply Orders', nameBn: 'খামারের পাইকারি অর্ডার', emoji: '📦', tagEn: 'Wholesale Pricing', tagBn: 'পাইকারি রেট সুবিধা' },
 ];
@@ -141,14 +141,14 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
           {/* Right Support & Language */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0 font-medium text-xs">
             <a
-              href="tel:16624"
+              href="tel:01353920501"
               className="flex items-center gap-1 sm:gap-1.5 text-emerald-200 hover:text-white transition-colors text-[11px] sm:text-xs"
               title="24/7 Helpline"
             >
               <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-700/80 flex items-center justify-center text-[9px] sm:text-[10px]">
                 📞
               </span>
-              <span className="font-bold tracking-wide">16624</span>
+              <span className="font-bold tracking-wide">01353920501</span>
               <span className="hidden sm:inline text-emerald-200/80">
                 ({locale === 'bn' ? '২৪/৭ ভেট হেল্পলাইন' : '24/7 Helpline'})
               </span>
@@ -567,11 +567,11 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                   <span>{locale === 'bn' ? 'প্রেসক্রিপশন আপলোড' : 'Upload Rx'}</span>
                 </Link>
                 <a
-                  href="tel:16624"
+                  href="tel:01353920501"
                   className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-600/20 text-rose-700 dark:text-rose-300 text-xs font-bold"
                 >
                   <span>📞</span>
-                  <span>{locale === 'bn' ? '১৬৬২৪ কল করুন' : 'Call 16624'}</span>
+                  <span>{locale === 'bn' ? '০১৩৫৩৯২০৫০১ কল করুন' : 'Call 01353920501'}</span>
                 </a>
               </div>
 

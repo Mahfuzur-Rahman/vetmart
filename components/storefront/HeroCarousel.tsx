@@ -240,7 +240,7 @@ const HERO_SLIDES: HeroSlide[] = [
       bn: 'আপনার প্রেসক্রিপশনের ছবি আপলোড করুন, দ্রুত ভেরিফাই করে ওষুধ ডেলিভারি নিন।',
     },
     primaryCta: { text: { en: 'Upload Rx', bn: 'প্রেসক্রিপশন আপলোড' }, href: '/products' },
-    secondaryCta: { text: { en: '📞 Call 16624', bn: '📞 হেল্পলাইন ১৬৬২৪' }, href: '/products' },
+    secondaryCta: { text: { en: '📞 Call 01353920501', bn: '📞 হেল্পলাইন ০১৩৫৩৯২০৫০১' }, href: '/products' },
   },
   {
     id: 10,

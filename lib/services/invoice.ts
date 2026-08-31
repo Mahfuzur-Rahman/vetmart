@@ -245,7 +245,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
 
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center;">
     <p>This is a computer-generated invoice. VetMart BD — DGDA Licensed Veterinary E-Commerce Platform.</p>
-    <p>For queries, contact support@vetmart.com.bd | Helpline: 16624</p>
+    <p>For queries, contact support@vetmart.com.bd | Helpline: 01353920501</p>
   </div>
 </body>
 </html>`;
