@@ -1,5 +1,6 @@
 // components/storefront/Footer.tsx
 import { Link } from '@/lib/i18n/navigation';
+import { VETMART_CONTACT } from '@/lib/constants/contact';
 import type { Locale } from '@/lib/i18n/config';
 
 interface FooterProps {
@@ -25,10 +26,10 @@ export function Footer({ locale }: FooterProps) {
             </p>
           </div>
           <a
-            href="tel:+8801712345678"
+            href={VETMART_CONTACT.telHref}
             className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm hover:brightness-110 transition-all whitespace-nowrap"
           >
-            📞 +880 1712 345 678
+            📞 {locale === 'bn' ? VETMART_CONTACT.phoneBangla : VETMART_CONTACT.phone}
           </a>
         </div>
       </section>
@@ -114,13 +115,20 @@ export function Footer({ locale }: FooterProps) {
               </h4>
               <div className="space-y-2 text-muted-foreground text-xs">
                 <p className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground">Phone:</span> +880 1712 345 678
+                  <span className="font-semibold text-foreground">Phone:</span>
+                  <a href={VETMART_CONTACT.telHref} className="hover:text-primary transition-colors font-medium">
+                    {VETMART_CONTACT.phone}
+                  </a>
                 </p>
                 <p className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground">Email:</span> support@vetmart.com.bd
+                  <span className="font-semibold text-foreground">Email:</span>
+                  <a href={`mailto:${VETMART_CONTACT.email}`} className="hover:text-primary transition-colors">
+                    {VETMART_CONTACT.email}
+                  </a>
                 </p>
                 <p className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground">Address:</span> Level 4, VetMart Tower, Uttara, Dhaka-1230
+                  <span className="font-semibold text-foreground">Address:</span>
+                  <span>{locale === 'bn' ? VETMART_CONTACT.addressBn : VETMART_CONTACT.addressEn}</span>
                 </p>
               </div>
             </div>

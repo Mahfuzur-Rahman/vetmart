@@ -2,8 +2,9 @@
 // Server-only database operations for species categories (§7, §14)
 import { eq, and, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { speciesCategories } from '@/lib/db/schema';
+import { speciesCategories, products } from '@/lib/db/schema';
 import { SPECIES, type SpeciesInfo } from './species';
+import { sql } from 'drizzle-orm';
 
 /**
  * List species from the database with multi-criteria filtering.
@@ -73,4 +74,41 @@ export async function listSpecies(opts?: { showOnHomepage?: boolean; isActive?: 
     }
     return fallback;
   }
+}
+
+/**
+ * Permanently deletes a species category.
+ * Fails if any products are still assigned to this species via JSONB array.
+ */
+export async function deleteSpecies(id: string) {
+  return db.transaction(async (tx) => {
+    // 1. Ensure the species exists
+    const [existing] = await tx
+      .select({ id: speciesCategories.id, key: speciesCategories.key })
+      .from(speciesCategories)
+      .where(eq(speciesCategories.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new Error('SPECIES_NOT_FOUND');
+    }
+
+    // 2. Prevent deletion if there are active products using this species key in their targetSpecies array
+    const [linkedProduct] = await tx
+      .select({ id: products.id })
+      .from(products)
+      .where(sql`${products.targetSpecies} ? ${existing.key}`)
+      .limit(1);
+
+    if (linkedProduct) {
+      const err = new Error('CANNOT_DELETE_HAS_PRODUCTS');
+      err.name = 'ConstraintViolationError';
+      throw err;
+    }
+
+    // 3. Delete the species
+    await tx.delete(speciesCategories).where(eq(speciesCategories.id, id));
+
+    return { success: true, deletedId: id };
+  });
 }

@@ -38,8 +38,8 @@ const expressOrderSchema = z.object({
 
   recipientName: z.string().trim().min(1, 'Recipient name is required.'),
   phone: bdPhone,
-  division: z.string().trim().min(1, 'Division is required.'),
-  district: z.string().trim().min(1, 'District is required.'),
+  division: z.string().trim().default('Dhaka'),
+  district: z.string().trim().default('Dhaka'),
   upazila: z.string().trim().optional(),
   area: z.string().trim().optional(),
   addressLine: z.string().trim().min(1, 'Delivery address is required.'),

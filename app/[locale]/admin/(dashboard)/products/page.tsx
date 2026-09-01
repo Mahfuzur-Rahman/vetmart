@@ -3,6 +3,7 @@
 import { setRequestLocale } from 'next-intl/server';
 import type { Locale } from '@/lib/i18n/config';
 import { AdminProductsTable } from '@/components/admin/AdminProductsTable';
+import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,5 +16,8 @@ export default async function AdminProductsPage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  return <AdminProductsTable locale={loc} />;
+  const auth = await getAuthenticatedAdmin();
+  const isSuperadmin = auth?.permissions.has('*') ?? false;
+
+  return <AdminProductsTable locale={loc} isSuperadmin={isSuperadmin} />;
 }

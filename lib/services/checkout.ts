@@ -106,6 +106,12 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
   const deliveryQuote = await getDeliveryQuote(address.division, address.district);
   let shippingFeePaisa = deliveryQuote?.rate ?? 13000; // Default ৳130 outside Dhaka
 
+  // Free shipping if ALL products in the cart have hasShippingCharge === false
+  const allFreeShipping = cart.items.every((i) => i.product.hasShippingCharge === false);
+  if (allFreeShipping) {
+    shippingFeePaisa = 0;
+  }
+
   // Free shipping from coupon
   if (input.couponResult?.valid && input.couponResult.coupon?.type === 'free_shipping') {
     shippingFeePaisa = 0;
@@ -393,7 +399,9 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
 
   // 2. Delivery quote and cold-chain serviceability (§5.4).
   const deliveryQuote = await getDeliveryQuote(input.division, input.district);
-  const shippingFeePaisa = deliveryQuote?.rate ?? 13000; // 130 taka default outside Dhaka
+  // Free shipping if ALL products have hasShippingCharge === false
+  const allFreeShipping = resolved.every((r) => r.product.hasShippingCharge === false);
+  const shippingFeePaisa = allFreeShipping ? 0 : (deliveryQuote?.rate ?? 13000);
 
   const hasColdChain = resolved.some((r) => r.product.requiresColdChain);
   if (hasColdChain && deliveryQuote && !deliveryQuote.coldChainEnabled) {

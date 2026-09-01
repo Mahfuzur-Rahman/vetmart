@@ -3,6 +3,7 @@ import type { Locale } from '@/lib/i18n/config';
 import { listSpecies } from '@/lib/services/species-server';
 import { listCategories } from '@/lib/services/categories';
 import { listDrugClassifications } from '@/lib/services/drug-classifications-server';
+import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
 
 import { AdminCategoriesManagement } from '@/components/admin/AdminCategoriesManagement';
 
@@ -24,12 +25,16 @@ export default async function AdminCategoriesPage({ params }: Props) {
     listDrugClassifications(),
   ]);
 
+  const auth = await getAuthenticatedAdmin();
+  const isSuperadmin = auth?.permissions.has('*') ?? false;
+
   return (
     <AdminCategoriesManagement
       locale={loc}
       initialSpecies={speciesList}
       initialCategories={categoryList as any}
       initialDrugClassifications={drugClassList}
+      isSuperadmin={isSuperadmin}
     />
   );
 }

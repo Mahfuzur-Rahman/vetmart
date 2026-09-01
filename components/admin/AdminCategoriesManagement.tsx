@@ -21,6 +21,7 @@ interface Props {
   initialSpecies: SpeciesInfo[];
   initialCategories: CategoryItem[];
   initialDrugClassifications?: DrugClassificationInfo[];
+  isSuperadmin?: boolean;
 }
 
 export function AdminCategoriesManagement({
@@ -28,6 +29,7 @@ export function AdminCategoriesManagement({
   initialSpecies,
   initialCategories,
   initialDrugClassifications,
+  isSuperadmin = false,
 }: Props) {
   const isBn = locale === 'bn';
   const [activeTab, setActiveTab] = useState<'species' | 'drug-class' | 'categories'>('species');
@@ -54,6 +56,9 @@ export function AdminCategoriesManagement({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirmSpecies, setDeleteConfirmSpecies] = useState<SpeciesInfo | null>(null);
+  const [deleteConfirmDrugClass, setDeleteConfirmDrugClass] = useState<DrugClassificationInfo | null>(null);
+  const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<CategoryItem | null>(null);
 
   // Species Form States
   const [spKey, setSpKey] = useState('');
@@ -125,6 +130,57 @@ export function AdminCategoriesManagement({
       }
     } catch (e) {
       console.warn('Failed to refresh categories:', e);
+    }
+  };
+
+  const handleDeleteSpecies = async () => {
+    if (!deleteConfirmSpecies) return;
+    try {
+      const res = await fetch(`/api/v1/admin/species/${deleteConfirmSpecies.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(isBn ? 'সফলভাবে মুছে ফেলা হয়েছে' : 'Species deleted');
+        setSpeciesList((prev) => prev.filter((s) => s.id !== deleteConfirmSpecies.id));
+        setDeleteConfirmSpecies(null);
+      } else {
+        const json = await res.json();
+        showToast(json.error?.message || 'Delete failed');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Delete failed');
+    }
+  };
+
+  const handleDeleteDrugClass = async () => {
+    if (!deleteConfirmDrugClass) return;
+    try {
+      const res = await fetch(`/api/v1/admin/drug-classifications/${deleteConfirmDrugClass.slug}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(isBn ? 'সফলভাবে মুছে ফেলা হয়েছে' : 'Drug Classification deleted');
+        setDrugClassList((prev) => prev.filter((d) => d.id !== deleteConfirmDrugClass.id));
+        setDeleteConfirmDrugClass(null);
+      } else {
+        const json = await res.json();
+        showToast(json.error?.message || 'Delete failed');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Delete failed');
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteConfirmCategory) return;
+    try {
+      const res = await fetch(`/api/v1/admin/categories/${deleteConfirmCategory.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(isBn ? 'সফলভাবে মুছে ফেলা হয়েছে' : 'Category deleted');
+        setCategoryList((prev) => prev.filter((c) => c.id !== deleteConfirmCategory.id));
+        setDeleteConfirmCategory(null);
+      } else {
+        const json = await res.json();
+        showToast(json.error?.message || 'Delete failed');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Delete failed');
     }
   };
 
@@ -755,6 +811,16 @@ export function AdminCategoriesManagement({
                             >
                               সম্পাদনা
                             </button>
+                            {isSuperadmin && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmSpecies(sp)}
+                                className="px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                title={isBn ? 'স্থায়ীভাবে মুছে ফেলুন' : 'Permanently Delete'}
+                              >
+                                <span>🗑️</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -852,6 +918,16 @@ export function AdminCategoriesManagement({
                             >
                               সম্পাদনা
                             </button>
+                            {isSuperadmin && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmDrugClass(dc)}
+                                className="px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                title={isBn ? 'স্থায়ীভাবে মুছে ফেলুন' : 'Permanently Delete'}
+                              >
+                                <span>🗑️</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -928,6 +1004,16 @@ export function AdminCategoriesManagement({
                             >
                               সম্পাদনা
                             </button>
+                            {isSuperadmin && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmCategory(cat)}
+                                className="px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                title={isBn ? 'স্থায়ীভাবে মুছে ফেলুন' : 'Permanently Delete'}
+                              >
+                                <span>🗑️</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1405,6 +1491,119 @@ export function AdminCategoriesManagement({
         </div>
       )}
 
+      {/* DELETE CONFIRMATION MODAL - SPECIES */}
+      {deleteConfirmSpecies && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mb-4 mx-auto">
+                🗑️
+              </div>
+              <h3 className="text-xl font-bold text-center text-slate-900 mb-2 font-display">
+                {isBn ? 'প্রজাতি মুছে ফেলবেন?' : 'Permanently Delete Species?'}
+              </h3>
+              <p className="text-sm text-center text-slate-600 mb-6">
+                {isBn
+                  ? `"${deleteConfirmSpecies.nameBn}" সম্পূর্ণভাবে মুছে ফেলা হবে। এই কাজ বাতিল করা যাবে না।`
+                  : `Are you sure you want to permanently delete "${deleteConfirmSpecies.nameEn}"? This action cannot be undone.`}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmSpecies(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  {isBn ? 'বাতিল করুন' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteSpecies}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                >
+                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL - DRUG CLASS */}
+      {deleteConfirmDrugClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mb-4 mx-auto">
+                🗑️
+              </div>
+              <h3 className="text-xl font-bold text-center text-slate-900 mb-2 font-display">
+                {isBn ? 'শ্রেণিবিভাগ মুছে ফেলবেন?' : 'Permanently Delete Classification?'}
+              </h3>
+              <p className="text-sm text-center text-slate-600 mb-6">
+                {isBn
+                  ? `"${deleteConfirmDrugClass.nameBn}" সম্পূর্ণভাবে মুছে ফেলা হবে। এই কাজ বাতিল করা যাবে না।`
+                  : `Are you sure you want to permanently delete "${deleteConfirmDrugClass.nameEn}"? This action cannot be undone.`}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmDrugClass(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  {isBn ? 'বাতিল করুন' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteDrugClass}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                >
+                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL - CATEGORY */}
+      {deleteConfirmCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mb-4 mx-auto">
+                🗑️
+              </div>
+              <h3 className="text-xl font-bold text-center text-slate-900 mb-2 font-display">
+                {isBn ? 'ক্যাটাগরি মুছে ফেলবেন?' : 'Permanently Delete Category?'}
+              </h3>
+              <p className="text-sm text-center text-slate-600 mb-6">
+                {isBn
+                  ? `"${deleteConfirmCategory.nameBn}" সম্পূর্ণভাবে মুছে ফেলা হবে। এই কাজ বাতিল করা যাবে না।`
+                  : `Are you sure you want to permanently delete "${deleteConfirmCategory.nameEn}"? This action cannot be undone.`}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmCategory(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  {isBn ? 'বাতিল করুন' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteCategory}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                >
+                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

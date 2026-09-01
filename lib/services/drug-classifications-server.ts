@@ -2,7 +2,7 @@
 // Server-only database operations for Drug Classifications (§5.2, §6, §7)
 import { eq, and, asc, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { drugClassifications } from '@/lib/db/schema';
+import { drugClassifications, products } from '@/lib/db/schema';
 import { DEFAULT_DRUG_CLASSIFICATIONS, type DrugClassificationInfo } from './drug-classifications';
 
 let isTableEnsured = false;
@@ -139,4 +139,41 @@ export async function getDrugClassificationBySlug(slug: string) {
     const item = DEFAULT_DRUG_CLASSIFICATIONS.find((d) => d.slug === slug);
     return item || null;
   }
+}
+
+/**
+ * Permanently deletes a drug classification.
+ * Fails if any products are still assigned to this classification via JSONB array.
+ */
+export async function deleteDrugClassification(id: string) {
+  return db.transaction(async (tx) => {
+    // 1. Ensure the drug classification exists
+    const [existing] = await tx
+      .select({ id: drugClassifications.id, slug: drugClassifications.slug })
+      .from(drugClassifications)
+      .where(eq(drugClassifications.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new Error('DRUG_CLASS_NOT_FOUND');
+    }
+
+    // 2. Prevent deletion if there are active products using this classification
+    const [linkedProduct] = await tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.drugClassificationId, id))
+      .limit(1);
+
+    if (linkedProduct) {
+      const err = new Error('CANNOT_DELETE_HAS_PRODUCTS');
+      err.name = 'ConstraintViolationError';
+      throw err;
+    }
+
+    // 3. Delete the classification
+    await tx.delete(drugClassifications).where(eq(drugClassifications.id, id));
+
+    return { success: true, deletedId: id };
+  });
 }

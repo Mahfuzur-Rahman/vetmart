@@ -501,3 +501,45 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
   });
 }
 
+
+
+/**
+ * Permanently delete a product, its associated images, and ledger entries.
+ * Note: If the product is linked to existing order_items, PostgreSQL will reject the deletion 
+ * to preserve order history (foreign key constraint without cascade).
+ */
+export async function deleteProduct(id: string) {
+  return db.transaction(async (tx) => {
+    // Check existence
+    const [existing] = await tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new ProductNotFoundError(id);
+    }
+
+    // 1. Delete associated images from Storage Driver
+    const images = await tx
+      .select({ basePath: productImages.basePath })
+      .from(productImages)
+      .where(eq(productImages.productId, id));
+
+    const storage = getStorageDriver();
+    for (const img of images) {
+      if (img.basePath) {
+        await storage.delete(img.basePath);
+      }
+    }
+
+    // 2. Delete the product. Because productImages, productBatches, stockLedger, 
+    // and productReviews have onDelete: 'cascade', they will be deleted automatically.
+    // If orderItems exist, this will throw a constraint error.
+    await tx.delete(products).where(eq(products.id, id));
+
+    return { success: true, deletedId: id };
+  });
+}
+

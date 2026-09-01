@@ -219,6 +219,17 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
           {/* Interactive Multi-Quantity Selector & Add to Cart Controller */}
           <ProductDetailAddToCart locale={locale} product={product} />
 
+          {/* Quick Phone Order / Consultation Helpline */}
+          <div className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-600/20 text-xs text-emerald-900 dark:text-emerald-200">
+            <span className="text-base">📞</span>
+            <span>
+              {locale === 'bn' ? 'সরাসরি ফোনে অর্ডার করতে কল করুন:' : 'Order directly by phone:'}{' '}
+              <a href="tel:01353920501" className="font-bold underline text-emerald-700 dark:text-emerald-400 hover:text-emerald-600">
+                {locale === 'bn' ? '০১৩৫৩৯২০৫০১' : '01353920501'}
+              </a>
+            </span>
+          </div>
+
           {/* Withdrawal Period Safety Box */}
           {(product.withdrawalMeatDays! > 0 || product.withdrawalMilkHours! > 0) && (
             <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 space-y-2 text-xs">

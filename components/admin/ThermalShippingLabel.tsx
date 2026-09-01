@@ -158,7 +158,7 @@ export function ThermalShippingLabelModal({ labels, onClose }: Props) {
                       {label.courierName || 'STEADFAST'}
                     </span>
                     <span className="text-[9px] font-mono block mt-0.5 font-bold">
-                      Helpline: 01700-000000
+                      Helpline: 01353-920501
                     </span>
                   </div>
                 </div>

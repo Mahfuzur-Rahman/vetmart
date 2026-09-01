@@ -2,7 +2,7 @@
 // Category tree and navigation queries (§6, §7)
 import { eq, and, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { categories } from '@/lib/db/schema';
+import { categories, products } from '@/lib/db/schema';
 
 export interface CategoryNode {
   id: string;
@@ -107,4 +107,54 @@ export async function listCategories(opts?: { showOnHomepage?: boolean; isActive
     console.warn('[listCategories] DB fetch failed:', err);
     return [];
   }
+}
+
+/**
+ * Permanently deletes a category.
+ * Fails if any products are still assigned to this category.
+ */
+export async function deleteCategory(id: string) {
+  return db.transaction(async (tx) => {
+    // 1. Ensure the category exists
+    const [existing] = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new Error('CATEGORY_NOT_FOUND');
+    }
+
+    // 2. Prevent deletion if there are active products
+    const [linkedProduct] = await tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.categoryId, id))
+      .limit(1);
+
+    if (linkedProduct) {
+      const err = new Error('CANNOT_DELETE_HAS_PRODUCTS');
+      err.name = 'ConstraintViolationError';
+      throw err;
+    }
+
+    // 3. Prevent deletion if it has subcategories
+    const [linkedChild] = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.parentId, id))
+      .limit(1);
+
+    if (linkedChild) {
+      const err = new Error('CANNOT_DELETE_HAS_SUBCATEGORIES');
+      err.name = 'ConstraintViolationError';
+      throw err;
+    }
+
+    // 4. Delete the category
+    await tx.delete(categories).where(eq(categories.id, id));
+
+    return { success: true, deletedId: id };
+  });
 }

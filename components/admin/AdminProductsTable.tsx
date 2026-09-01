@@ -25,15 +25,17 @@ import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 
 interface Props {
   locale: string;
+  isSuperadmin: boolean;
 }
 
-export function AdminProductsTable({ locale }: Props) {
+export function AdminProductsTable({ locale, isSuperadmin }: Props) {
   const isBn = locale === 'bn';
   const [products, setProducts] = useState<MockProduct[]>([]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<MockProduct | null>(null);
+  const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<MockProduct | null>(null);
   const [campaignModalProduct, setCampaignModalProduct] = useState<MockProduct | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | 'tiktok' | 'whatsapp' | 'youtube'>('facebook');
   const [campaignName, setCampaignName] = useState('poultry_boost_august');
@@ -261,6 +263,28 @@ export function AdminProductsTable({ locale }: Props) {
       reader.readAsDataURL(file);
     } finally {
       setIsUploadingImage(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deleteConfirmProduct) return;
+    try {
+      const res = await fetch(`/api/v1/admin/products/${deleteConfirmProduct.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setProducts((prev) => prev.filter((p) => p.id !== deleteConfirmProduct.id));
+        setDeleteConfirmProduct(null);
+      } else {
+        const errorText = await readApiError(res);
+        setErrorMessage(errorText);
+        setTimeout(() => {
+          setErrorMessage(null);
+        }, 5000);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Delete failed');
+      setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
@@ -698,7 +722,7 @@ export function AdminProductsTable({ locale }: Props) {
                           <span>{isBn ? 'সম্পাদনা' : 'Edit'}</span>
                         </button>
 
-                        {/* Toggle Active Button */}
+                        {/* Toggle Active Button - Available to all admins with product.write */}
                         <button
                           type="button"
                           onClick={() => handleToggleActive(prod)}
@@ -716,6 +740,19 @@ export function AdminProductsTable({ locale }: Props) {
                               : (isBn ? 'সক্রিয় করুন' : 'Activate')}
                           </span>
                         </button>
+
+                        {/* Permanent Delete Button - SuperAdmin Only */}
+                        {isSuperadmin && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmProduct(prod)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                            title={isBn ? 'স্থায়ীভাবে মুছে ফেলুন' : 'Permanently Delete'}
+                          >
+                            <span>🗑️</span>
+                            <span>{isBn ? 'ডিলিট' : 'Delete'}</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1415,6 +1452,44 @@ export function AdminProductsTable({ locale }: Props) {
           </div>
         </div>
       )}
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mb-4 mx-auto">
+                🗑️
+              </div>
+              <h3 className="text-xl font-bold text-center text-slate-900 mb-2 font-display">
+                {isBn ? 'পণ্য মুছে ফেলবেন?' : 'Permanently Delete Product?'}
+              </h3>
+              <p className="text-sm text-center text-slate-600 mb-6">
+                {isBn
+                  ? `"${deleteConfirmProduct.nameBn}" এর সমস্ত ডেটা এবং ছবি সম্পূর্ণভাবে মুছে ফেলা হবে। এই কাজ বাতিল করা যাবে না।`
+                  : `Are you sure you want to permanently delete "${deleteConfirmProduct.nameEn}"? This will destroy all data and images. This action cannot be undone.`}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmProduct(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  {isBn ? 'বাতিল করুন' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteProduct}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                >
+                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

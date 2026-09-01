@@ -19,6 +19,7 @@ export interface ProductCardProps {
     salePrice: number; // in paisa
     requiresPrescription: boolean;
     requiresColdChain: boolean;
+    hasShippingCharge?: boolean;
     withdrawalMeatDays?: number | null;
     withdrawalMilkHours?: number | null;
     sellableStock?: number;

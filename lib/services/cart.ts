@@ -21,6 +21,7 @@ export interface CartItemView {
     vatRate: string;
     requiresPrescription: boolean;
     requiresColdChain: boolean;
+    hasShippingCharge: boolean;
     isActive: boolean;
     imageUrl?: string | null;
   };
@@ -146,6 +147,7 @@ export async function getCartView(cartId: string): Promise<CartView> {
         vatRate: products.vatRate,
         requiresPrescription: products.requiresPrescription,
         requiresColdChain: products.requiresColdChain,
+        hasShippingCharge: products.hasShippingCharge,
         isActive: products.isActive,
       },
     })

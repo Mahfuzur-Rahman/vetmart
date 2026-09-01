@@ -180,8 +180,10 @@ export function CartView({ locale }: Props) {
           )}
 
           <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>{isBn ? 'আনুমানিক ডেলিভারি ফি (ঢাকা)' : 'Est. Delivery Fee'}</span>
-            <span className="font-bold text-foreground font-display">{fmtMoney(estDeliveryFee, locale)}</span>
+            <span>{isBn ? 'আনুমানিক ডেলিভারি ফি' : 'Est. Delivery Fee'}</span>
+            <span className={`font-bold font-display ${estDeliveryFee === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}>
+              {estDeliveryFee === 0 ? (isBn ? '🎉 ফ্রি!' : '🎉 Free!') : fmtMoney(estDeliveryFee, locale)}
+            </span>
           </div>
 
           <div className="border-t border-border pt-3 flex items-center justify-between text-base font-extrabold text-foreground">
@@ -198,6 +200,15 @@ export function CartView({ locale }: Props) {
         >
           {isBn ? 'চেকআউটে যান →' : 'Proceed to Checkout →'}
         </Link>
+
+        <div className="text-center pt-1 border-t border-border">
+          <p className="text-xs text-muted-foreground">
+            {isBn ? 'অর্ডারে যেকোনো সহায়তায় কল করুন:' : 'Questions? Call helpline:'}{' '}
+            <a href="tel:01353920501" className="font-bold text-emerald-600 hover:underline">
+              {isBn ? '০১৩৫৩৯২০৫০১' : '01353920501'}
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ export interface CartProduct {
   requiresPrescription?: boolean;
   requiresColdChain?: boolean;
   coldChain?: boolean;
+  hasShippingCharge?: boolean;
   imageUrl?: string | null;
   sellableStock?: number;
   stock?: number;
@@ -116,6 +117,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                   salePrice: apiItem.product.salePrice,
                   requiresPrescription: apiItem.product.requiresPrescription,
                   requiresColdChain: apiItem.product.requiresColdChain,
+                  hasShippingCharge: apiItem.product.hasShippingCharge,
                   imageUrl: apiItem.product.imageUrl,
                 },
               };
@@ -200,7 +202,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const coldChainFee = hasColdChain ? 3000 : 0; // ৳30.00
-  const estDeliveryFee = 7000; // ৳70.00 Inside Dhaka
+
+  // If ALL items in the cart have hasShippingCharge === false, shipping is free
+  const allFreeShipping = items.length > 0 && items.every((item) => item.product.hasShippingCharge === false);
+  const estDeliveryFee = allFreeShipping ? 0 : 7000; // ৳70.00 Inside Dhaka
   const grandTotal = subtotal + coldChainFee + estDeliveryFee;
 
   return (

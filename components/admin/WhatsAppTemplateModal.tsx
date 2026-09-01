@@ -39,13 +39,13 @@ export function WhatsAppTemplateModal({ isOpen, onClose, context, locale }: Prop
     switch (type) {
       case 'confirmation':
         return isBn
-          ? `আসসালামু আলাইকুম ${name},\nVetMart BD থেকে আপনার অর্ডারটি (#${orderNo}) গ্রহণ করা হয়েছে।\n\n📦 পণ্য: ${context.itemsSummary}\n💰 মোট প্রদেয় (COD): ৳${total}\n📍 ডেলিভারি ঠিকানা: ${context.recipientAddress}\n\nআপনার ঠিকানা ও অর্ডারটি সঠিক থাকলে অনুগ্রহ করে 'হ্যাঁ/Confirm' লিখে রিপ্লাই দিন। ধন্যবাদ!\n- VetMart হেল্পলাইন: 01700-000000`
-          : `Hello ${name},\nThank you for placing your order (#${orderNo}) with VetMart BD.\n\n📦 Items: ${context.itemsSummary}\n💰 Total COD: ৳${total}\n📍 Delivery Address: ${context.recipientAddress}\n\nPlease reply with 'YES' to confirm dispatch. Thank you!\n- VetMart Care Team`;
+          ? `আসসালামু আলাইকুম ${name},\nVetMart BD থেকে আপনার অর্ডারটি (#${orderNo}) গ্রহণ করা হয়েছে।\n\n📦 পণ্য: ${context.itemsSummary}\n💰 মোট প্রদেয় (COD): ৳${total}\n📍 ডেলিভারি ঠিকানা: ${context.recipientAddress}\n\nআপনার ঠিকানা ও অর্ডারটি সঠিক থাকলে অনুগ্রহ করে 'হ্যাঁ/Confirm' লিখে রিপ্লাই দিন। ধন্যবাদ!\n- VetMart হেল্পলাইন: 01353920501`
+          : `Hello ${name},\nThank you for placing your order (#${orderNo}) with VetMart BD.\n\n📦 Items: ${context.itemsSummary}\n💰 Total COD: ৳${total}\n📍 Delivery Address: ${context.recipientAddress}\n\nPlease reply with 'YES' to confirm dispatch. Thank you!\n- VetMart Care Team: 01353920501`;
 
       case 'advance_fee':
         return isBn
-          ? `আসসালামু আলাইকুম ${name},\nVetMart BD-তে আপনার অর্ডার (#${orderNo}) নিশ্চিতকরণের জন্য ডেলিভারি চার্জ বাবদ ৳১৩০ অগ্রিম প্রদান করতে হবে।\n\n📲 বিকাশ/নগদ মার্চেন্ট নম্বর: 01700-000000 (Make Payment)\nরেফারেন্সে আপনার অর্ডার নম্বর (${orderNo}) লিখুন।\n\nপেমেন্ট সম্পন্ন করে TrxID পাঠালে পার্সেলটি কুরিয়ারে দ্রুত বুকিং করে দেওয়া হবে। ধন্যবাদ!`
-          : `Hello ${name},\nTo confirm order (#${orderNo}) for shipping outside Dhaka, an advance delivery charge of ৳130 is required.\n\n📲 bKash/Nagad Merchant: 01700-000000 (Payment)\nReference: ${orderNo}\n\nPlease share your TrxID after payment to dispatch immediately. Thank you!`;
+          ? `আসসালামু আলাইকুম ${name},\nVetMart BD-তে আপনার অর্ডার (#${orderNo}) নিশ্চিতকরণের জন্য ডেলিভারি চার্জ বাবদ ৳১৩০ অগ্রিম প্রদান করতে হবে।\n\n📲 বিকাশ/নগদ মার্চেন্ট নম্বর: 01353920501 (Make Payment)\nরেফারেন্সে আপনার অর্ডার নম্বর (${orderNo}) লিখুন।\n\nপেমেন্ট সম্পন্ন করে TrxID পাঠালে পার্সেলটি কুরিয়ারে দ্রুত বুকিং করে দেওয়া হবে। ধন্যবাদ!`
+          : `Hello ${name},\nTo confirm order (#${orderNo}) for shipping outside Dhaka, an advance delivery charge of ৳130 is required.\n\n📲 bKash/Nagad Merchant: 01353920501 (Payment)\nReference: ${orderNo}\n\nPlease share your TrxID after payment to dispatch immediately. Thank you!`;
 
       case 'dispatched':
         return isBn

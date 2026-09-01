@@ -6,10 +6,12 @@ import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
 import {
   updateProduct,
+  deleteProduct,
   ProductNotFoundError,
 } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { requireAdmin } from '@/lib/api/guard';
+import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -52,6 +54,28 @@ export async function PUT(req: NextRequest, { params }: Props) {
     return apiSuccess(updated);
   } catch (err) {
     return toErrorResponse(err, 'PRODUCT_UPDATE_FAILED', 'Failed to update product');
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: Props) {
+  // Only SuperAdmins can delete products
+  const auth = await getAuthenticatedAdmin();
+  if (!auth) return apiError('UNAUTHORIZED', 'You must be logged in as an admin', 401);
+  if (!auth.permissions.has('*')) {
+    return apiError('FORBIDDEN', 'Only SuperAdmin can permanently delete products', 403);
+  }
+
+  const { id } = await params;
+
+  try {
+    const result = await deleteProduct(id);
+    return apiSuccess(result);
+  } catch (err: any) {
+    // If it's a foreign key constraint error (e.g. order_items depend on this product)
+    if (err?.code === '23503') {
+      return apiError('CANNOT_DELETE', 'Cannot delete product because it has been ordered. Please deactivate it instead.', 409);
+    }
+    return toErrorResponse(err, 'PRODUCT_DELETE_FAILED', 'Failed to delete product');
   }
 }
 

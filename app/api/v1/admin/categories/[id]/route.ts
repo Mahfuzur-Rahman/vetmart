@@ -5,6 +5,8 @@ import { eq, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { deleteCategory } from '@/lib/services/categories';
+import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -44,6 +46,46 @@ export async function PUT(req: NextRequest, { params }: Props) {
   } catch (err: any) {
     console.error('[Admin Category Update] Error:', err);
     return apiError('CATEGORY_UPDATE_FAILED', err?.message || 'Failed to update category', 500);
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: Props) {
+  const auth = await getAuthenticatedAdmin();
+  if (!auth) return apiError('UNAUTHORIZED', 'You must be logged in as an admin', 401);
+  if (!auth.permissions.has('*')) {
+    return apiError('FORBIDDEN', 'Only SuperAdmin can permanently delete categories', 403);
+  }
+
+  const { id } = await params;
+  
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let targetId = id;
+
+    if (!isUuid) {
+      const [existing] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.slug, id));
+      
+      if (!existing) return apiError('NOT_FOUND', 'Category not found', 404);
+      targetId = existing.id;
+    }
+
+    const result = await deleteCategory(targetId);
+    return apiSuccess(result);
+  } catch (err: any) {
+    if (err.message === 'CATEGORY_NOT_FOUND') {
+      return apiError('NOT_FOUND', 'Category not found', 404);
+    }
+    if (err.message === 'CANNOT_DELETE_HAS_PRODUCTS') {
+      return apiError('CANNOT_DELETE', 'Cannot delete category because it has active products.', 409);
+    }
+    if (err.message === 'CANNOT_DELETE_HAS_SUBCATEGORIES') {
+      return apiError('CANNOT_DELETE', 'Cannot delete category because it has subcategories.', 409);
+    }
+    console.error('[Admin Category Delete] Error:', err);
+    return apiError('CATEGORY_DELETE_FAILED', 'Failed to delete category', 500);
   }
 }
 

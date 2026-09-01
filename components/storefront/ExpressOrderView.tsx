@@ -47,14 +47,11 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   const [syncedFromProduct, setSyncedFromProduct] = useState<ExpressProduct>(initialProduct);
   const [quantity, setQuantity] = useState<number>(1);
 
-  // Customer Delivery Info
+  // Customer Delivery Info — only Phone, Name, Address collected.
+  // Division, district, upazila, payment method kept as defaults; admins fill in later.
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [division, setDivision] = useState('Dhaka');
-  const [district, setDistrict] = useState('Dhaka');
-  const [upazila, setUpazila] = useState('');
   const [address, setAddress] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash' | 'nagad'>('cod');
 
   // The product is resolved server-side from the database. It is never merged
   // with localStorage: a device-local override here would let one browser order
@@ -87,9 +84,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   const coldChainFee = isCold ? 3000 : 0; // ৳30
   const deliveryFee = selectedProduct.hasShippingCharge === false
     ? 0
-    : division === 'Dhaka'
-      ? (selectedProduct.shippingInsideDhaka ?? 7000)
-      : (selectedProduct.shippingOutsideDhaka ?? 13000); // paisa
+    : (selectedProduct.shippingInsideDhaka ?? 7000); // paisa — default Dhaka rate, admin adjusts later
   const totalAmount = subtotal + coldChainFee + deliveryFee;
   const savings = Math.max(0, (selectedProduct.mrp - selectedProduct.salePrice) * quantity);
 
@@ -101,7 +96,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
     const cleanedPhone = sanitizeBdPhone(phone);
     if (!isValidBdPhone(cleanedPhone)) return;
 
-    const currentHash = `${cleanedPhone}-${name}-${address}-${district}-${selectedProduct.id}-${quantity}-${totalAmount}`;
+    const currentHash = `${cleanedPhone}-${name}-${address}-${selectedProduct.id}-${quantity}-${totalAmount}`;
     if (currentHash === lastSyncHash.current) return;
 
     setSyncStatus('syncing');
@@ -127,9 +122,8 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
         phone: cleanedPhone,
         name: name.trim() || null,
         address: address.trim() || null,
-        division,
-        district,
-        upazila: upazila.trim() || null,
+        division: 'Dhaka',
+        district: 'Dhaka',
         items: [leadItem],
         subtotal,
         deliveryFee,
@@ -169,7 +163,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [phone, name, address, division, district, upazila, selectedProduct, quantity, totalAmount, leadDraftId, utmSource, utmCampaign, utmMedium]);
+  }, [phone, name, address, selectedProduct, quantity, totalAmount, leadDraftId, utmSource, utmCampaign, utmMedium]);
 
   // Submit Final Express Order
   //
@@ -209,11 +203,8 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
           items: [{ productId: selectedProduct.id, slug: selectedProduct.slug, qty: quantity }],
           recipientName: name.trim() || (isBn ? 'সম্মানিত খামারি' : 'Valued Customer'),
           phone,
-          division,
-          district,
-          upazila,
           addressLine: address,
-          paymentMethod: paymentMethod === 'cod' ? 'cod' : 'sslcommerz',
+          paymentMethod: 'cod',
           sourceChannel: 'social_direct_order',
           utmSource,
           utmCampaign,
@@ -236,9 +227,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
         customerName: name.trim(),
         customerPhone: phone,
         recipientAddress: address,
-        district,
-        division,
-        paymentMethod,
+        paymentMethod: 'cod',
         items: [
           {
             productNameEn: selectedProduct.nameEn,
@@ -307,7 +296,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">{isBn ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</span>
             <span className="font-bold text-emerald-600 uppercase">
-              {paymentMethod === 'cod' ? (isBn ? 'ক্যাশ অন ডেলিভারি (COD)' : 'Cash on Delivery') : paymentMethod}
+              {isBn ? 'ক্যাশ অন ডেলিভারি (COD)' : 'Cash on Delivery'}
             </span>
           </div>
           <div className="flex justify-between items-center border-t border-border pt-2 text-sm font-extrabold">
@@ -564,79 +553,30 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
 
               <div>
                 <label className="block text-xs font-bold text-foreground mb-1.5">
-                  {isBn ? 'আপনার নাম / খামারের নাম' : 'Full Name / Farm Name'}{' '}
+                  {isBn ? 'আপনার নাম' : 'Your Name'}{' '}
                   <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={isBn ? 'উদাঃ ডা. আনিসুর রহমান / আলম পোল্ট্রি' : 'e.g. Dr. Anisur Rahman'}
+                  placeholder={isBn ? 'উদাঃ আনিসুর রহমান' : 'e.g. Anisur Rahman'}
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm font-medium text-foreground focus:ring-2 focus:ring-emerald-500 outline-hidden"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">
-                  {isBn ? 'বিভাগ' : 'Division'}
-                </label>
-                <select
-                  value={division}
-                  onChange={(e) => setDivision(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-xs font-bold text-foreground cursor-pointer"
-                >
-                  <option value="Dhaka">Dhaka (ঢাকা)</option>
-                  <option value="Chattogram">Chattogram (চট্টগ্রাম)</option>
-                  <option value="Rajshahi">Rajshahi (রাজশাহী)</option>
-                  <option value="Khulna">Khulna (খুলনা)</option>
-                  <option value="Mymensingh">Mymensingh (ময়মনসিংহ)</option>
-                  <option value="Sylhet">Sylhet (সিলেট)</option>
-                  <option value="Rangpur">Rangpur (রংপুর)</option>
-                  <option value="Barishal">Barishal (বরিশাল)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">
-                  {isBn ? 'জেলা' : 'District'} <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  placeholder={isBn ? 'উদাঃ গাজীপুর, কুমিল্লা' : 'e.g. Gazipur'}
-                  required
-                  className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-xs font-medium text-foreground"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">
-                  {isBn ? 'উপজেলা / থানা' : 'Upazila / Thana'}
-                </label>
-                <input
-                  type="text"
-                  value={upazila}
-                  onChange={(e) => setUpazila(e.target.value)}
-                  placeholder={isBn ? 'উদাঃ জয়দেবপুর' : 'e.g. Joydebpur'}
-                  className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-xs font-medium text-foreground"
-                />
-              </div>
-            </div>
-
             <div>
               <label className="block text-xs font-bold text-foreground mb-1.5">
-                {isBn ? 'পূর্ণাঙ্গ ঠিকানা (গ্রাম / সড়ক / বাজার / বাড়ি)' : 'Full Delivery Address'}{' '}
+                {isBn ? 'পূর্ণাঙ্গ ঠিকানা (গ্রাম/সড়ক/জেলা/বিভাগসহ)' : 'Full Delivery Address (with District & Division)'}{' '}
                 <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder={isBn ? 'উদাঃ মাস্টার পাড়া, রহমান ডেইরি ফার্ম, বাজার সংলগ্ন' : 'e.g. Master Para, Near Central Mosque'}
+                placeholder={isBn ? 'উদাঃ মাস্টার পাড়া, জয়দেবপুর, গাজীপুর, ঢাকা' : 'e.g. Master Para, Joydebpur, Gazipur, Dhaka'}
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm font-medium text-foreground"
               />
@@ -672,11 +612,7 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                 <span>
                   {deliveryFee === 0
                     ? (isBn ? '🚚 ফ্রি ডেলিভারি' : '🚚 Free Delivery')
-                    : isBn
-                      ? division === 'Dhaka'
-                        ? 'ডেলিভারি চার্জ (ঢাকার ভিতরে)'
-                        : 'ডেলিভারি চার্জ (ঢাকার বাইরে)'
-                      : `Shipping Fee (${division})`}
+                    : (isBn ? 'ডেলিভারি চার্জ' : 'Shipping Fee')}
                 </span>
                 <span className={`font-bold font-display ${deliveryFee === 0 ? 'text-emerald-600' : 'text-foreground'}`}>
                   {deliveryFee === 0
@@ -702,60 +638,11 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
 
             {/* Payment Method Selector */}
             <div className="space-y-2.5 pt-2 border-t border-border">
-              <label className="block text-xs font-bold text-foreground">
-                {isBn ? 'পেমেন্ট মাধ্যম বেছে নিন:' : 'Payment Method:'}
-              </label>
-
-              <div className="space-y-2">
-                <label
-                  onClick={() => setPaymentMethod('cod')}
-                  className={`flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                    paymentMethod === 'cod'
-                      ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30'
-                      : 'border-border hover:border-emerald-500/50'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="express_payment"
-                    checked={paymentMethod === 'cod'}
-                    onChange={() => setPaymentMethod('cod')}
-                    className="accent-emerald-600"
-                  />
-                  <div>
-                    <span className="font-bold text-xs text-foreground block">
-                      {isBn ? '💵 ক্যাশ অন ডেলিভারি (COD)' : 'Cash on Delivery'}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground block">
-                      {isBn ? 'পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন' : 'Pay when you receive the product'}
-                    </span>
-                  </div>
-                </label>
-
-                <label
-                  onClick={() => setPaymentMethod('bkash')}
-                  className={`flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                    paymentMethod === 'bkash'
-                      ? 'border-pink-600 bg-pink-50/50 dark:bg-pink-950/30'
-                      : 'border-border hover:border-pink-500/50'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="express_payment"
-                    checked={paymentMethod === 'bkash'}
-                    onChange={() => setPaymentMethod('bkash')}
-                    className="accent-pink-600"
-                  />
-                  <div>
-                    <span className="font-bold text-xs text-foreground block">
-                      bKash (বিকাশ)
-                    </span>
-                    <span className="text-[10px] text-muted-foreground block">
-                      {isBn ? 'ইনস্ট্যান্ট মোবাইল ওয়ালেট পেমেন্ট' : 'Instant mobile wallet payment'}
-                    </span>
-                  </div>
-                </label>
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
+                <span>💵</span>
+                <span className="font-bold">
+                  {isBn ? 'পেমেন্ট: ক্যাশ অন ডেলিভারি (COD) — পণ্য পেয়ে মূল্য পরিশোধ করুন' : 'Payment: Cash on Delivery (COD) — Pay when you receive'}
+                </span>
               </div>
             </div>
 
@@ -784,6 +671,15 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                 ? 'অর্ডার নিশ্চিত করুন (ক্যাশ অন ডেলিভারি) →'
                 : 'Confirm Express Order (COD) →'}
             </button>
+
+            <div className="text-center pt-2 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                {isBn ? 'জরুরি অর্ডার বা পরামর্শের জন্য কল করুন:' : 'Urgent order or consultation call:'}{' '}
+                <a href="tel:01353920501" className="font-bold text-emerald-600 hover:underline">
+                  {isBn ? '০১৩৫৩৯২০৫০১' : '01353920501'}
+                </a>
+              </p>
+            </div>
 
             <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
               <span>🔒 SSL সিকিউরড</span>

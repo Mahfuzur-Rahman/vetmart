@@ -5,6 +5,8 @@ import { eq, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { speciesCategories } from '@/lib/db/schema';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { getAuthenticatedAdmin } from '@/lib/auth/permissions';
+import { deleteSpecies } from '@/lib/services/species-server';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -49,6 +51,43 @@ export async function PUT(req: NextRequest, { params }: Props) {
   } catch (err: any) {
     console.error('[Admin Species Update] Error:', err);
     return apiError('SPECIES_UPDATE_FAILED', err?.message || 'Failed to update species', 500);
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: Props) {
+  const auth = await getAuthenticatedAdmin();
+  if (!auth) return apiError('UNAUTHORIZED', 'You must be logged in as an admin', 401);
+  if (!auth.permissions.has('*')) {
+    return apiError('FORBIDDEN', 'Only SuperAdmin can permanently delete species', 403);
+  }
+
+  const { id } = await params;
+  
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let targetId = id;
+
+    if (!isUuid) {
+      const [existing] = await db
+        .select({ id: speciesCategories.id })
+        .from(speciesCategories)
+        .where(or(eq(speciesCategories.key, id), eq(speciesCategories.slug, id)));
+      
+      if (!existing) return apiError('NOT_FOUND', 'Species not found', 404);
+      targetId = existing.id;
+    }
+
+    const result = await deleteSpecies(targetId);
+    return apiSuccess(result);
+  } catch (err: any) {
+    if (err.message === 'SPECIES_NOT_FOUND') {
+      return apiError('NOT_FOUND', 'Species not found', 404);
+    }
+    if (err.message === 'CANNOT_DELETE_HAS_PRODUCTS') {
+      return apiError('CANNOT_DELETE', 'Cannot delete species because it has active products.', 409);
+    }
+    console.error('[Admin Species Delete] Error:', err);
+    return apiError('SPECIES_DELETE_FAILED', 'Failed to delete species', 500);
   }
 }
 
