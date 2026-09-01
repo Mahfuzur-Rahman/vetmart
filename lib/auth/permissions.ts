@@ -2,12 +2,14 @@
 // Granular Permission-based RBAC for Admin Panel (§14.1)
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { admins, adminRoles, roles, rolePermissions, permissions } from '@/lib/db/schema';
+import { admins, adminRoles, roles, rolePermissions, permissions, adminPermissions } from '@/lib/db/schema';
 import { getAdminSessionId } from './session';
 
 export type PermissionKey =
   | 'product.read'
   | 'product.write'
+  | 'category.read'
+  | 'category.write'
   | 'stock.read'
   | 'stock.adjust'
   | 'order.read'
@@ -24,17 +26,7 @@ export type PermissionKey =
 
 /**
  * Fetch all distinct permission keys granted to an admin operator.
- *
- * Roles are resolved FIRST, in their own query.
- *
- * The previous version resolved roles and permissions in a single chain of
- * inner joins through role_permissions and permissions, and only checked for
- * super_admin while iterating the resulting rows. Both of those tables are
- * empty (scripts/seed.ts never populated them), so the join returned zero rows
- * and even a super admin came back with an EMPTY permission set — meaning every
- * admin write would be refused with 403. Making the super-admin check depend on
- * the granular permission catalog being seeded was the bug; a role assignment
- * is sufficient on its own.
+ * Resolves both role-based grants and direct user-level grants.
  */
 export async function getAdminPermissions(adminId: string): Promise<Set<string>> {
   const assignedRoles = await db
@@ -61,7 +53,22 @@ export async function getAdminPermissions(adminId: string): Promise<Set<string>>
       )
     );
 
-  return new Set(grantedRows.map((r) => r.permissionKey));
+  const rolePermKeys = grantedRows.map((r) => r.permissionKey);
+
+  // Direct user-level permission grants
+  let directPermKeys: string[] = [];
+  try {
+    const directRows = await db
+      .select({ permissionKey: permissions.key })
+      .from(adminPermissions)
+      .innerJoin(permissions, eq(adminPermissions.permissionId, permissions.id))
+      .where(eq(adminPermissions.adminId, adminId));
+    directPermKeys = directRows.map((r) => r.permissionKey);
+  } catch (err) {
+    // If admin_permissions table is not yet created in a test env, silently continue
+  }
+
+  return new Set([...rolePermKeys, ...directPermKeys]);
 }
 
 /**

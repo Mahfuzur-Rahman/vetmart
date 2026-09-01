@@ -74,6 +74,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: '⚙️',
     permission: 'settings.read',
   },
+  {
+    label: { en: 'Admin Management', bn: 'অ্যাডমিন ব্যবস্থাপনা' },
+    href: '/admin/admins',
+    icon: '🛡️',
+    permission: 'admin.manage',
+  },
 ];
 
 export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarProps) {
@@ -225,10 +231,10 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
               <span className="text-sm font-medium text-[#2F3437] block truncate">{adminName}</span>
               <span className="text-[10px] text-[#787774] block">
                 {permissions.includes('*')
-                  ? 'Super Admin'
-                  : locale === 'bn'
-                  ? 'অপারেটর'
-                  : 'Operator'}
+                  ? locale === 'bn' ? 'সুপার অ্যাডমিন' : 'Super Admin'
+                  : permissions.includes('settings.read') || permissions.includes('admin.manage')
+                  ? locale === 'bn' ? 'অ্যাডমিন' : 'Admin'
+                  : locale === 'bn' ? 'অপারেটর' : 'Operator'}
               </span>
             </div>
             <button

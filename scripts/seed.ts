@@ -31,12 +31,24 @@ async function seed() {
 
   const db = drizzle(sql, { schema });
 
+  // Ensure admin_permissions table exists
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_permissions (
+      admin_id uuid NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+      permission_id uuid NOT NULL REFERENCES permissions(id) ON DELETE CASCADE
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS admin_permissions_admin_idx ON admin_permissions(admin_id)
+  `;
+
   // 1. Roles & Permissions (§14.1)
   console.log('1️⃣ Seeding Roles & Permissions...');
   const rolesData = [
-    { key: 'super_admin', nameEn: 'Super Admin', nameBn: 'সুপার অ্যাডমিন', description: 'Full access to all system features' },
+    { key: 'super_admin', nameEn: 'Super Admin', nameBn: 'সুপার অ্যাডমিন', description: 'Full access to all system features (*)' },
+    { key: 'admin', nameEn: 'Store Admin', nameBn: 'স্টোর অ্যাডমিন', description: 'Full operational access to catalog, stock, orders, customers, and settings' },
     { key: 'pharmacist', nameEn: 'Registered Pharmacist', nameBn: 'নিবন্ধিত ফার্মাসিস্ট', description: 'Prescription review & Rx orders' },
-    { key: 'inventory', nameEn: 'Inventory Manager', nameBn: 'ইনভেন্টরি ম্যানেজার', description: 'Products, batches, stock adjustments' },
+    { key: 'inventory', nameEn: 'Inventory Manager', nameBn: 'ইনভেন্টরি ম্যানেজার', description: 'Products, categories, batches, stock adjustments' },
     { key: 'order_ops', nameEn: 'Order Operations', nameBn: 'অর্ডার অপারেশনস', description: 'Order processing & courier dispatch' },
     { key: 'content', nameEn: 'Content & CMS', nameBn: 'কনটেন্ট ও অনুবাদ', description: 'Banners, translations, categories' },
     { key: 'accounts', nameEn: 'Accounts', nameBn: 'হিসাব শাখা', description: 'Invoices, reports and payments' },
@@ -47,11 +59,10 @@ async function seed() {
     await db.insert(schema.roles).values(r).onConflictDoNothing();
   }
 
-  // Permission catalog + role grants (§14.1). These were never seeded, so the
-  // permissions and role_permissions tables sat empty and every non-super-admin
-  // role resolved to zero permissions.
+  // Permission catalog + role grants (§14.1)
   const permissionKeys = [
     'product.read', 'product.write',
+    'category.read', 'category.write',
     'stock.read', 'stock.adjust',
     'order.read', 'order.write', 'order.refund',
     'prescription.read', 'prescription.approve',
@@ -68,12 +79,22 @@ async function seed() {
   // Super admin is resolved from the role assignment itself and needs no rows
   // here (see lib/auth/permissions.ts), so it is deliberately absent.
   const roleGrants: Record<string, string[]> = {
-    pharmacist: ['product.read', 'order.read', 'prescription.read', 'prescription.approve', 'customer.read'],
-    inventory: ['product.read', 'product.write', 'stock.read', 'stock.adjust', 'order.read'],
-    order_ops: ['product.read', 'order.read', 'order.write', 'order.refund', 'customer.read', 'stock.read'],
-    content: ['product.read', 'translation.write', 'settings.read'],
-    accounts: ['order.read', 'product.read', 'settings.read'],
-    support: ['order.read', 'customer.read', 'product.read'],
+    admin: [
+      'product.read', 'product.write',
+      'category.read', 'category.write',
+      'stock.read', 'stock.adjust',
+      'order.read', 'order.write', 'order.refund',
+      'prescription.read', 'prescription.approve',
+      'customer.read', 'customer.write',
+      'settings.read', 'settings.write',
+      'translation.write',
+    ],
+    pharmacist: ['product.read', 'category.read', 'order.read', 'prescription.read', 'prescription.approve', 'customer.read'],
+    inventory: ['product.read', 'product.write', 'category.read', 'category.write', 'stock.read', 'stock.adjust', 'order.read'],
+    order_ops: ['product.read', 'category.read', 'order.read', 'order.write', 'order.refund', 'customer.read', 'stock.read'],
+    content: ['product.read', 'product.write', 'category.read', 'category.write', 'translation.write', 'settings.read'],
+    accounts: ['order.read', 'order.refund', 'product.read', 'category.read', 'settings.read'],
+    support: ['order.read', 'customer.read', 'customer.write', 'product.read', 'category.read', 'prescription.read'],
   };
 
   const allRoles = await db.select().from(schema.roles);
@@ -466,9 +487,10 @@ async function seed() {
   const { hashPassword, hashOtp } = await import('../lib/auth/hash');
 
   const superAdminRole = await db.query.roles.findFirst({ where: (r, { eq }) => eq(r.key, 'super_admin') });
+  const adminRole = await db.query.roles.findFirst({ where: (r, { eq }) => eq(r.key, 'admin') });
   const inventoryRole = await db.query.roles.findFirst({ where: (r, { eq }) => eq(r.key, 'inventory') });
 
-  if (superAdminRole && inventoryRole) {
+  if (superAdminRole && (adminRole || inventoryRole)) {
     // Superadmin
     const [sa] = await db.insert(schema.admins).values({
       email: 'superadmin@vetmart.bd',
@@ -477,14 +499,18 @@ async function seed() {
       isActive: true,
     }).onConflictDoNothing().returning();
 
-    if (sa) {
+    const saRecord = sa ?? (await db.query.admins.findFirst({
+      where: (a, { eq }) => eq(a.email, 'superadmin@vetmart.bd'),
+    }));
+
+    if (saRecord) {
       await db.insert(schema.adminRoles).values({
-        adminId: sa.id,
+        adminId: saRecord.id,
         roleId: superAdminRole.id,
       }).onConflictDoNothing();
     }
 
-    // Admin (Limited Access)
+    // Admin (Store Operations & Inventory)
     const [ad] = await db.insert(schema.admins).values({
       email: 'admin@vetmart.bd',
       name: 'Admin (DB)',
@@ -492,11 +518,23 @@ async function seed() {
       isActive: true,
     }).onConflictDoNothing().returning();
 
-    if (ad) {
-      await db.insert(schema.adminRoles).values({
-        adminId: ad.id,
-        roleId: inventoryRole.id,
-      }).onConflictDoNothing();
+    const adRecord = ad ?? (await db.query.admins.findFirst({
+      where: (a, { eq }) => eq(a.email, 'admin@vetmart.bd'),
+    }));
+
+    if (adRecord) {
+      if (adminRole) {
+        await db.insert(schema.adminRoles).values({
+          adminId: adRecord.id,
+          roleId: adminRole.id,
+        }).onConflictDoNothing();
+      }
+      if (inventoryRole) {
+        await db.insert(schema.adminRoles).values({
+          adminId: adRecord.id,
+          roleId: inventoryRole.id,
+        }).onConflictDoNothing();
+      }
     }
   }
 
@@ -511,6 +549,14 @@ async function seed() {
     bvcRegNo: 'BVC-REG-10492',
     isActive: true,
   }).onConflictDoNothing();
+
+  console.log('\n🔍 Verifying Admin Permissions:');
+  const allAdmins = await db.select().from(schema.admins);
+  const { getAdminPermissions } = await import('../lib/auth/permissions');
+  for (const a of allAdmins) {
+    const perms = await getAdminPermissions(a.id);
+    console.log(`- ${a.email} (${a.name}): [ ${Array.from(perms).join(', ')} ]`);
+  }
 
   console.log('✅ VetMart BD seeding finished successfully!');
   await sql.end();

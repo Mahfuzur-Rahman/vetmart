@@ -89,6 +89,13 @@ export const adminRoles = pgTable('admin_roles', {
   index('admin_roles_admin_idx').on(t.adminId),
 ]);
 
+export const adminPermissions = pgTable('admin_permissions', {
+  adminId: uuid('admin_id').references(() => admins.id, { onDelete: 'cascade' }).notNull(),
+  permissionId: uuid('permission_id').references(() => permissions.id, { onDelete: 'cascade' }).notNull(),
+}, (t) => [
+  index('admin_permissions_admin_idx').on(t.adminId),
+]);
+
 // 5. Audit Log (Mandatory for every mutation §14.4)
 export const auditLog = pgTable('audit_log', {
   id: uuid('id').defaultRandom().primaryKey(),
