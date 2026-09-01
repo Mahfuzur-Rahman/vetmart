@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   productCreateSchema,
+  productUpdateSchema,
   buildProductRow,
   buildBatchRow,
   BATCH_REQUIRED_PRODUCT_TYPES,
@@ -181,5 +182,115 @@ describe('buildBatchRow()', () => {
   it('carries the received quantity through to the batch', () => {
     const input = productCreateSchema.parse(validDrugInput({ stockQty: 60 }));
     expect(buildBatchRow(input, 'prod-uuid')!.qtyReceived).toBe(60);
+  });
+});
+
+describe('productUpdateSchema & Active/Inactive Toggling', () => {
+  it('accepts isActive: false to deactivate a product', () => {
+    const result = productUpdateSchema.safeParse({ isActive: false });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBe(false);
+    }
+  });
+
+  it('accepts isActive: true to re-activate a product', () => {
+    const result = productUpdateSchema.safeParse({ isActive: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBe(true);
+    }
+  });
+
+  it('leaves isActive undefined when not specified in update', () => {
+    const result = productUpdateSchema.safeParse({ nameEn: 'Updated Product Name' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBeUndefined();
+    }
+  });
+
+  it('defaults isActive to true in productCreateSchema when omitted', () => {
+    const result = productCreateSchema.safeParse(validDrugInput());
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBe(true);
+      const row = buildProductRow(result.data);
+      expect(row.isActive).toBe(true);
+    }
+  });
+
+  it('preserves isActive: false in buildProductRow when explicitly created inactive', () => {
+    const result = productCreateSchema.safeParse(validDrugInput({ isActive: false }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBe(false);
+      const row = buildProductRow(result.data);
+      expect(row.isActive).toBe(false);
+    }
+  });
+
+  it('accepts imageKey: null on productUpdateSchema when saving changes without changing image', () => {
+    const result = productUpdateSchema.safeParse({
+      nameEn: 'Updated Cal-D-Mag Plus',
+      nameBn: 'আপডেটেড ক্যাল-ডি-ম্যাগ',
+      genericName: 'Calcium + Vitamin D3',
+      mrp: 55000,
+      salePrice: 50000,
+      imageKey: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.imageKey).toBeUndefined();
+      expect(result.data.nameEn).toBe('Updated Cal-D-Mag Plus');
+    }
+  });
+
+  it('accepts imageKey: "" on productUpdateSchema', () => {
+    const result = productUpdateSchema.safeParse({
+      nameEn: 'Updated Product',
+      imageKey: '',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.imageKey).toBeUndefined();
+    }
+  });
+
+  it('accepts imageKey: null on productCreateSchema for default image creation', () => {
+    const result = productCreateSchema.safeParse(validDrugInput({ imageKey: null }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.imageKey).toBeUndefined();
+    }
+  });
+
+  it('accepts a complete admin edit payload with strings, prices, categories, and null imageKey', () => {
+    const editPayload = {
+      nameEn: 'Beximco Cal-D-Mag Plus Vet Liquid 1L',
+      nameBn: 'বেক্সিমকো ক্যাল-ডি-ম্যাগ প্লাস ভেট লিকুইড ১ লিটার',
+      genericName: 'Calcium + Magnesium + Vitamin D3',
+      categorySlug: 'vitamins-minerals',
+      drugClassificationSlug: 'vitamins',
+      manufacturerName: 'Beximco Pharmaceuticals Ltd',
+      targetSpecies: ['cattle', 'poultry'],
+      mrp: 52000,
+      salePrice: 47500,
+      batchNo: 'B-BEX-9042',
+      expiryDate: '2027-10-31',
+      mfgDate: '2025-10-01',
+      dgdaRegNo: 'DAR-012-441-098',
+      stockQty: 60,
+      requiresPrescription: false,
+      requiresColdChain: false,
+      hasShippingCharge: true,
+      shippingInsideDhaka: 7000,
+      shippingOutsideDhaka: 13000,
+      imageKey: null,
+      isActive: true,
+    };
+
+    const result = productUpdateSchema.safeParse(editPayload);
+    expect(result.success).toBe(true);
   });
 });

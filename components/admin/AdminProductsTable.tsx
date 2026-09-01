@@ -157,6 +157,7 @@ export function AdminProductsTable({ locale }: Props) {
   // Open Edit modal with selected product's values
   const handleOpenEdit = (prod: MockProduct) => {
     setEditingProduct(prod);
+    setErrorMessage(null);
     setNameEn(prod.nameEn);
     setNameBn(prod.nameBn || prod.nameEn);
     setGenericName(prod.genericName || '');
@@ -167,8 +168,8 @@ export function AdminProductsTable({ locale }: Props) {
     setMrp((prod.mrp / 100).toFixed(2));
     setSalePrice((prod.salePrice / 100).toFixed(2));
     setBatchNo(prod.batchNo || 'B-BATCH-001');
-    setExpiryDate(prod.expiryDate || '2027-12-31');
-    setMfgDate(prod.mfgDate || '2025-01-01');
+    setExpiryDate(prod.expiryDate ? (prod.expiryDate.includes('T') ? prod.expiryDate.split('T')[0] : prod.expiryDate) : '2027-12-31');
+    setMfgDate(prod.mfgDate ? (prod.mfgDate.includes('T') ? prod.mfgDate.split('T')[0] : prod.mfgDate) : '2025-01-01');
     setDgdaRegNo(prod.dgdaRegNo || '');
     setInitialStock(String(prod.stockQty ?? 50));
     setRequiresRx(!!prod.requiresPrescription);
@@ -184,6 +185,7 @@ export function AdminProductsTable({ locale }: Props) {
   // Open Enroll modal with fresh/default values
   const handleOpenEnroll = () => {
     setEditingProduct(null);
+    setErrorMessage(null);
     setNameEn('Beximco Cal-D-Mag Plus Vet Liquid 1L');
     setNameBn('বেক্সিমকো ক্যাল-ডি-ম্যাগ প্লাস ভেট লিকুইড ১ লিটার');
     setGenericName('Calcium + Magnesium + Vitamin D3');
@@ -266,6 +268,7 @@ export function AdminProductsTable({ locale }: Props) {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     const selectedDc = availableDrugClasses.find((d) => d.slug === drugClassification);
     const selectedCat = availableCategories.find((c) => c.slug === category);
@@ -327,6 +330,7 @@ export function AdminProductsTable({ locale }: Props) {
 
           await refreshProducts();
           setEditingProduct(null);
+          window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
           setToastMessage(isBn ? `পণ্য '${updatedProduct.nameBn}' সফলভাবে আপডেট করা হয়েছে!` : `Product '${updatedProduct.nameEn}' successfully updated!`);
           setTimeout(() => setToastMessage(null), 4000);
         } catch (err) {
@@ -399,6 +403,7 @@ export function AdminProductsTable({ locale }: Props) {
 
           await refreshProducts();
           setIsEnrollOpen(false);
+          window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
           setToastMessage(isBn ? `পণ্য '${newProduct.nameBn}' সফলভাবে তালিকাভুক্ত হয়েছে!` : `Item '${newProduct.nameEn}' successfully enrolled!`);
           setTimeout(() => setToastMessage(null), 4000);
         } catch (err) {
@@ -425,7 +430,8 @@ export function AdminProductsTable({ locale }: Props) {
           ? `পণ্য '${prod.nameBn}' ${prod.isActive ? 'নিষ্ক্রিয়' : 'সক্রিয়'} করা হয়েছে!`
           : `Product '${prod.nameEn}' is now ${prod.isActive ? 'Inactive' : 'Active'}!`
       );
-      refreshProducts();
+      await refreshProducts();
+      window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to update product status');
     }
@@ -440,6 +446,8 @@ export function AdminProductsTable({ locale }: Props) {
 
     const matchesType =
       typeFilter === 'all' ||
+      (typeFilter === 'active' && p.isActive !== false) ||
+      (typeFilter === 'inactive' && p.isActive === false) ||
       (typeFilter === 'rx' && p.requiresPrescription) ||
       (typeFilter === 'otc' && !p.requiresPrescription) ||
       (typeFilter === 'cold' && p.coldChain);
@@ -543,6 +551,8 @@ export function AdminProductsTable({ locale }: Props) {
             className="px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer"
           >
             <option value="all">{isBn ? 'সকল ধরন' : 'All Products'} ({products.length})</option>
+            <option value="active">{isBn ? 'সক্রিয় পণ্য' : 'Active Only'}</option>
+            <option value="inactive">{isBn ? 'নিষ্ক্রিয় পণ্য' : 'Inactive Only'}</option>
             <option value="rx">Rx Required</option>
             <option value="otc">OTC Products</option>
             <option value="cold">❄️ Cold Chain</option>
@@ -587,7 +597,7 @@ export function AdminProductsTable({ locale }: Props) {
                 </tr>
               ) : (
                 filtered.map((prod) => (
-                  <tr key={prod.id} className="hover:bg-[#F9F9F8] transition-colors group">
+                  <tr key={prod.id} className={`hover:bg-[#F9F9F8] transition-colors group ${!prod.isActive ? 'bg-slate-50/70 opacity-75' : ''}`}>
                     <td className="px-4 py-3.5 font-mono text-xs font-bold text-emerald-700">
                       {prod.sku}
                     </td>
@@ -600,7 +610,14 @@ export function AdminProductsTable({ locale }: Props) {
                           </div>
                         )}
                         <div>
-                          <div className="font-bold text-[#2F3437] text-xs">{isBn ? prod.nameBn : prod.nameEn}</div>
+                          <div className="font-bold text-[#2F3437] text-xs flex items-center gap-1.5">
+                            <span>{isBn ? prod.nameBn : prod.nameEn}</span>
+                            {!prod.isActive && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-semibold text-[9px] border border-slate-200">
+                                {isBn ? 'নিষ্ক্রিয়' : 'Inactive'}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-[#787774] flex items-center gap-1.5 flex-wrap mt-0.5">
                             <span>{prod.manufacturerName}</span>
                             {prod.drugClassificationSlug && (
@@ -637,7 +654,12 @@ export function AdminProductsTable({ locale }: Props) {
                       <div className="text-[10px] text-amber-700">{prod.expiryDate || '2027-12-31'}</div>
                     </td>
                     <td className="px-4 py-3.5 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {!prod.isActive && (
+                          <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-bold" title={isBn ? 'পণ্য নিষ্ক্রিয়' : 'Inactive Product'}>
+                            {isBn ? 'নিষ্ক্রিয়' : 'Inactive'}
+                          </span>
+                        )}
                         {prod.requiresPrescription && (
                           <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold" title="Prescription Required">
                             Rx

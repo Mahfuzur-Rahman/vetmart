@@ -9,6 +9,7 @@ import {
   manufacturers,
   productBatches,
   stockLedger,
+  drugClassifications,
 } from '@/lib/db/schema';
 import { getStorageDriver } from '@/lib/storage';
 import { getProductStockSummary } from './stock';
@@ -228,7 +229,9 @@ export class ProductNotFoundError extends Error {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function productLookup(idOrSlug: string) {
-  return UUID_RE.test(idOrSlug) ? eq(products.id, idOrSlug) : eq(products.slug, idOrSlug);
+  return UUID_RE.test(idOrSlug)
+    ? or(eq(products.id, idOrSlug), eq(products.slug, idOrSlug))
+    : or(eq(products.slug, idOrSlug), eq(products.sku, idOrSlug));
 }
 
 /**
@@ -245,9 +248,52 @@ export async function createProduct(rawInput: unknown) {
   const productRow = buildProductRow(input);
 
   return db.transaction(async (tx) => {
+    let categoryId: string | null = null;
+    if (input.categorySlug) {
+      const [cat] = await tx
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.slug, input.categorySlug))
+        .limit(1);
+      if (cat) categoryId = cat.id;
+    }
+
+    let drugClassificationId: string | null = null;
+    if (input.drugClassificationSlug) {
+      const [dc] = await tx
+        .select({ id: drugClassifications.id })
+        .from(drugClassifications)
+        .where(eq(drugClassifications.slug, input.drugClassificationSlug))
+        .limit(1);
+      if (dc) drugClassificationId = dc.id;
+    }
+
+    let manufacturerId: string | null = null;
+    if (input.manufacturerName) {
+      const [mfg] = await tx
+        .select({ id: manufacturers.id })
+        .from(manufacturers)
+        .where(eq(manufacturers.name, input.manufacturerName))
+        .limit(1);
+      if (mfg) {
+        manufacturerId = mfg.id;
+      } else {
+        const [newMfg] = await tx
+          .insert(manufacturers)
+          .values({ name: input.manufacturerName })
+          .returning({ id: manufacturers.id });
+        if (newMfg) manufacturerId = newMfg.id;
+      }
+    }
+
     const [inserted] = await tx
       .insert(products)
-      .values(productRow)
+      .values({
+        ...productRow,
+        categoryId,
+        drugClassificationId,
+        manufacturerId,
+      })
       .returning({ id: products.id, slug: products.slug, sku: products.sku });
 
     if (!inserted) throw new Error('Product insert returned no row');
@@ -295,7 +341,12 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ id: products.id, slug: products.slug })
+      .select({
+        id: products.id,
+        slug: products.slug,
+        nameEn: products.nameEn,
+        genericName: products.genericName,
+      })
       .from(products)
       .where(productLookup(idOrSlug))
       .limit(1);
@@ -329,10 +380,59 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
     assign('hasShippingCharge', 'hasShippingCharge');
     assign('shippingInsideDhaka', 'shippingInsideDhaka');
     assign('shippingOutsideDhaka', 'shippingOutsideDhaka');
+    assign('isActive', 'isActive');
     if (input.dgdaRegNo !== undefined) patch.dgdaRegistrationNo = input.dgdaRegNo;
+
+    // Resolve Category ID from slug if supplied
+    if (input.categorySlug) {
+      const [cat] = await tx
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.slug, input.categorySlug))
+        .limit(1);
+      if (cat) patch.categoryId = cat.id;
+    }
+
+    // Resolve Drug Classification ID from slug if supplied
+    if (input.drugClassificationSlug) {
+      const [dc] = await tx
+        .select({ id: drugClassifications.id })
+        .from(drugClassifications)
+        .where(eq(drugClassifications.slug, input.drugClassificationSlug))
+        .limit(1);
+      if (dc) patch.drugClassificationId = dc.id;
+    }
+
+    // Resolve or upsert Manufacturer ID from name if supplied
+    if (input.manufacturerName) {
+      const [mfg] = await tx
+        .select({ id: manufacturers.id })
+        .from(manufacturers)
+        .where(eq(manufacturers.name, input.manufacturerName))
+        .limit(1);
+      if (mfg) {
+        patch.manufacturerId = mfg.id;
+      } else {
+        const [newMfg] = await tx
+          .insert(manufacturers)
+          .values({ name: input.manufacturerName })
+          .returning({ id: manufacturers.id });
+        if (newMfg) patch.manufacturerId = newMfg.id;
+      }
+    }
+
+    // Update Banglish keywords if name or generic name changed
+    if (input.banglishKeywords !== undefined) {
+      patch.banglishKeywords = input.banglishKeywords.toLowerCase().trim();
+    } else if (input.nameEn !== undefined || input.genericName !== undefined) {
+      const nEn = input.nameEn ?? existing.nameEn;
+      const gN = input.genericName ?? existing.genericName ?? '';
+      patch.banglishKeywords = `${nEn} ${gN}`.toLowerCase().trim();
+    }
 
     await tx.update(products).set(patch).where(eq(products.id, existing.id));
 
+    // Update image if a new imageKey is supplied
     if (input.imageKey) {
       const [existingImg] = await tx
         .select({ id: productImages.id })
@@ -350,9 +450,50 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
         await tx.insert(productImages).values({
           productId: existing.id,
           basePath: input.imageKey,
-          altEn: input.nameEn ?? '',
-          altBn: input.nameBn ?? '',
+          altEn: input.nameEn ?? existing.nameEn,
+          altBn: input.nameBn ?? existing.nameEn,
         });
+      }
+    }
+
+    // Update batch info if provided
+    if (input.batchNo || input.expiryDate || input.mfgDate) {
+      const [existingBatch] = await tx
+        .select({ id: productBatches.id })
+        .from(productBatches)
+        .where(eq(productBatches.productId, existing.id))
+        .limit(1);
+
+      if (existingBatch) {
+        const batchPatch: Record<string, unknown> = {};
+        if (input.batchNo) batchPatch.batchNo = input.batchNo;
+        if (input.expiryDate) batchPatch.expiryDate = input.expiryDate;
+        if (input.mfgDate) batchPatch.mfgDate = input.mfgDate;
+        await tx.update(productBatches).set(batchPatch).where(eq(productBatches.id, existingBatch.id));
+      } else if (input.batchNo && input.expiryDate) {
+        const [newBatch] = await tx
+          .insert(productBatches)
+          .values({
+            productId: existing.id,
+            batchNo: input.batchNo,
+            expiryDate: input.expiryDate,
+            mfgDate: input.mfgDate ?? new Date(),
+            qtyReceived: input.stockQty ?? 0,
+            costPrice: Math.round((input.salePrice ?? 0) * 0.75),
+            supplierId: input.manufacturerName || 'Primary Distributor',
+          })
+          .returning({ id: productBatches.id });
+
+        if (newBatch && (input.stockQty ?? 0) > 0) {
+          await tx.insert(stockLedger).values({
+            productId: existing.id,
+            batchId: newBatch.id,
+            delta: input.stockQty!,
+            reason: 'adjust',
+            refType: 'admin_initial',
+            refId: input.batchNo,
+          });
+        }
       }
     }
 

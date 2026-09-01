@@ -64,15 +64,19 @@ const dateFromAnyScript = z.preprocess((v) => {
  * res.cloudinary.com URL in the database turns the eventual media migration
  * into a data-repair project.
  */
-const storageKey = z
-  .string()
-  .trim()
-  .min(1)
-  .refine((v) => !/^https?:\/\//i.test(v), {
-    message:
-      'imageKey must be a storage key such as "vetmart/products/abc123", not a full URL. ' +
-      'Storing a CDN URL breaks the local-media migration.',
-  });
+const storageKey = z.preprocess(
+  (v) => (v === null || v === '' ? undefined : v),
+  z
+    .string()
+    .trim()
+    .min(1)
+    .refine((v) => !/^https?:\/\//i.test(v), {
+      message:
+        'imageKey must be a storage key such as "vetmart/products/abc123", not a full URL. ' +
+        'Storing a CDN URL breaks the local-media migration.',
+    })
+    .optional()
+);
 
 export const productCreateSchema = z
   .object({
@@ -104,6 +108,7 @@ export const productCreateSchema = z
     requiresColdChain: z.coerce.boolean().default(false),
     requiresPrescription: z.coerce.boolean().default(false),
     isAntimicrobial: z.coerce.boolean().default(false),
+    isActive: z.coerce.boolean().optional().default(true),
 
     // Money is integer paisa end to end (§2 rule 5).
     mrp: integerFromAnyScript('MRP'),
@@ -119,7 +124,7 @@ export const productCreateSchema = z
     expiryDate: dateFromAnyScript.optional(),
     stockQty: integerFromAnyScript('Stock quantity').optional().default(0),
 
-    imageKey: storageKey.optional(),
+    imageKey: storageKey,
     banglishKeywords: z.string().trim().optional(),
     descriptionEn: z.string().trim().optional(),
     descriptionBn: z.string().trim().optional(),
@@ -177,7 +182,7 @@ export const productUpdateSchema = productCreateSchema
   .innerType()
   .partial()
   .extend({
-    imageKey: storageKey.optional(),
+    imageKey: storageKey,
   });
 
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
@@ -231,7 +236,7 @@ export function buildProductRow(input: ProductCreateInput) {
     banglishKeywords:
       input.banglishKeywords?.toLowerCase() ||
       `${input.nameEn} ${input.genericName}`.toLowerCase().trim(),
-    isActive: true,
+    isActive: input.isActive !== undefined ? input.isActive : true,
   };
 }
 
