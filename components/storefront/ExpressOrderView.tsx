@@ -27,6 +27,9 @@ export interface ExpressProduct {
   manufacturerName?: string | null;
   withdrawalMeatDays?: number;
   withdrawalMilkHours?: number;
+  hasShippingCharge?: boolean;
+  shippingInsideDhaka?: number; // paisa
+  shippingOutsideDhaka?: number; // paisa
 }
 
 interface Props {
@@ -82,7 +85,11 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   const subtotal = unitPrice * quantity;
   const isCold = selectedProduct.requiresColdChain || selectedProduct.coldChain;
   const coldChainFee = isCold ? 3000 : 0; // ৳30
-  const deliveryFee = division === 'Dhaka' ? 7000 : 13000; // ৳70 inside Dhaka, ৳130 outside
+  const deliveryFee = selectedProduct.hasShippingCharge === false
+    ? 0
+    : division === 'Dhaka'
+      ? (selectedProduct.shippingInsideDhaka ?? 7000)
+      : (selectedProduct.shippingOutsideDhaka ?? 13000); // paisa
   const totalAmount = subtotal + coldChainFee + deliveryFee;
   const savings = Math.max(0, (selectedProduct.mrp - selectedProduct.salePrice) * quantity);
 
@@ -663,13 +670,19 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
 
               <div className="flex justify-between items-center text-muted-foreground">
                 <span>
-                  {isBn
-                    ? division === 'Dhaka'
-                      ? 'ডেলিভারি চার্জ (ঢাকার ভিতরে)'
-                      : 'ডেলিভারি চার্জ (ঢাকার বাইরে)'
-                    : `Shipping Fee (${division})`}
+                  {deliveryFee === 0
+                    ? (isBn ? '🚚 ফ্রি ডেলিভারি' : '🚚 Free Delivery')
+                    : isBn
+                      ? division === 'Dhaka'
+                        ? 'ডেলিভারি চার্জ (ঢাকার ভিতরে)'
+                        : 'ডেলিভারি চার্জ (ঢাকার বাইরে)'
+                      : `Shipping Fee (${division})`}
                 </span>
-                <span className="font-bold text-foreground font-display">{fmtMoney(deliveryFee, locale)}</span>
+                <span className={`font-bold font-display ${deliveryFee === 0 ? 'text-emerald-600' : 'text-foreground'}`}>
+                  {deliveryFee === 0
+                    ? (isBn ? 'ফ্রি ✓' : 'Free ✓')
+                    : fmtMoney(deliveryFee, locale)}
+                </span>
               </div>
 
               <div className="border-t border-border pt-3 flex justify-between items-baseline">

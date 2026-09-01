@@ -70,6 +70,9 @@ export function AdminProductsTable({ locale }: Props) {
   const [initialStock, setInitialStock] = useState('60');
   const [requiresRx, setRequiresRx] = useState(false);
   const [coldChain, setColdChain] = useState(false);
+  const [hasShippingCharge, setHasShippingCharge] = useState(true);
+  const [shippingInsideDhaka, setShippingInsideDhaka] = useState('70');
+  const [shippingOutsideDhaka, setShippingOutsideDhaka] = useState('130');
 
   // Image upload states
   const [imageUrl, setImageUrl] = useState('/images/cal-d-mag.jpg');
@@ -170,6 +173,9 @@ export function AdminProductsTable({ locale }: Props) {
     setInitialStock(String(prod.stockQty ?? 50));
     setRequiresRx(!!prod.requiresPrescription);
     setColdChain(!!(prod.coldChain || prod.requiresColdChain));
+    setHasShippingCharge(prod.hasShippingCharge !== false);
+    setShippingInsideDhaka(((prod.shippingInsideDhaka ?? 7000) / 100).toString());
+    setShippingOutsideDhaka(((prod.shippingOutsideDhaka ?? 13000) / 100).toString());
     setImageUrl(prod.imageUrl || '');
     setImageKey((prod as any).imageKey || null);
     setImageFileName(null);
@@ -194,6 +200,9 @@ export function AdminProductsTable({ locale }: Props) {
     setInitialStock('60');
     setRequiresRx(false);
     setColdChain(false);
+    setHasShippingCharge(true);
+    setShippingInsideDhaka('70');
+    setShippingOutsideDhaka('130');
     setImageUrl('/images/cal-d-mag.jpg');
     setImageKey(null);
     setImageFileName(null);
@@ -288,6 +297,9 @@ export function AdminProductsTable({ locale }: Props) {
           requiresPrescription: requiresRx,
           requiresColdChain: coldChain,
           coldChain,
+          hasShippingCharge,
+          shippingInsideDhaka: Math.round(parseFloat(shippingInsideDhaka || '70') * 100),
+          shippingOutsideDhaka: Math.round(parseFloat(shippingOutsideDhaka || '130') * 100),
           dgdaRegNo,
           batchNo,
           expiryDate,
@@ -351,6 +363,9 @@ export function AdminProductsTable({ locale }: Props) {
           requiresColdChain: coldChain,
           isAntimicrobial: false,
           coldChain,
+          hasShippingCharge,
+          shippingInsideDhaka: Math.round(parseFloat(shippingInsideDhaka || '70') * 100),
+          shippingOutsideDhaka: Math.round(parseFloat(shippingOutsideDhaka || '130') * 100),
           dgdaRegNo,
           batchNo,
           expiryDate,
@@ -1108,6 +1123,79 @@ export function AdminProductsTable({ locale }: Props) {
                   />
                   <span className="font-semibold text-[#2F3437]">❄️ Cold Chain Required</span>
                 </label>
+              </div>
+
+              {/* ═══ SHIPPING / DELIVERY CHARGE ═══ */}
+              <div className="space-y-2.5 p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200/70">
+                <label className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span>🚚</span>
+                    <span className="font-bold text-[#2F3437]">
+                      {isBn ? 'শিপিং / ডেলিভারি চার্জ' : 'Shipping / Delivery Charge'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold ${hasShippingCharge ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {hasShippingCharge
+                        ? (isBn ? 'ডেলিভারি চার্জ আছে' : 'Has Delivery Charge')
+                        : (isBn ? 'ফ্রি ডেলিভারি' : 'Free Delivery')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setHasShippingCharge(!hasShippingCharge)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                        hasShippingCharge ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                          hasShippingCharge ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </label>
+
+                {hasShippingCharge && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[#5F6368] font-bold mb-1 text-[11px]">
+                        {isBn ? 'ঢাকার ভিতরে (৳)' : 'Inside Dhaka (৳)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={shippingInsideDhaka}
+                        onChange={(e) => setShippingInsideDhaka(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 text-[#2F3437] font-mono font-bold focus:ring-2 focus:ring-amber-500/30"
+                        placeholder="70"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#5F6368] font-bold mb-1 text-[11px]">
+                        {isBn ? 'ঢাকার বাইরে (৳)' : 'Outside Dhaka (৳)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={shippingOutsideDhaka}
+                        onChange={(e) => setShippingOutsideDhaka(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 text-[#2F3437] font-mono font-bold focus:ring-2 focus:ring-amber-500/30"
+                        placeholder="130"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!hasShippingCharge && (
+                  <p className="text-[11px] text-emerald-700 font-medium">
+                    ✓ {isBn
+                      ? 'এই পণ্যে কোনো ডেলিভারি চার্জ প্রযোজ্য হবে না।'
+                      : 'No delivery charge will be applied for this product.'}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[#EAEAEA]">

@@ -74,6 +74,9 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     manufacturerName: p.manufacturer?.name || p.manufacturerName || 'Veterinary Formulary',
     withdrawalMeatDays: p.withdrawalMeatDays || 0,
     withdrawalMilkHours: p.withdrawalMilkHours || 0,
+    hasShippingCharge: p.hasShippingCharge !== false,
+    shippingInsideDhaka: p.shippingInsideDhaka ?? 7000,
+    shippingOutsideDhaka: p.shippingOutsideDhaka ?? 13000,
   };
 
   const dbRelated = await listProducts({ limit: 6 });
@@ -95,6 +98,9 @@ export default async function ExpressProductOrderPage({ params }: Props) {
     imageUrl: item.imageUrl,
     stock: 100,
     manufacturerName: item.manufacturerName || 'Veterinary Formulary',
+    hasShippingCharge: item.hasShippingCharge !== false,
+    shippingInsideDhaka: item.shippingInsideDhaka ?? 7000,
+    shippingOutsideDhaka: item.shippingOutsideDhaka ?? 13000,
   }));
 
   return (

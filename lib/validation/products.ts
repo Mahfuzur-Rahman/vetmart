@@ -109,6 +109,11 @@ export const productCreateSchema = z
     mrp: integerFromAnyScript('MRP'),
     salePrice: integerFromAnyScript('Sale price'),
 
+    // Per-product shipping/delivery charge
+    hasShippingCharge: z.coerce.boolean().default(true),
+    shippingInsideDhaka: integerFromAnyScript('Shipping inside Dhaka').optional().default(7000),
+    shippingOutsideDhaka: integerFromAnyScript('Shipping outside Dhaka').optional().default(13000),
+
     batchNo: z.string().trim().optional(),
     mfgDate: dateFromAnyScript.optional(),
     expiryDate: dateFromAnyScript.optional(),
@@ -218,6 +223,9 @@ export function buildProductRow(input: ProductCreateInput) {
     vatRate: '0.00',
     mrp: input.mrp,
     salePrice: input.salePrice,
+    hasShippingCharge: input.hasShippingCharge,
+    shippingInsideDhaka: input.shippingInsideDhaka,
+    shippingOutsideDhaka: input.shippingOutsideDhaka,
     // Latin-script keywords matter because a large share of BD users type
     // "gorur oshudh" rather than Bangla script (§20).
     banglishKeywords:

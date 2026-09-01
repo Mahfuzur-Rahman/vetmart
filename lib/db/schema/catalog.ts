@@ -140,6 +140,11 @@ export const products = pgTable('products', {
   mrp: integer('mrp').notNull(), // in integer paisa
   salePrice: integer('sale_price').notNull(), // in integer paisa
 
+  // Shipping / Delivery Charge (per-product override)
+  hasShippingCharge: boolean('has_shipping_charge').notNull().default(true),
+  shippingInsideDhaka: integer('shipping_inside_dhaka').notNull().default(7000), // paisa (৳70)
+  shippingOutsideDhaka: integer('shipping_outside_dhaka').notNull().default(13000), // paisa (৳130)
+
   // Search & Status
   banglishKeywords: text('banglish_keywords'), // e.g. "gorur oshudh, pet fula" (§20)
   isActive: boolean('is_active').notNull().default(true),

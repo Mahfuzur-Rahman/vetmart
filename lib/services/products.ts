@@ -60,6 +60,9 @@ export async function getProductBySlug(slug: string) {
       vatRate: products.vatRate,
       mrp: products.mrp,
       salePrice: products.salePrice,
+      hasShippingCharge: products.hasShippingCharge,
+      shippingInsideDhaka: products.shippingInsideDhaka,
+      shippingOutsideDhaka: products.shippingOutsideDhaka,
       isActive: products.isActive,
       category: {
         id: categories.id,
@@ -168,6 +171,9 @@ export async function listProducts(opts: ProductFilterOptions = {}) {
       requiresColdChain: products.requiresColdChain,
       mrp: products.mrp,
       salePrice: products.salePrice,
+      hasShippingCharge: products.hasShippingCharge,
+      shippingInsideDhaka: products.shippingInsideDhaka,
+      shippingOutsideDhaka: products.shippingOutsideDhaka,
       categoryNameEn: categories.nameEn,
       categoryNameBn: categories.nameBn,
       manufacturerName: manufacturers.name,
@@ -320,6 +326,9 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
     assign('isAntimicrobial', 'isAntimicrobial');
     assign('mrp', 'mrp');
     assign('salePrice', 'salePrice');
+    assign('hasShippingCharge', 'hasShippingCharge');
+    assign('shippingInsideDhaka', 'shippingInsideDhaka');
+    assign('shippingOutsideDhaka', 'shippingOutsideDhaka');
     if (input.dgdaRegNo !== undefined) patch.dgdaRegistrationNo = input.dgdaRegNo;
 
     await tx.update(products).set(patch).where(eq(products.id, existing.id));
