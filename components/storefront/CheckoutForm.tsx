@@ -21,6 +21,7 @@ export function CheckoutForm({ locale }: Props) {
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'bkash_direct' | 'sslcommerz'>('cod');
   
   // Submission & Lead Capture State
   const [isPlacing, setIsPlacing] = useState(false);
@@ -140,7 +141,7 @@ export function CheckoutForm({ locale }: Props) {
           recipientName: name.trim() || 'Valued Customer',
           phone: cleanedPhone,
           addressLine: address.trim(),
-          paymentMethod: 'cod',
+          paymentMethod: paymentMethod,
           sourceChannel: 'storefront_checkout',
         }),
       });
@@ -197,7 +198,9 @@ export function CheckoutForm({ locale }: Props) {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{isBn ? 'পেমেন্ট মাধ্যম:' : 'Payment Method:'}</span>
-            <span className="font-bold text-emerald-600 uppercase">COD</span>
+            <span className="font-bold text-emerald-600 uppercase">
+              {paymentMethod === 'cod' ? 'COD' : paymentMethod === 'bkash_direct' ? 'bKash' : 'SSLCommerz'}
+            </span>
           </div>
           <div className="flex justify-between border-t border-border pt-2 text-sm font-extrabold">
             <span>{isBn ? 'মোট পরিশোধিত:' : 'Total Amount:'}</span>
@@ -325,12 +328,42 @@ export function CheckoutForm({ locale }: Props) {
             />
           </div>
 
-          {/* Payment info note — COD is the default */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
-            <span>💵</span>
-            <span className="font-bold">
-              {isBn ? 'পেমেন্ট মাধ্যম: ক্যাশ অন ডেলিভারি (COD) — পণ্য পেয়ে মূল্য পরিশোধ করুন' : 'Payment: Cash on Delivery (COD) — Pay when you receive the product'}
-            </span>
+          {/* Payment Method Selector */}
+          <div className="border-t border-border pt-4 mt-4 space-y-3">
+            <h3 className="text-sm font-bold text-foreground">
+              {isBn ? 'পেমেন্ট মাধ্যম' : 'Payment Method'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-border bg-background hover:bg-secondary/50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" name="paymentMethod" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="accent-emerald-600 w-4 h-4" />
+                  <span className="font-bold text-sm">COD</span>
+                </div>
+                <span className="text-xs text-muted-foreground pl-6 leading-tight">
+                  {isBn ? 'ক্যাশ অন ডেলিভারি' : 'Cash on Delivery'}
+                </span>
+              </label>
+
+              <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'bkash_direct' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-border bg-background hover:bg-secondary/50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" name="paymentMethod" value="bkash_direct" checked={paymentMethod === 'bkash_direct'} onChange={() => setPaymentMethod('bkash_direct')} className="accent-emerald-600 w-4 h-4" />
+                  <span className="font-bold text-sm">bKash</span>
+                </div>
+                <span className="text-xs text-muted-foreground pl-6 leading-tight">
+                  {isBn ? 'বিকাশ অনলাইন পেমেন্ট' : 'Secure Mobile Pay'}
+                </span>
+              </label>
+
+              <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'sslcommerz' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-border bg-background hover:bg-secondary/50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" name="paymentMethod" value="sslcommerz" checked={paymentMethod === 'sslcommerz'} onChange={() => setPaymentMethod('sslcommerz')} className="accent-emerald-600 w-4 h-4" />
+                  <span className="font-bold text-sm">Card / Net</span>
+                </div>
+                <span className="text-xs text-muted-foreground pl-6 leading-tight">
+                  {isBn ? 'ডেবিট/ক্রেডিট কার্ড' : 'SSLCommerz'}
+                </span>
+              </label>
+            </div>
           </div>
         </div>
       </div>

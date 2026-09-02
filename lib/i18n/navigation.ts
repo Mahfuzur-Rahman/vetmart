@@ -10,6 +10,7 @@ export const routing = defineRouting({
   // / and /p/enroflox-100 → Bangla
   // /en/p/enroflox-100 → English
   localePrefix: 'as-needed',
+  localeDetection: false,
 });
 
 export const { Link, redirect, usePathname, useRouter, getPathname } =

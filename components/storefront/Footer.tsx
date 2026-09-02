@@ -96,15 +96,6 @@ export function Footer({ locale }: FooterProps) {
                     {locale === 'bn' ? 'গরু ও গবাদিপশু' : 'Cattle & livestock'}
                   </Link>
                 </li>
-                <li className="pt-1">
-                  <Link
-                    href="/admin"
-                    className="hover:text-primary transition-colors inline-flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
-                  >
-                    <span>🔐</span>
-                    <span>{locale === 'bn' ? 'স্টাফ ও অ্যাডমিন লগইন' : 'Staff & Admin Login'}</span>
-                  </Link>
-                </li>
               </ul>
             </div>
 
