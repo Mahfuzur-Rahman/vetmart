@@ -48,6 +48,10 @@ export interface CatalogSearchItem {
   categoryNameBn: string | null;
   manufacturerName: string | null;
   sellableStock: number;
+  stockQty?: number;
+  batchNo?: string;
+  expiryDate?: string;
+  mfgDate?: string;
   imageUrl?: string;
 }
 
@@ -162,6 +166,7 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
 
   const stockByProduct = new Map<string, number>();
   const imageByProduct = new Map<string, string>();
+  const batchByProduct = new Map<string, any>();
 
   if (productIds.length > 0) {
     const cutoff = new Date();
@@ -195,6 +200,24 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
       .where(inArray(productImages.productId, productIds))
       .orderBy(asc(productImages.sort));
 
+    // Fetch latest batch per product
+    const batchRows = await db
+      .select({
+        productId: productBatches.productId,
+        batchNo: productBatches.batchNo,
+        expiryDate: productBatches.expiryDate,
+        mfgDate: productBatches.mfgDate,
+      })
+      .from(productBatches)
+      .where(inArray(productBatches.productId, productIds))
+      .orderBy(desc(productBatches.createdAt));
+
+    for (const row of batchRows) {
+      if (!batchByProduct.has(row.productId)) {
+        batchByProduct.set(row.productId, row);
+      }
+    }
+
     // First row per product wins, matching the previous ORDER BY sort LIMIT 1.
     for (const row of imageRows) {
       if (!imageByProduct.has(row.productId) && row.basePath) {
@@ -205,9 +228,15 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
 
   const items: CatalogSearchItem[] = rows.map((row) => {
     const basePath = imageByProduct.get(row.id);
+    const batch = batchByProduct?.get(row.id);
+    const sellableStock = Math.max(0, stockByProduct.get(row.id) ?? 0);
     return {
       ...row,
-      sellableStock: Math.max(0, stockByProduct.get(row.id) ?? 0),
+      sellableStock,
+      stockQty: sellableStock,
+      batchNo: batch?.batchNo || undefined,
+      expiryDate: batch?.expiryDate ? new Date(batch.expiryDate).toISOString() : undefined,
+      mfgDate: batch?.mfgDate ? new Date(batch.mfgDate).toISOString() : undefined,
       imageUrl: basePath ? storage.url(basePath, 'card') : '/images/cal-d-mag.jpg',
     };
   });

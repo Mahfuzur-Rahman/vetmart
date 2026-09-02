@@ -100,6 +100,14 @@ export async function createShipmentForOrder(
     return { success: false, error: 'Order not found.' };
   }
 
+  if (order.status === 'placed' || order.status === 'confirmed') {
+    const advance = await transitionOrderStatus(orderId, 'processing', adminId, 'Auto-advanced for dispatch');
+    if (!advance.success) {
+      return { success: false, error: advance.error };
+    }
+    order.status = 'processing';
+  }
+
   if (order.status !== 'processing') {
     return { success: false, error: 'Order must be in "processing" status to create shipment.' };
   }
