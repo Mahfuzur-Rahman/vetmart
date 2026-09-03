@@ -97,6 +97,11 @@ export function CartView({ locale }: Props) {
                         ❄️ Cold Chain
                       </span>
                     )}
+                    {item.product.hasShippingCharge === false && (
+                      <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                        🚚 {isBn ? 'ফ্রি ডেলিভারি' : 'Free Delivery'}
+                      </span>
+                    )}
                   </div>
 
                   <Link href={`/products/${item.product.slug}`} className="hover:text-primary transition-colors block">

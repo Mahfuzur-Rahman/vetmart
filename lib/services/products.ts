@@ -456,10 +456,10 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
       }
     }
 
-    // Update batch info if provided
-    if (input.batchNo || input.expiryDate || input.mfgDate) {
+    // Update batch info and stock if provided
+    if (input.batchNo || input.expiryDate || input.mfgDate || input.stockQty !== undefined) {
       const [existingBatch] = await tx
-        .select({ id: productBatches.id })
+        .select({ id: productBatches.id, batchNo: productBatches.batchNo })
         .from(productBatches)
         .where(eq(productBatches.productId, existing.id))
         .limit(1);
@@ -469,14 +469,42 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
         if (input.batchNo) batchPatch.batchNo = input.batchNo;
         if (input.expiryDate) batchPatch.expiryDate = input.expiryDate;
         if (input.mfgDate) batchPatch.mfgDate = input.mfgDate;
-        await tx.update(productBatches).set(batchPatch).where(eq(productBatches.id, existingBatch.id));
-      } else if (input.batchNo && input.expiryDate) {
+        if (Object.keys(batchPatch).length > 0) {
+          await tx.update(productBatches).set(batchPatch).where(eq(productBatches.id, existingBatch.id));
+        }
+
+        // Adjust stock in the immutable ledger if stockQty was specified
+        if (input.stockQty !== undefined) {
+          const [stockRow] = await tx
+            .select({
+              total: dSql<number>`coalesce(sum(${stockLedger.delta}), 0)::int`,
+            })
+            .from(stockLedger)
+            .where(eq(stockLedger.batchId, existingBatch.id));
+
+          const currentStock = stockRow?.total ?? 0;
+          const delta = input.stockQty - currentStock;
+          if (delta !== 0) {
+            await tx.insert(stockLedger).values({
+              productId: existing.id,
+              batchId: existingBatch.id,
+              delta,
+              reason: 'adjust',
+              refType: 'admin_update',
+              refId: input.batchNo || existingBatch.batchNo || existingBatch.id,
+            });
+          }
+        }
+      } else if (input.batchNo || input.stockQty !== undefined) {
+        const batchNo = input.batchNo || `BAT-${Date.now().toString().slice(-6)}`;
+        const expiryDate = input.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
         const [newBatch] = await tx
           .insert(productBatches)
           .values({
             productId: existing.id,
-            batchNo: input.batchNo,
-            expiryDate: input.expiryDate,
+            batchNo,
+            expiryDate,
             mfgDate: input.mfgDate ?? new Date(),
             qtyReceived: input.stockQty ?? 0,
             costPrice: Math.round((input.salePrice ?? 0) * 0.75),
@@ -491,7 +519,7 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
             delta: input.stockQty!,
             reason: 'adjust',
             refType: 'admin_initial',
-            refId: input.batchNo,
+            refId: batchNo,
           });
         }
       }

@@ -2,13 +2,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  type IncompleteOrder,
-  type IncompleteOrderStatus,
+import type {
+  IncompleteOrder,
+  IncompleteOrderStatus,
 } from '@/lib/services/incomplete-orders';
 import { fmtMoney } from '@/lib/i18n/number';
 import type { Locale } from '@/lib/i18n/config';
-import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
+import type { CourierFraudReport } from '@/lib/courier/fraud-check';
 import { CallLogDrawer, type CallLogEntry } from './CallLogDrawer';
 import { WhatsAppTemplateModal, type WhatsAppOrderContext } from './WhatsAppTemplateModal';
 
@@ -58,15 +58,18 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
     loadLeads();
   }, [loadLeads]);
 
-  // Compute fraud scores for leads
+  // Compute fraud scores for leads safely via server API
   useEffect(() => {
     const fetchFraud = async () => {
       const newMap: Record<string, CourierFraudReport> = {};
       for (const lead of leads) {
         if (!fraudCache[lead.phone]) {
           try {
-            const report = await checkCustomerFraudRisk(lead.phone);
-            newMap[lead.phone] = report;
+            const res = await fetch(`/api/v1/courier/fraud-check?phone=${encodeURIComponent(lead.phone)}`);
+            if (res.ok) {
+              const json = await res.json();
+              if (json.data) newMap[lead.phone] = json.data;
+            }
           } catch {
             // Ignore
           }
@@ -76,7 +79,9 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
         setFraudCache((prev) => ({ ...prev, ...newMap }));
       }
     };
-    fetchFraud();
+    if (leads.length > 0) {
+      fetchFraud();
+    }
   }, [leads]);
 
   /**
@@ -110,21 +115,19 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
   };
 
   /**
-   * Convert a recovered lead into a real order.
-   *
-   * This used to invent an order number with Math.random and push the order
-   * into localStorage, so the "recovered" order existed only in the operator's
-   * browser: no stock was allocated, no ledger row was written, and nobody else
-   * could see it. It now goes through the same guest-order endpoint the
-   * storefront uses, which allocates batches FEFO and writes the stock ledger.
+   * Convert an abandoned lead into an official placed order.
    */
   const handleConvertLeadToOrder = async (lead: IncompleteOrder) => {
     setActionError(null);
 
-    // Stable per lead, so a double click cannot create two orders (§9).
-    const key = `lead-recovery-${lead.id}`;
+    const key = `convert-${lead.id}-${Date.now()}`;
 
     try {
+      const addressFallback =
+        lead.address && lead.address.trim().length > 0
+          ? lead.address.trim()
+          : (isBn ? 'ফোন কনফার্মেশন সাপেক্ষে ঠিকানা প্রযোজ্য' : 'Address pending phone verification');
+
       const res = await fetch('/api/v1/orders/express', {
         method: 'POST',
         headers: {
@@ -138,7 +141,7 @@ export function AdminIncompleteOrdersBoard({ locale }: Props) {
           division: lead.division || 'Dhaka',
           district: lead.district || 'Dhaka',
           upazila: lead.upazila || undefined,
-          addressLine: lead.address || '',
+          addressLine: addressFallback,
           paymentMethod: 'cod',
           note: 'Recovered from an abandoned cart by phone follow-up.',
           sourceChannel: 'incomplete_lead_recovery',

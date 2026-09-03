@@ -2,6 +2,7 @@
 // Live Courier Webhook Listener (§12, §14)
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
+import { processSteadfastWebhook } from '@/lib/services/fulfillment';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,31 +15,33 @@ export async function POST(req: NextRequest) {
     const payload = await req.json();
     const { consignment_id, tracking_code, status, invoice, collected_amount } = payload;
 
-    if (!consignment_id && !tracking_code && !invoice) {
+    const cid = consignment_id ? String(consignment_id) : (tracking_code ? String(tracking_code) : '');
+    if (!cid && !invoice) {
       return NextResponse.json({ error: 'Missing identifying courier data' }, { status: 400 });
     }
 
-    // Map Steadfast status to internal order status
-    let internalStatus: 'dispatched' | 'delivered' | 'cancelled' | 'returned' = 'dispatched';
-    const s = String(status || '').toLowerCase();
+    const courierStatus = String(status || '').toLowerCase();
 
-    if (s.includes('deliver') || s === 'completed') {
-      internalStatus = 'delivered';
-    } else if (s.includes('return')) {
-      internalStatus = 'returned';
-    } else if (s.includes('cancel')) {
-      internalStatus = 'cancelled';
-    }
+    // Call service layer to update database and transition order
+    const result = await processSteadfastWebhook({
+      consignmentId: cid,
+      trackingCode: tracking_code ? String(tracking_code) : undefined,
+      status: courierStatus,
+      raw: payload,
+    });
 
     // Log the incoming webhook event
-    console.log(`[Courier Webhook] Consignment #${consignment_id} (Invoice: ${invoice}) -> Status: ${internalStatus}, Collected: ৳${collected_amount || 0}`);
+    console.log(
+      `[Courier Webhook] Consignment #${cid} (Invoice: ${invoice}) -> Status: ${courierStatus}, Collected: ৳${collected_amount || 0}, Updated: ${result.success}`
+    );
 
     return NextResponse.json({
       success: true,
       received: {
-        consignmentId: String(consignment_id),
+        consignmentId: cid,
         trackingCode: tracking_code,
-        internalStatus,
+        courierStatus,
+        applied: result.success,
         processedAt: new Date().toISOString(),
       },
     });

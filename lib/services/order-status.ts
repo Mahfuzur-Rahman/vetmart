@@ -4,6 +4,8 @@
 /** The status vocabulary the admin board renders. */
 export type AdminOrderStatus =
   | 'pending'
+  | 'confirmed'
+  | 'processing'
   | 'pharmacist_review'
   | 'dispatched'
   | 'delivered'
@@ -41,19 +43,22 @@ export interface MockOrder {
   paymentStatus: 'paid' | 'unpaid' | 'pending' | string;
   requiresRx: boolean;
   rxApproved?: boolean;
+  courierConsignmentId?: string;
+  trackingCode?: string;
+  dispatchedAt?: string;
+  courierStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 /**
- * The database has a finer-grained status enum than the board shows (§6). Map
- * in one place so the two vocabularies cannot drift.
+ * The database status enum mapped to board vocabulary (§6).
  */
 export const DB_TO_BOARD_STATUS: Record<string, AdminOrderStatus> = {
   placed: 'pending',
   awaiting_rx_review: 'pharmacist_review',
-  confirmed: 'pending',
-  processing: 'pending',
+  confirmed: 'confirmed',
+  processing: 'processing',
   shipped: 'dispatched',
   delivered: 'delivered',
   cancelled: 'cancelled',
@@ -62,7 +67,9 @@ export const DB_TO_BOARD_STATUS: Record<string, AdminOrderStatus> = {
 
 /** Inverse mapping, used when the board drives a status change. */
 export const BOARD_TO_DB_STATUS: Record<AdminOrderStatus, string> = {
-  pending: 'confirmed',
+  pending: 'placed',
+  confirmed: 'confirmed',
+  processing: 'processing',
   pharmacist_review: 'awaiting_rx_review',
   dispatched: 'shipped',
   delivered: 'delivered',

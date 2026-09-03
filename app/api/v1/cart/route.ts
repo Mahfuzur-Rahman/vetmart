@@ -40,17 +40,29 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await resolveUser(req);
-    const sessionId = req.cookies.get('vetmart_guest_session')?.value;
+    let sessionId = req.cookies.get('vetmart_guest_session')?.value;
+    let shouldSetCookie = false;
 
     if (!user && !sessionId) {
-      return apiError('SESSION_REQUIRED', 'A guest session or login is required to use the cart.', 401);
+      sessionId = crypto.randomUUID();
+      shouldSetCookie = true;
     }
 
     const cartId = await findOrCreateCart(user?.id, sessionId ?? undefined);
     await addToCart(cartId, parsed.data.productId, parsed.data.qty);
 
     const cart = await getCartView(cartId);
-    return apiSuccess(cart);
+    const response = apiSuccess(cart);
+    if (shouldSetCookie && sessionId) {
+      response.cookies.set('vetmart_guest_session', sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60,
+      });
+    }
+    return response;
   } catch (err: any) {
     return apiError('CART_ADD_FAILED', err?.message || 'Failed to add item to cart', 500);
   }

@@ -2,7 +2,7 @@
 // Order read models for the admin board and customer history (§2 rule 1, §6)
 import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { orders, orderItems, products } from '@/lib/db/schema';
+import { orders, orderItems, products, shipments } from '@/lib/db/schema';
 import { DB_TO_BOARD_STATUS, type AdminOrderStatus } from './order-status';
 
 export { BOARD_TO_DB_STATUS, DB_TO_BOARD_STATUS } from './order-status';
@@ -37,6 +37,10 @@ export interface AdminOrderView {
   paymentMethod: string;
   paymentStatus: string;
   requiresRx: boolean;
+  courierConsignmentId?: string;
+  trackingCode?: string;
+  dispatchedAt?: string;
+  courierStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +61,8 @@ export async function listOrdersForAdmin(limit = 100): Promise<AdminOrderView[]>
 
   if (orderRows.length === 0) return [];
 
+  const orderIds = orderRows.map((o) => o.id);
+
   // One batched query for all line items rather than one per order.
   const itemRows = await db
     .select({
@@ -73,7 +79,7 @@ export async function listOrdersForAdmin(limit = 100): Promise<AdminOrderView[]>
     })
     .from(orderItems)
     .leftJoin(products, eq(orderItems.productId, products.id))
-    .where(inArray(orderItems.orderId, orderRows.map((o) => o.id)));
+    .where(inArray(orderItems.orderId, orderIds));
 
   const itemsByOrder = new Map<string, AdminOrderItemView[]>();
   for (const row of itemRows) {
@@ -92,8 +98,29 @@ export async function listOrdersForAdmin(limit = 100): Promise<AdminOrderView[]>
     itemsByOrder.set(row.orderId, list);
   }
 
+  // One batched query for shipments to link consignment & tracking info
+  const shipmentRows = await db
+    .select({
+      orderId: shipments.orderId,
+      consignmentId: shipments.consignmentId,
+      trackingCode: shipments.trackingCode,
+      status: shipments.status,
+      createdAt: shipments.createdAt,
+    })
+    .from(shipments)
+    .where(inArray(shipments.orderId, orderIds))
+    .orderBy(desc(shipments.createdAt));
+
+  const shipmentByOrder = new Map<string, (typeof shipmentRows)[0]>();
+  for (const s of shipmentRows) {
+    if (!shipmentByOrder.has(s.orderId)) {
+      shipmentByOrder.set(s.orderId, s);
+    }
+  }
+
   return orderRows.map((o) => {
     const snapshot = (o.addressSnapshot ?? {}) as Record<string, string | null>;
+    const shipment = shipmentByOrder.get(o.id);
 
     return {
       id: o.id,
@@ -116,6 +143,10 @@ export async function listOrdersForAdmin(limit = 100): Promise<AdminOrderView[]>
       paymentMethod: o.paymentMethod,
       paymentStatus: o.paymentStatus,
       requiresRx: !!o.rxId || o.status === 'awaiting_rx_review',
+      courierConsignmentId: shipment?.consignmentId,
+      trackingCode: shipment?.trackingCode,
+      dispatchedAt: shipment?.createdAt ? shipment.createdAt.toISOString() : undefined,
+      courierStatus: shipment?.status,
       createdAt: o.placedAt.toISOString(),
       updatedAt: (o.confirmedAt ?? o.placedAt).toISOString(),
     };

@@ -13,12 +13,12 @@ type OrderStatus = 'placed' | 'awaiting_rx_review' | 'confirmed' | 'processing' 
 
 // Valid status transitions (§5.5)
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  placed: ['processing', 'cancelled', 'confirmed'],
-  awaiting_rx_review: ['processing', 'cancelled'],
-  confirmed: ['processing', 'cancelled'],
-  processing: ['shipped', 'cancelled'],
-  shipped: ['delivered', 'returned'],
-  delivered: [],
+  placed: ['confirmed', 'processing', 'cancelled'],
+  awaiting_rx_review: ['processing', 'cancelled', 'confirmed'],
+  confirmed: ['processing', 'shipped', 'cancelled', 'placed'],
+  processing: ['shipped', 'delivered', 'cancelled', 'confirmed'],
+  shipped: ['delivered', 'returned', 'cancelled'],
+  delivered: ['returned'],
   cancelled: [],
   returned: [],
 };
@@ -48,6 +48,12 @@ export async function transitionOrderStatus(
   }
 
   const currentStatus = order.status as OrderStatus;
+
+  // Idempotent: transitioning to current status is a no-op success
+  if (currentStatus === toStatus) {
+    return { success: true };
+  }
+
   const allowed = VALID_TRANSITIONS[currentStatus];
   if (!allowed || !allowed.includes(toStatus)) {
     return {
@@ -98,6 +104,21 @@ export async function createShipmentForOrder(
 
   if (!order) {
     return { success: false, error: 'Order not found.' };
+  }
+
+  // Check if shipment already exists
+  const [existingShipment] = await db
+    .select()
+    .from(shipments)
+    .where(eq(shipments.orderId, orderId))
+    .limit(1);
+
+  if (existingShipment) {
+    return {
+      success: true,
+      consignmentId: existingShipment.consignmentId,
+      trackingCode: existingShipment.trackingCode,
+    };
   }
 
   if (order.status === 'placed' || order.status === 'confirmed') {
@@ -329,15 +350,24 @@ export interface SteadfastWebhookInput {
 export async function processSteadfastWebhook(
   input: SteadfastWebhookInput
 ): Promise<TransitionResult> {
-  // Find the shipment by consignment ID
-  const [shipment] = await db
+  // Find the shipment by consignment ID or tracking code
+  let [shipment] = await db
     .select()
     .from(shipments)
     .where(eq(shipments.consignmentId, input.consignmentId))
     .limit(1);
 
+  if (!shipment && input.trackingCode) {
+    const [byTracking] = await db
+      .select()
+      .from(shipments)
+      .where(eq(shipments.trackingCode, input.trackingCode))
+      .limit(1);
+    shipment = byTracking;
+  }
+
   if (!shipment) {
-    return { success: false, error: `Shipment not found for consignment ${input.consignmentId}` };
+    return { success: false, error: `Shipment not found for consignment "${input.consignmentId}"` };
   }
 
   // Update shipment record with latest status and raw payload

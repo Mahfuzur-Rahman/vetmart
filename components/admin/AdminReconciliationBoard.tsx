@@ -118,6 +118,26 @@ export function AdminReconciliationBoard({ locale }: Props) {
   const [selectedRecord, setSelectedRecord] = useState<CourierSettlementRecord | null>(null);
   const [bankTrxInput, setBankTrxInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/v1/admin/reconciliation')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data && Array.isArray(json.data) && json.data.length > 0) {
+          setRecords(json.data);
+        }
+      })
+      .catch((err) => console.error('Failed to load reconciliation records:', err))
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Financial aggregates
   const totalBookedCodPaisa = records.reduce((sum, r) => sum + r.bookedCodPaisa, 0);

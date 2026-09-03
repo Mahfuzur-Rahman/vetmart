@@ -17,6 +17,8 @@ export interface CartProduct {
   requiresColdChain?: boolean;
   coldChain?: boolean;
   hasShippingCharge?: boolean;
+  shippingInsideDhaka?: number;
+  shippingOutsideDhaka?: number;
   imageUrl?: string | null;
   sellableStock?: number;
   stock?: number;
@@ -118,10 +120,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                   requiresPrescription: apiItem.product.requiresPrescription,
                   requiresColdChain: apiItem.product.requiresColdChain,
                   hasShippingCharge: apiItem.product.hasShippingCharge,
+                  shippingInsideDhaka: apiItem.product.shippingInsideDhaka,
+                  shippingOutsideDhaka: apiItem.product.shippingOutsideDhaka,
                   imageUrl: apiItem.product.imageUrl,
                 },
               };
             });
+          });
+        } else if (items.length > 0) {
+          // If local items exist but no server cart, refresh product details from API
+          // so prices, stock, and hasShippingCharge reflect latest DB changes
+          Promise.all(
+            items.map(async (item) => {
+              try {
+                const res = await fetch(`/api/v1/products/${item.product.slug}`);
+                if (res.ok) {
+                  const pj = await res.json();
+                  if (pj.data) {
+                    return {
+                      ...item,
+                      product: {
+                        ...item.product,
+                        salePrice: pj.data.salePrice ?? item.product.salePrice,
+                        mrp: pj.data.mrp ?? item.product.mrp,
+                        hasShippingCharge: pj.data.hasShippingCharge,
+                        shippingInsideDhaka: pj.data.shippingInsideDhaka,
+                        shippingOutsideDhaka: pj.data.shippingOutsideDhaka,
+                      },
+                    };
+                  }
+                }
+              } catch {
+                // Ignore per-product refresh failure
+              }
+              return item;
+            })
+          ).then((refreshed) => {
+            setItems(refreshed);
           });
         }
       })
@@ -205,7 +240,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // If ALL items in the cart have hasShippingCharge === false, shipping is free
   const allFreeShipping = items.length > 0 && items.every((item) => item.product.hasShippingCharge === false);
-  const estDeliveryFee = allFreeShipping ? 0 : 7000; // ৳70.00 Inside Dhaka
+  const estDeliveryFee = items.length === 0 || allFreeShipping ? 0 : 7000; // ৳70.00 Inside Dhaka
   const grandTotal = subtotal + coldChainFee + estDeliveryFee;
 
   return (

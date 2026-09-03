@@ -97,6 +97,9 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
     packSize: p.packSize,
     dgdaRegistrationNo: p.dgdaRegNo || p.dgdaRegistrationNo || 'DAR-024-118-059',
     imageUrl: p.imageUrl,
+    hasShippingCharge: p.hasShippingCharge,
+    shippingInsideDhaka: p.shippingInsideDhaka,
+    shippingOutsideDhaka: p.shippingOutsideDhaka,
     descriptionEn: p.descriptionEn || 'High quality veterinary formulary product.',
     descriptionBn: p.descriptionBn || 'উচ্চমানের ভেটেরিনারি ফর্মুলারি ওষুধ।',
   };
@@ -133,6 +136,11 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
             {product.isAntimicrobial && (
               <span className="px-3 py-1 rounded-lg bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-300 text-xs font-bold uppercase">
                 🧬 Antimicrobial
+              </span>
+            )}
+            {product.hasShippingCharge === false && (
+              <span className="px-3 py-1 rounded-lg bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold uppercase">
+                🚚 {locale === 'bn' ? 'ফ্রি ডেলিভারি' : 'Free Delivery'}
               </span>
             )}
           </div>

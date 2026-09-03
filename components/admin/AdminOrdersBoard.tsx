@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { type MockOrder, type OrderStatus, BOARD_TO_DB_STATUS } from '@/lib/services/order-status';
 import { AdminIncompleteOrdersBoard } from './AdminIncompleteOrdersBoard';
-import { checkCustomerFraudRisk, type CourierFraudReport } from '@/lib/courier/fraud-check';
+import type { CourierFraudReport } from '@/lib/courier/fraud-check';
 import { ThermalShippingLabelModal, type ThermalLabelData } from './ThermalShippingLabel';
 import { CallLogDrawer, type CallLogEntry, type CallOutcome } from './CallLogDrawer';
 import { WhatsAppTemplateModal, type WhatsAppOrderContext } from './WhatsAppTemplateModal';
@@ -14,9 +14,6 @@ interface Props {
 }
 
 export interface ExtendedOrder extends MockOrder {
-  courierConsignmentId?: string;
-  trackingCode?: string;
-  dispatchedAt?: string;
   fraudReport?: CourierFraudReport;
   callLogs?: CallLogEntry[];
 }
@@ -29,6 +26,8 @@ export function AdminOrdersBoard({ locale }: Props) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [modalActionError, setModalActionError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [pendingLeadsCount, setPendingLeadsCount] = useState<number>(0);
 
   // Multi-select state
@@ -61,11 +60,6 @@ export function AdminOrdersBoard({ locale }: Props) {
 
   /**
    * Load orders from the server.
-   *
-   * Orders used to be read from localStorage ('vetmart_mock_orders'), so an
-   * order placed on a customer's phone never appeared here, and a status change
-   * made on one admin device was invisible on another. They are database rows
-   * now and this is the only read path.
    */
   const refreshOrders = useCallback(async () => {
     try {
@@ -87,15 +81,20 @@ export function AdminOrdersBoard({ locale }: Props) {
     refreshOrders();
   }, [refreshOrders]);
 
-  // Compute and cache fraud scores for all orders
+  // Compute and cache fraud scores safely via server API
   useEffect(() => {
     const fetchFraudScores = async () => {
       const newReports: Record<string, CourierFraudReport> = {};
       for (const ord of orders) {
-        if (!fraudCache[ord.customerPhone]) {
+        if (ord.customerPhone && !fraudCache[ord.customerPhone]) {
           try {
-            const report = await checkCustomerFraudRisk(ord.customerPhone);
-            newReports[ord.customerPhone] = report;
+            const res = await fetch(
+              `/api/v1/courier/fraud-check?phone=${encodeURIComponent(ord.customerPhone)}`
+            );
+            if (res.ok) {
+              const json = await res.json();
+              if (json.data) newReports[ord.customerPhone] = json.data;
+            }
           } catch {
             // Ignore individual failure
           }
@@ -105,7 +104,9 @@ export function AdminOrdersBoard({ locale }: Props) {
         setFraudCache((prev) => ({ ...prev, ...newReports }));
       }
     };
-    fetchFraudScores();
+    if (orders.length > 0) {
+      fetchFraudScores();
+    }
   }, [orders]);
 
   /**
@@ -121,6 +122,8 @@ export function AdminOrdersBoard({ locale }: Props) {
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     setActionError(null);
+    setModalActionError(null);
+    setActionLoadingId(`status-${newStatus}`);
     try {
       const res = await fetch(`/api/v1/admin/orders/${orderId}/status`, {
         method: 'PATCH',
@@ -132,7 +135,9 @@ export function AdminOrdersBoard({ locale }: Props) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setActionError(json?.error?.message ?? `Could not update the order (HTTP ${res.status}).`);
+        const errMsg = json?.error?.message ?? `Could not update the order (HTTP ${res.status}).`;
+        setActionError(errMsg);
+        setModalActionError(errMsg);
         return;
       }
 
@@ -153,7 +158,11 @@ export function AdminOrdersBoard({ locale }: Props) {
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
       console.error('Status change failed:', err);
-      setActionError(err instanceof Error ? err.message : 'Could not update the order');
+      const errMsg = err instanceof Error ? err.message : 'Could not update the order';
+      setActionError(errMsg);
+      setModalActionError(errMsg);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -167,12 +176,16 @@ export function AdminOrdersBoard({ locale }: Props) {
    */
   const handleDispatchCourier = async (order: ExtendedOrder) => {
     setActionError(null);
+    setModalActionError(null);
+    setActionLoadingId('dispatch');
     try {
       const res = await fetch(`/api/v1/admin/orders/${order.id}/ship`, { method: 'POST' });
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setActionError(json?.error?.message ?? `Could not dispatch the order (HTTP ${res.status}).`);
+        const errMsg = json?.error?.message ?? `Could not dispatch the order (HTTP ${res.status}).`;
+        setActionError(errMsg);
+        setModalActionError(errMsg);
         return;
       }
 
@@ -210,7 +223,11 @@ export function AdminOrdersBoard({ locale }: Props) {
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err) {
       console.error('Dispatch failed:', err);
-      setActionError(err instanceof Error ? err.message : 'Could not dispatch the order');
+      const errMsg = err instanceof Error ? err.message : 'Could not dispatch the order';
+      setActionError(errMsg);
+      setModalActionError(errMsg);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -423,14 +440,36 @@ export function AdminOrdersBoard({ locale }: Props) {
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
           }`}
         >
-          {isBn ? 'নতুন অর্ডার' : 'Pending'} ({orders.filter((o) => o.status === 'pending').length})
+          {isBn ? 'নতুন অর্ডার' : 'New Orders'} ({orders.filter((o) => o.status === 'pending').length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter('confirmed')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
+            activeFilter === 'confirmed'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+          }`}
+        >
+          {isBn ? 'নিশ্চিতকৃত' : 'Confirmed'} ({orders.filter((o) => o.status === 'confirmed').length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter('processing')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
+            activeFilter === 'processing'
+              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+          }`}
+        >
+          {isBn ? 'প্রসেসিং' : 'Processing'} ({orders.filter((o) => o.status === 'processing').length})
         </button>
         <button
           type="button"
           onClick={() => setActiveFilter('pharmacist_review')}
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'pharmacist_review'
-              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
           }`}
         >
@@ -441,7 +480,7 @@ export function AdminOrdersBoard({ locale }: Props) {
           onClick={() => setActiveFilter('dispatched')}
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
             activeFilter === 'dispatched'
-              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+              ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
               : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
           }`}
         >
@@ -457,6 +496,17 @@ export function AdminOrdersBoard({ locale }: Props) {
           }`}
         >
           {isBn ? 'ডেলিভারড' : 'Delivered'} ({orders.filter((o) => o.status === 'delivered').length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter('cancelled')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap cursor-pointer ${
+            activeFilter === 'cancelled'
+              ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+              : 'bg-white text-[#5F6368] border-[#EAEAEA] hover:text-[#2F3437] hover:bg-[#F7F6F3]'
+          }`}
+        >
+          {isBn ? 'বাতিল' : 'Cancelled'} ({orders.filter((o) => o.status === 'cancelled').length})
         </button>
 
         {/* Incomplete Orders Lead Recovery Tab */}
@@ -617,8 +667,14 @@ export function AdminOrdersBoard({ locale }: Props) {
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : ord.status === 'dispatched'
                               ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : ord.status === 'processing'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : ord.status === 'confirmed'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : ord.status === 'pharmacist_review'
                               ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : ord.status === 'cancelled'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
                               : 'bg-[#F7F6F3] text-[#5F6368] border-[#EAEAEA]'
                           }`}
                         >
@@ -641,7 +697,7 @@ export function AdminOrdersBoard({ locale }: Props) {
                           </div>
                         ) : (
                           <span className="text-xs text-[#9AA0A6] italic font-mono">
-                            {ord.status === 'pending' ? 'Not dispatched' : '—'}
+                            {ord.status === 'pending' || ord.status === 'confirmed' || ord.status === 'processing' ? 'Not dispatched' : '—'}
                           </span>
                         )}
                       </td>
@@ -704,7 +760,7 @@ export function AdminOrdersBoard({ locale }: Props) {
                         </button>
 
                         {/* Single Dispatch Button */}
-                        {ord.status === 'pending' && (
+                        {(ord.status === 'pending' || ord.status === 'confirmed' || ord.status === 'processing') && (
                           <button
                             type="button"
                             onClick={() => handleDispatchCourier(ord)}
@@ -754,8 +810,8 @@ export function AdminOrdersBoard({ locale }: Props) {
           existingLogs={callDrawerOrder.callLogs || []}
           onAddLog={(entry) => handleAddCallLog(callDrawerOrder.id, entry)}
           onUpdateStatus={(outcome: CallOutcome) => {
-            if (outcome === 'confirmed' && callDrawerOrder.status === 'pending') {
-              handleStatusChange(callDrawerOrder.id, 'pending');
+            if (outcome === 'confirmed') {
+              handleStatusChange(callDrawerOrder.id, 'confirmed');
             } else if (outcome === 'cancelled') {
               handleStatusChange(callDrawerOrder.id, 'cancelled');
             }
@@ -774,33 +830,94 @@ export function AdminOrdersBoard({ locale }: Props) {
         />
       )}
 
-      {/* Order Detail Modal */}
+      {/* Order Detail Modal with Touch-First Mobile Ergonomics */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#EAEAEA] rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl animate-fade-in">
-            <div className="flex items-center justify-between border-b border-[#EAEAEA] pb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedOrder(null);
+              setModalActionError(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-[#EAEAEA] rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] sm:max-h-[85vh] flex flex-col shadow-2xl animate-fade-in overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Sticky Header */}
+            <div className="p-4 sm:p-5 border-b border-[#EAEAEA] flex items-center justify-between bg-white shrink-0">
               <div>
-                <h3 className="text-lg font-bold text-[#2F3437]">
-                  Order #{selectedOrder.orderNumber}
-                </h3>
-                <p className="text-xs text-[#787774]">
-                  {selectedOrder.customerName} ({selectedOrder.customerPhone})
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-extrabold text-[#2F3437] font-display">
+                    Order #{selectedOrder.orderNumber}
+                  </h3>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                      selectedOrder.status === 'delivered'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : selectedOrder.status === 'dispatched'
+                        ? 'bg-sky-50 text-sky-700 border-sky-200'
+                        : selectedOrder.status === 'processing'
+                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                        : selectedOrder.status === 'confirmed'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : selectedOrder.status === 'pharmacist_review'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : selectedOrder.status === 'cancelled'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-[#F7F6F3] text-[#5F6368] border-[#EAEAEA]'
+                    }`}
+                  >
+                    {selectedOrder.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <p className="text-xs text-[#787774] mt-0.5">
+                  {selectedOrder.customerName} • <span className="font-mono">{selectedOrder.customerPhone}</span>
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="text-[#787774] hover:text-[#2F3437] text-sm font-bold p-1 rounded-lg hover:bg-[#F7F6F3] cursor-pointer"
+                onClick={() => {
+                  setSelectedOrder(null);
+                  setModalActionError(null);
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-[#787774] hover:text-[#2F3437] hover:bg-[#F7F6F3] text-lg font-bold transition-colors cursor-pointer touch-manipulation"
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs overscroll-contain">
+              {/* In-Modal Error Notification */}
+              {modalActionError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start justify-between gap-2 shadow-xs"
+                >
+                  <div className="flex items-center gap-1.5 font-medium leading-relaxed">
+                    <span>⚠️</span>
+                    <span>{modalActionError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalActionError(null)}
+                    className="text-rose-700 hover:text-rose-900 font-bold p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               {/* Delivery Address */}
-              <div className="p-3 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] space-y-1">
-                <span className="text-[#787774] font-semibold block">Delivery Address:</span>
-                <span className="text-[#2F3437]">
+              <div className="p-3.5 rounded-2xl bg-[#F7F6F3] border border-[#EAEAEA] space-y-1">
+                <span className="text-[11px] uppercase font-bold text-[#787774] tracking-wider block">
+                  {isBn ? 'ডেলিভারি ঠিকানা' : 'Delivery Address'}
+                </span>
+                <span className="text-[#2F3437] font-medium leading-relaxed block text-xs">
                   {selectedOrder.recipientAddress}, {selectedOrder.district}, {selectedOrder.division}
                 </span>
               </div>
@@ -808,19 +925,21 @@ export function AdminOrdersBoard({ locale }: Props) {
               {/* Fraud Report Banner in Detail */}
               {fraudCache[selectedOrder.customerPhone] && (
                 <div
-                  className={`p-3 rounded-xl border ${
+                  className={`p-3.5 rounded-2xl border ${
                     fraudCache[selectedOrder.customerPhone].riskLevel === 'high'
                       ? 'bg-rose-50 border-rose-200 text-rose-900'
                       : fraudCache[selectedOrder.customerPhone].riskLevel === 'medium'
                       ? 'bg-amber-50 border-amber-200 text-amber-900'
                       : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  } space-y-1`}
+                  } space-y-1.5`}
                 >
-                  <div className="flex justify-between font-bold">
-                    <span>🛡️ Courier Risk Score:</span>
-                    <span className="font-mono">{fraudCache[selectedOrder.customerPhone].successRate}% Delivery Rate</span>
+                  <div className="flex justify-between items-center font-bold text-xs">
+                    <span className="flex items-center gap-1">🛡️ Courier Risk Profile</span>
+                    <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-white/80 border border-black/5">
+                      {fraudCache[selectedOrder.customerPhone].successRate}% Delivery Success
+                    </span>
                   </div>
-                  <p className="text-[11px]">
+                  <p className="text-[11px] leading-relaxed">
                     {isBn
                       ? fraudCache[selectedOrder.customerPhone].riskReasonBn
                       : fraudCache[selectedOrder.customerPhone].riskReason}
@@ -830,12 +949,17 @@ export function AdminOrdersBoard({ locale }: Props) {
 
               {/* Consignment Info */}
               {selectedOrder.courierConsignmentId && (
-                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 space-y-1 font-mono">
-                  <div className="font-bold flex items-center justify-between">
-                    <span>📦 Steadfast Consignment:</span>
-                    <span className="text-sky-700 font-extrabold">{selectedOrder.courierConsignmentId}</span>
+                <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 space-y-1.5 font-mono">
+                  <div className="font-bold flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5">📦 Steadfast Consignment:</span>
+                    <span className="text-sky-800 font-extrabold text-sm">{selectedOrder.courierConsignmentId}</span>
                   </div>
-                  <div className="text-[11px] text-sky-700">
+                  {selectedOrder.trackingCode && (
+                    <div className="text-[11px] text-sky-700">
+                      Tracking Code: {selectedOrder.trackingCode}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-sky-600">
                     Dispatched at: {new Date(selectedOrder.dispatchedAt || selectedOrder.updatedAt).toLocaleString()}
                   </div>
                 </div>
@@ -843,64 +967,114 @@ export function AdminOrdersBoard({ locale }: Props) {
 
               {/* Items List */}
               <div className="space-y-2">
-                <span className="text-[#787774] font-bold uppercase block">Items:</span>
+                <span className="text-[11px] uppercase font-bold text-[#787774] tracking-wider block">
+                  {isBn ? 'পণ্যসমূহ:' : 'Ordered Items:'}
+                </span>
                 {selectedOrder.items.map((item) => (
                   <div
                     key={item.productId}
-                    className="flex justify-between items-center p-2.5 rounded-lg bg-[#FBFBFA] border border-[#EAEAEA]"
+                    className="flex justify-between items-center p-3 rounded-xl bg-[#FBFBFA] border border-[#EAEAEA]"
                   >
                     <div>
-                      <div className="font-bold text-[#2F3437]">{item.productNameEn}</div>
-                      <div className="text-[10px] text-emerald-600 font-mono">Batch: {item.batchNo}</div>
+                      <div className="font-bold text-[#2F3437] text-xs">{item.productNameEn}</div>
+                      {item.batchNo && (
+                        <div className="text-[10px] text-emerald-600 font-mono mt-0.5">
+                          Batch: {item.batchNo}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right font-mono font-bold text-[#2F3437]">
+                    <div className="text-right font-mono font-bold text-[#2F3437] text-xs">
                       {item.quantity} x ৳{(item.unitPrice / 100).toFixed(2)}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="pt-2 border-t border-[#EAEAEA] flex justify-between font-bold text-sm text-[#2F3437]">
-                <span>Total Amount:</span>
-                <span className="text-emerald-700">৳{(selectedOrder.totalAmount / 100).toFixed(2)}</span>
+              {/* Total & Payment Summary */}
+              <div className="pt-2 border-t border-[#EAEAEA] flex justify-between items-center text-xs">
+                <span className="text-[#787774]">
+                  Payment: <span className="font-mono font-bold uppercase text-[#2F3437]">{selectedOrder.paymentMethod}</span> ({selectedOrder.paymentStatus})
+                </span>
+                <div className="text-right">
+                  <span className="text-[11px] text-[#787774] block">Total Amount:</span>
+                  <span className="text-emerald-700 font-extrabold text-base font-mono">
+                    ৳{(selectedOrder.totalAmount / 100).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Quick Status Changers & Dispatch Action */}
-            <div className="space-y-2 pt-2 border-t border-[#EAEAEA]">
-              <span className="text-xs text-[#787774] font-semibold block">
-                {isBn ? 'ডেসপ্যাচ ও স্ট্যাটাস অ্যাকশন:' : 'Dispatch & Status Actions:'}
-              </span>
+            {/* Sticky Bottom Action Bar with Ergonomic Mobile Buttons */}
+            <div className="p-4 sm:p-5 border-t border-[#EAEAEA] bg-[#FBFBFA] shrink-0 space-y-2.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-[#787774]">
+                <span>{isBn ? 'স্ট্যাটাস ও কুরিয়ার অ্যাকশন:' : 'Status & Courier Actions:'}</span>
+                {actionLoadingId && (
+                  <span className="text-emerald-700 animate-pulse font-mono font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                    {isBn ? 'প্রসেসিং হচ্ছে...' : 'Processing...'}
+                  </span>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(selectedOrder.id, 'pending')}
-                  className="px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Pending
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(selectedOrder.id, 'pharmacist_review')}
-                  className="px-2.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold hover:bg-amber-100 transition-colors cursor-pointer"
-                >
-                  Rx Review
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDispatchCourier(selectedOrder)}
-                  className="px-2.5 py-2 rounded-xl bg-sky-600 text-white text-[11px] font-bold hover:bg-sky-700 shadow-xs transition-colors cursor-pointer"
-                >
-                  🚀 Dispatch
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(selectedOrder.id, 'delivered')}
-                  className="px-2.5 py-2 rounded-xl bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer"
-                >
-                  ✓ Delivered
-                </button>
+                {selectedOrder.status === 'pending' && (
+                  <button
+                    type="button"
+                    disabled={Boolean(actionLoadingId)}
+                    onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 shadow-xs transition-all flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer disabled:opacity-50"
+                  >
+                    📞 {isBn ? 'অর্ডার নিশ্চিত' : 'Confirm Order'}
+                  </button>
+                )}
+
+                {(selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed') && (
+                  <button
+                    type="button"
+                    disabled={Boolean(actionLoadingId)}
+                    onClick={() => handleStatusChange(selectedOrder.id, 'processing')}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 active:scale-98 shadow-xs transition-all flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer disabled:opacity-50"
+                  >
+                    ⚙️ {isBn ? 'প্যাক / প্রসেসিং' : 'Process & Pack'}
+                  </button>
+                )}
+
+                {(selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed' || selectedOrder.status === 'processing') && (
+                  <button
+                    type="button"
+                    disabled={Boolean(actionLoadingId)}
+                    onClick={() => handleDispatchCourier(selectedOrder)}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 active:scale-98 shadow-xs transition-all flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer disabled:opacity-50"
+                  >
+                    🚀 {isBn ? 'কুরিয়ার বুকিং' : 'Dispatch Courier'}
+                  </button>
+                )}
+
+                {(selectedOrder.status === 'dispatched' || selectedOrder.status === 'processing') && (
+                  <button
+                    type="button"
+                    disabled={Boolean(actionLoadingId)}
+                    onClick={() => handleStatusChange(selectedOrder.id, 'delivered')}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 active:scale-98 shadow-xs transition-all flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer disabled:opacity-50"
+                  >
+                    ✓ {isBn ? 'ডেলিভারি সম্পন্ন' : 'Mark Delivered'}
+                  </button>
+                )}
+
+                {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
+                  <button
+                    type="button"
+                    disabled={Boolean(actionLoadingId)}
+                    onClick={() => {
+                      if (window.confirm(isBn ? 'আপনি কি নিশ্চিত এই অর্ডারটি বাতিল করতে চান?' : 'Are you sure you want to cancel this order?')) {
+                        handleStatusChange(selectedOrder.id, 'cancelled');
+                      }
+                    }}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-100 active:scale-98 transition-all flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer disabled:opacity-50"
+                  >
+                    ✕ {isBn ? 'বাতিল' : 'Cancel'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

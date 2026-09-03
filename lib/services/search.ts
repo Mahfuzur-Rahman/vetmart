@@ -47,6 +47,9 @@ export interface CatalogSearchItem {
   categoryNameEn: string | null;
   categoryNameBn: string | null;
   manufacturerName: string | null;
+  hasShippingCharge: boolean;
+  shippingInsideDhaka?: number;
+  shippingOutsideDhaka?: number;
   sellableStock: number;
   stockQty?: number;
   batchNo?: string;
@@ -148,6 +151,9 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
       isActive: products.isActive,
       mrp: products.mrp,
       salePrice: products.salePrice,
+      hasShippingCharge: products.hasShippingCharge,
+      shippingInsideDhaka: products.shippingInsideDhaka,
+      shippingOutsideDhaka: products.shippingOutsideDhaka,
       categoryNameEn: categories.nameEn,
       categoryNameBn: categories.nameBn,
       manufacturerName: manufacturers.name,

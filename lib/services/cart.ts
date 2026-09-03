@@ -22,6 +22,8 @@ export interface CartItemView {
     requiresPrescription: boolean;
     requiresColdChain: boolean;
     hasShippingCharge: boolean;
+    shippingInsideDhaka?: number;
+    shippingOutsideDhaka?: number;
     isActive: boolean;
     imageUrl?: string | null;
   };
@@ -148,6 +150,8 @@ export async function getCartView(cartId: string): Promise<CartView> {
         requiresPrescription: products.requiresPrescription,
         requiresColdChain: products.requiresColdChain,
         hasShippingCharge: products.hasShippingCharge,
+        shippingInsideDhaka: products.shippingInsideDhaka,
+        shippingOutsideDhaka: products.shippingOutsideDhaka,
         isActive: products.isActive,
       },
     })
