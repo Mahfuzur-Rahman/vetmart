@@ -33,6 +33,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
   const [products, setProducts] = useState<MockProduct[]>([]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [unitFilter, setUnitFilter] = useState('all');
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<MockProduct | null>(null);
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<MockProduct | null>(null);
@@ -70,6 +71,8 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
   const [mfgDate, setMfgDate] = useState('2025-10-01');
   const [dgdaRegNo, setDgdaRegNo] = useState('DAR-012-441-098');
   const [initialStock, setInitialStock] = useState('60');
+  const [packUnit, setPackUnit] = useState('litre');
+  const [packSize, setPackSize] = useState('1 Litre');
   const [requiresRx, setRequiresRx] = useState(false);
   const [coldChain, setColdChain] = useState(false);
   const [hasShippingCharge, setHasShippingCharge] = useState(true);
@@ -174,7 +177,9 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
     setMfgDate(prod.mfgDate ? (prod.mfgDate.includes('T') ? prod.mfgDate.split('T')[0] : prod.mfgDate) : '2025-01-01');
     setDgdaRegNo(prod.dgdaRegNo || '');
     setInitialStock(String(prod.stockQty ?? 50));
-    setRequiresRx(!!prod.requiresPrescription);
+    setPackUnit(prod.packUnit || (prod.packSize?.toLowerCase().includes('kg') ? 'kg' : prod.packSize?.toLowerCase().includes('g') ? 'g' : prod.packSize?.toLowerCase().includes('ml') ? 'ml' : 'litre'));
+    setPackSize(prod.packSize || '1 Litre');
+    setRequiresRx(false);
     setColdChain(!!(prod.coldChain || prod.requiresColdChain));
     setHasShippingCharge(prod.hasShippingCharge !== false);
     setShippingInsideDhaka(((prod.shippingInsideDhaka ?? 7000) / 100).toString());
@@ -202,6 +207,8 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
     setMfgDate('2025-10-01');
     setDgdaRegNo('DAR-012-441-098');
     setInitialStock('60');
+    setPackUnit('litre');
+    setPackSize('1 Litre');
     setRequiresRx(false);
     setColdChain(false);
     setHasShippingCharge(true);
@@ -321,7 +328,9 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
           mrp: Math.round(parseFloat(mrp || '0') * 100),
           salePrice: Math.round(parseFloat(salePrice || '0') * 100),
           vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
-          requiresPrescription: requiresRx,
+          packUnit,
+          packSize,
+          requiresPrescription: false,
           requiresColdChain: coldChain,
           coldChain,
           hasShippingCharge,
@@ -379,15 +388,15 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
           drugClassificationNameEn: dcNameEn,
           drugClassificationNameBn: dcNameBn,
           manufacturerName: manufacturer,
-          strength: 'Liquid Form',
-          dosageForm: 'Oral Solution',
-          packSize: '1 Liter Bottle',
-          packUnit: 'bottle',
+          strength: 'Standard Veterinary Formulation',
+          dosageForm: packUnit === 'litre' || packUnit === 'ml' ? 'Oral Solution' : 'Water Soluble Powder',
+          packSize: packSize || '1 Litre',
+          packUnit: packUnit || 'litre',
           targetSpecies,
           mrp: Math.round(parseFloat(mrp || '0') * 100),
           salePrice: Math.round(parseFloat(salePrice || '0') * 100),
           vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
-          requiresPrescription: requiresRx,
+          requiresPrescription: false,
           requiresColdChain: coldChain,
           isAntimicrobial: false,
           coldChain,
@@ -472,11 +481,14 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
       typeFilter === 'all' ||
       (typeFilter === 'active' && p.isActive !== false) ||
       (typeFilter === 'inactive' && p.isActive === false) ||
-      (typeFilter === 'rx' && p.requiresPrescription) ||
-      (typeFilter === 'otc' && !p.requiresPrescription) ||
       (typeFilter === 'cold' && p.coldChain);
 
-    return matchesQuery && matchesType;
+    const matchesUnit =
+      unitFilter === 'all' ||
+      p.packUnit === unitFilter ||
+      (p.packSize || '').toLowerCase().includes(unitFilter);
+
+    return matchesQuery && matchesType && matchesUnit;
   });
 
   const isModalOpen = isEnrollOpen || !!editingProduct;
@@ -570,6 +582,17 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
             className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] placeholder:text-[#9AA0A6] text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 font-mono"
           />
           <select
+            value={unitFilter}
+            onChange={(e) => setUnitFilter(e.target.value)}
+            className="px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer"
+          >
+            <option value="all">{isBn ? 'সকল একক' : 'All Units'}</option>
+            <option value="kg">kg</option>
+            <option value="g">gram (g)</option>
+            <option value="litre">Litre (L)</option>
+            <option value="ml">ml</option>
+          </select>
+          <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer"
@@ -577,8 +600,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
             <option value="all">{isBn ? 'সকল ধরন' : 'All Products'} ({products.length})</option>
             <option value="active">{isBn ? 'সক্রিয় পণ্য' : 'Active Only'}</option>
             <option value="inactive">{isBn ? 'নিষ্ক্রিয় পণ্য' : 'Inactive Only'}</option>
-            <option value="rx">Rx Required</option>
-            <option value="otc">OTC Products</option>
             <option value="cold">❄️ Cold Chain</option>
           </select>
         </div>
@@ -586,7 +607,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
 
       {/* Products Table */}
       <div className="rounded-2xl border border-[#EAEAEA] bg-white shadow-xs overflow-hidden">
-        <div className="overflow-x-auto w-full max-w-full touch-pan-x">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="min-w-[950px] w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-[#787774] uppercase tracking-wider border-b border-[#EAEAEA] bg-[#FBFBFA]">
@@ -654,6 +675,11 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                                 🏷️ {prod.categorySlug}
                               </span>
                             )}
+                            {(prod.packSize || prod.packUnit) && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold text-[9px] border border-emerald-200 font-mono">
+                                ⚖️ {prod.packSize || prod.packUnit}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -682,11 +708,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                         {!prod.isActive && (
                           <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-300 text-[10px] font-bold" title={isBn ? 'পণ্য নিষ্ক্রিয়' : 'Inactive Product'}>
                             {isBn ? 'নিষ্ক্রিয়' : 'Inactive'}
-                          </span>
-                        )}
-                        {prod.requiresPrescription && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold" title="Prescription Required">
-                            Rx
                           </span>
                         )}
                         {prod.coldChain && (
@@ -814,12 +835,35 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     setSalePrice('345');
                     setBatchNo('B-RPM-7701');
                     setInitialStock('120');
+                    setPackUnit('ml');
+                    setPackSize('500 ml');
                     setRequiresRx(false);
                     setColdChain(false);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold border border-emerald-200 transition-colors cursor-pointer"
                 >
                   ⚡ Renata Promin 500ml
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameEn('Rena-WS 100g Water Soluble Powder');
+                    setNameBn('রেনা-ডব্লিউএস ১০০ গ্রাম পাউডার');
+                    setGenericName('Multivitamin + Trace Minerals');
+                    setCategory('vitamins-minerals');
+                    setManufacturer('Renata Animal Health');
+                    setMrp('120');
+                    setSalePrice('110');
+                    setBatchNo('B-RWS-4401');
+                    setInitialStock('150');
+                    setPackUnit('g');
+                    setPackSize('100 g');
+                    setRequiresRx(false);
+                    setColdChain(false);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-semibold border border-sky-200 transition-colors cursor-pointer"
+                >
+                  ⚡ Rena-WS 100g (Weight)
                 </button>
                 <button
                   type="button"
@@ -833,7 +877,9 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     setSalePrice('590');
                     setBatchNo('B-SQT-9011');
                     setInitialStock('75');
-                    setRequiresRx(true);
+                    setPackUnit('ml');
+                    setPackSize('100 ml');
+                    setRequiresRx(false);
                     setColdChain(true);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-semibold border border-purple-200 transition-colors cursor-pointer"
@@ -1163,25 +1209,182 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={requiresRx}
-                    onChange={(e) => setRequiresRx(e.target.checked)}
-                    className="w-4 h-4 text-emerald-600 rounded"
-                  />
-                  <span className="font-semibold text-[#2F3437]">Requires Prescription (Rx)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={coldChain}
-                    onChange={(e) => setColdChain(e.target.checked)}
-                    className="w-4 h-4 text-emerald-600 rounded"
-                  />
-                  <span className="font-semibold text-[#2F3437]">❄️ Cold Chain Required</span>
-                </label>
+              {/* ═══ MEASUREMENT UNIT & PACKAGING SIZE (kg / gram & litre / ml) ═══ */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[#2F3437] font-bold flex items-center gap-1.5">
+                    <span>⚖️</span>
+                    <span>{isBn ? 'পরিমাপের একক ও প্যাকের ধরন (Unit & Pack Size) *' : 'Measurement Unit & Pack Size *'}</span>
+                  </label>
+                  <span className="text-[11px] text-emerald-700 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {packSize || '1 Litre'}
+                  </span>
+                </div>
+
+                {/* Preset Unit Buttons: kg, g, litre, ml */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] text-[#5F6368] font-semibold block">
+                    {isBn ? 'একক নির্বাচন করুন (কেজি / গ্রাম অথবা লিটার / মিলি):' : 'Select Unit (kg / gram or litre / ml):'}
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPackUnit('kg');
+                        if (!packSize || packSize.includes('ml') || packSize.includes('Litre') || packSize.includes('g')) {
+                          setPackSize('1 kg');
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        packUnit === 'kg'
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">⚖️ kg (কেজি)</div>
+                      <div className={`text-[10px] ${packUnit === 'kg' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                        {isBn ? 'ওজন / সলিড' : 'Weight / Solid'}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPackUnit('g');
+                        if (!packSize || packSize.includes('ml') || packSize.includes('Litre') || packSize.includes('kg')) {
+                          setPackSize('100 g');
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        packUnit === 'g'
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">⚖️ gram / g (গ্রাম)</div>
+                      <div className={`text-[10px] ${packUnit === 'g' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                        {isBn ? 'পাউডার / ছোট প্যাক' : 'Powder / Small Pack'}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPackUnit('litre');
+                        if (!packSize || packSize.includes('g') || packSize.includes('kg') || packSize.includes('ml')) {
+                          setPackSize('1 Litre');
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        packUnit === 'litre'
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">🧪 Litre / L (লিটার)</div>
+                      <div className={`text-[10px] ${packUnit === 'litre' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                        {isBn ? 'তরল / দ্রবণ' : 'Liquid / Solution'}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPackUnit('ml');
+                        if (!packSize || packSize.includes('g') || packSize.includes('kg') || packSize.includes('Litre')) {
+                          setPackSize('100 ml');
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        packUnit === 'ml'
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">🧪 ml (মিলি)</div>
+                      <div className={`text-[10px] ${packUnit === 'ml' ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+                        {isBn ? 'ইনজেকশন / ড্রপ' : 'Injection / Vial'}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Specific Pack Size Label & Quick Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[#5F6368] font-bold mb-1">
+                      {isBn ? 'প্যাক সাইজের বিবরণ (Custom Pack Size) *' : 'Pack Size Label *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={packSize}
+                      onChange={(e) => setPackSize(e.target.value)}
+                      placeholder={packUnit === 'kg' ? 'e.g. 1 kg bag, 5 kg bucket' : packUnit === 'litre' ? 'e.g. 1 Litre bottle, 5 L jar' : packUnit === 'ml' ? 'e.g. 100 ml vial, 500 ml' : 'e.g. 100 g sachet'}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#EAEAEA] text-[#2F3437] font-medium text-xs focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[#5F6368] font-bold mb-1">
+                      {isBn ? 'দ্রুত সাইজ নির্বাচন' : 'Quick Sizes'}
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {packUnit === 'kg' && ['500 g', '1 kg', '2 kg', '5 kg', '25 kg'].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setPackSize(s)}
+                          className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {packUnit === 'g' && ['20 g', '50 g', '100 g', '250 g', '500 g'].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setPackSize(s)}
+                          className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {packUnit === 'litre' && ['500 ml', '1 Litre', '2 Litre', '5 Litre'].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setPackSize(s)}
+                          className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {packUnit === 'ml' && ['10 ml', '30 ml', '100 ml', '250 ml', '500 ml'].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setPackSize(s)}
+                          className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={coldChain}
+                      onChange={(e) => setColdChain(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded"
+                    />
+                    <span className="font-semibold text-xs text-[#2F3437]">❄️ Cold Chain Required (২-৮° সে. কুলার বক্স)</span>
+                  </label>
+                </div>
               </div>
 
               {/* ═══ SHIPPING / DELIVERY CHARGE ═══ */}
