@@ -36,11 +36,11 @@ const HERO_SLIDES: HeroSlide[] = [
       ),
     },
     description: {
-      en: 'DGDA-approved quality drugs, poultry vitamins, livestock injections & dewormers directly sourced from manufacturers.',
-      bn: 'ডিজিডিএ অনুমোদিত কোয়ালিটি ড্রাগস, পোল্ট্রি ভিটামিন, গবাদিপশুর ইনজেকশন ও কৃমিনাশক। সরাসরি শীর্ষ প্রস্তুতকারকদের কাছ থেকে সংগ্রহীত।',
+      en: 'DGDA-approved quality drugs, dairy supplements, livestock injections & dewormers directly sourced from manufacturers.',
+      bn: 'ডিজিডিএ অনুমোদিত কোয়ালিটি ড্রাগস, ডেইরি সাপ্লিমেন্ট, গবাদিপশুর ইনজেকশন ও কৃমিনাশক। সরাসরি শীর্ষ প্রস্তুতকারকদের কাছ থেকে সংগ্রহীত।',
     },
     primaryCta: { text: { en: 'Browse All Products', bn: 'সকল ওষুধ দেখুন' }, href: '/products' },
-    secondaryCta: { text: { en: '🐓 Poultry Corner', bn: '🐓 পোল্ট্রি কর্নার' }, href: '/species/poultry' },
+    secondaryCta: { text: { en: '🐄 Cattle Corner', bn: '🐄 গবাদিপশু কর্নার' }, href: '/species/cattle' },
   },
   {
     id: 2,
@@ -93,81 +93,6 @@ const HERO_SLIDES: HeroSlide[] = [
     secondaryCta: { text: { en: '❄️ Cold-Chain Specs', bn: '❄️ কোল্ড-চেইন সুবিধা' }, href: '/products' },
   },
   {
-    id: 4,
-    image: '/images/hero-slide-4.png',
-    badge: { en: 'Poultry Farm Solutions', bn: 'পোল্ট্রি ফার্মিং সলিউশন' },
-    title: {
-      en: (
-        <>
-          Maximum Growth & Egg Production <br />
-          <span className="text-emerald-300">For Broiler & Layer Farms</span>
-        </>
-      ),
-      bn: (
-        <>
-          ব্রয়লার ও লেয়ার মুরগির রোগ প্রতিরোধ ও <br />
-          <span className="text-emerald-300">দ্রুত ওজনের জন্য অরিজিনাল ওষুধ</span>
-        </>
-      ),
-    },
-    description: {
-      en: 'Specialized antibiotics, electrolytes, toxins binders, and growth boosters for commercial poultry sheds.',
-      bn: 'কমার্শিয়াল পোল্ট্রি খামারের জন্য অ্যান্টিবায়োটিক, ইলেকট্রোলাইট, টক্সিন বাইন্ডার ও প্রোটিন ড্রপস।',
-    },
-    primaryCta: { text: { en: 'Poultry Medicines', bn: 'পোল্ট্রি ওষুধ' }, href: '/species/poultry' },
-    secondaryCta: { text: { en: '🐣 Broiler & Layer Care', bn: '🐣 পোল্ট্রি কেয়ার' }, href: '/species/poultry' },
-  },
-  {
-    id: 5,
-    image: '/images/hero-slide-5.png',
-    badge: { en: 'Aquaculture & Fish Care', bn: 'মৎস্য ও অ্যাকুয়াকালচার স্বাস্থ্য' },
-    title: {
-      en: (
-        <>
-          Pond Water Treatment & Fish Health <br />
-          <span className="text-emerald-300">Probiotics & Growth Additives</span>
-        </>
-      ),
-      bn: (
-        <>
-          পুকুরের পানি শোধন, মাছ ও চিংড়ির <br />
-          <span className="text-emerald-300">প্রোবায়োটিক ও অক্সিজেন ট্যাবলেট</span>
-        </>
-      ),
-    },
-    description: {
-      en: 'Water purifiers, oxygen releasers, and fish growth supplements formulated for Bangladeshi fisheries.',
-      bn: 'মাছের রোগ প্রতিরোধে জীবাণুমুক্তকরণ ওষুধ, জিউলাইট, ও পিএইচ নিয়ন্ত্রক প্রোডাক্ট।',
-    },
-    primaryCta: { text: { en: 'Fisheries Care', bn: 'মৎস্য ওষুধ' }, href: '/species/aqua' },
-    secondaryCta: { text: { en: '🐟 Aqua Products', bn: '🐟 অ্যাকুয়া প্রোডাক্ট' }, href: '/species/aqua' },
-  },
-  {
-    id: 6,
-    image: '/images/hero-slide-6.png',
-    badge: { en: 'Pet & Small Animal Pharmacy', bn: 'পেট কেয়ার ও পেট ফার্মেসি' },
-    title: {
-      en: (
-        <>
-          Premium Pet Care & Medicines <br />
-          <span className="text-emerald-300">For Dogs, Cats & Birds</span>
-        </>
-      ),
-      bn: (
-        <>
-          কুকুর, বিড়াল ও পোষা পাখির জন্য <br />
-          <span className="text-emerald-300">প্রিমিয়াম ফ্লি-টিক ওষুধ ও ভিটামিন</span>
-        </>
-      ),
-    },
-    description: {
-      en: 'Flea & tick preventatives, deworming syrups, pet food supplements, and skin treatments.',
-      bn: 'পোষা প্রাণীর জন্য কৃমিনাশক সিরাপ, শ্যাম্পু, স্কিন ড্রপস ও নিউট্রিশনাল গ্রোথ টনিক।',
-    },
-    primaryCta: { text: { en: 'Pet Supplies', bn: 'পেট কেয়ার শপ' }, href: '/species/pet' },
-    secondaryCta: { text: { en: '🐶 Dogs & Cats', bn: '🐶 পেট কর্নার' }, href: '/species/pet' },
-  },
-  {
     id: 7,
     image: '/images/hero-slide-7.png',
     badge: { en: 'Farm Biosecurity & Sanitizers', bn: 'ফার্ম বায়ো-সিকিউরিটি ও স্প্রে' },
@@ -205,17 +130,17 @@ const HERO_SLIDES: HeroSlide[] = [
       ),
       bn: (
         <>
-          গরু, ছাগল ও ভেড়ার লিভার ফ্লুক ও <br />
+          গরু ও মহিষের লিভার ফ্লুক ও <br />
           <span className="text-emerald-300">কৃমি দমনে উচ্চক্ষমতাসম্পন্ন বোলুস</span>
         </>
       ),
     },
     description: {
-      en: 'Triclabendazole, Albendazole, and Levamisole drench and boluses for sheep, goat & cattle.',
-      bn: 'গর্ভবতী পশুর জন্য নিরাপদ ট্রাইক্লাবেন্ডাজল ও অ্যালবেন্ডাজল কৃমিনাশক ট্যাবলেট ও ড্রেঞ্চ।',
+      en: 'Triclabendazole, Albendazole, and Levamisole drench and boluses for cattle & dairy cows.',
+      bn: 'গর্ভবতী গরুর জন্য নিরাপদ ট্রাইক্লাবেন্ডাজল ও অ্যালবেন্ডাজল কৃমিনাশক ট্যাবলেট ও ড্রেঞ্চ।',
     },
     primaryCta: { text: { en: 'Dewormers List', bn: 'কৃমিনাশক তালিকা' }, href: '/products' },
-    secondaryCta: { text: { en: '🐐 Goat & Sheep', bn: '🐐 ছাগল ও ভেড়া' }, href: '/species/goat' },
+    secondaryCta: { text: { en: '🐄 Cattle Deworming', bn: '🐄 গরুর কৃমিনাশক' }, href: '/species/cattle' },
   },
   {
     id: 9,
