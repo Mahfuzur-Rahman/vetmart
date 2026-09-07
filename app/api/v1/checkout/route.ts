@@ -13,7 +13,6 @@ const checkoutSchema = z.object({
   addressId: z.string().uuid(),
   paymentMethod: z.enum(['cod', 'sslcommerz', 'bkash_direct']).default('cod'),
   couponCode: z.string().optional(),
-  prescriptionId: z.string().uuid().optional(),
   note: z.string().max(500).optional(),
 });
 
@@ -69,7 +68,6 @@ export async function POST(req: NextRequest) {
       addressId: parsed.data.addressId,
       paymentMethod: parsed.data.paymentMethod,
       couponResult,
-      prescriptionId: parsed.data.prescriptionId,
       note: parsed.data.note,
     });
 

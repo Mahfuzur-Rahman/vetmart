@@ -137,7 +137,14 @@ export function CheckoutForm({ locale }: Props) {
           'Idempotency-Key': key,
         },
         body: JSON.stringify({
-          items: items.map((i) => ({ productId: i.product.id, slug: i.product.slug, qty: i.qty })),
+          items: items.map((i) => {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(i.product.id);
+            return {
+              ...(isUuid ? { productId: i.product.id } : {}),
+              slug: i.product.slug,
+              qty: i.qty,
+            };
+          }),
           recipientName: name.trim() || 'Valued Customer',
           phone: cleanedPhone,
           addressLine: address.trim(),

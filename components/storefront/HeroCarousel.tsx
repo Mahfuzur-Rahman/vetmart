@@ -224,7 +224,7 @@ const HERO_SLIDES: HeroSlide[] = [
     title: {
       en: (
         <>
-          Instant Prescription Verification <br />
+          Direct Genuine Medicine Sourcing <br />
           <span className="text-emerald-300">By BVC Registered Doctors</span>
         </>
       ),
@@ -236,10 +236,10 @@ const HERO_SLIDES: HeroSlide[] = [
       ),
     },
     description: {
-      en: 'Upload your farm prescription for immediate review by licensed pharmacists & veterinary surgeons.',
-      bn: 'আপনার প্রেসক্রিপশনের ছবি আপলোড করুন, দ্রুত ভেরিফাই করে ওষুধ ডেলিভারি নিন।',
+      en: 'Direct manufacturer-sourced authentic veterinary pharmaceuticals, nutritional boluses & vaccines delivered to your doorstep.',
+      bn: 'সরাসরি প্রস্তুতকারক কোম্পানি থেকে ১০০% আসল ভেটেরিনারি ওষুধ, নিউট্রিশন ও ভ্যাকসিন সারা দেশে ডেলিভারি নিন।',
     },
-    primaryCta: { text: { en: 'Upload Rx', bn: 'প্রেসক্রিপশন আপলোড' }, href: '/products' },
+    primaryCta: { text: { en: 'Order Medicines', bn: 'ওষুধ অর্ডার করুন' }, href: '/products' },
     secondaryCta: { text: { en: '📞 Call 01353920501', bn: '📞 হেল্পলাইন ০১৩৫৩৯২০৫০১' }, href: 'tel:01353920501' },
   },
   {

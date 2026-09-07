@@ -85,15 +85,7 @@ const MENU_ITEMS: MenuItemConfig[] = [
     descriptionBn: 'কুরিয়ার সিওডি পেমেন্ট ও ক্যাশ রিকনসিলিয়েশন',
     perms: ['order.read'],
   },
-  {
-    key: 'prescription',
-    labelEn: 'Prescription Queue (Rx)',
-    labelBn: 'প্রেসক্রিপশন কিউ ও যাচাই',
-    icon: '📋',
-    descriptionEn: 'Review, approve or reject uploaded Rx prescriptions',
-    descriptionBn: 'গ্রাহকের প্রেসক্রিপশন পর্যালোচনা ও অনুমোদন',
-    perms: ['prescription.read', 'prescription.approve'],
-  },
+
   {
     key: 'customer',
     labelEn: 'Customer Profiles & Vets',
@@ -231,7 +223,7 @@ export function AdminManagementClient({ locale, currentAdminId }: Props) {
     } else if (preset === 'orders') {
       target = ['product', 'order', 'reconciliation', 'customer'];
     } else if (preset === 'pharmacist') {
-      target = ['product', 'order', 'prescription', 'customer'];
+      target = ['product', 'order', 'customer'];
     } else if (preset === 'none') {
       target = [];
     }

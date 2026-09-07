@@ -168,12 +168,6 @@ export function ProductDetailAddToCart({ locale, product }: Props) {
             )}
           </div>
         </div>
-
-        {product.requiresPrescription && (
-          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg">
-            {isBn ? '⚠️ প্রেসক্রিপশন প্রয়োজন' : '⚠️ Rx Required'}
-          </span>
-        )}
       </div>
 
       {/* Action Buttons */}

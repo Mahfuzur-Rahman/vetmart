@@ -17,8 +17,9 @@ export interface ProductCardProps {
     packSize?: string | null;
     mrp: number; // in paisa
     salePrice: number; // in paisa
-    requiresPrescription: boolean;
+    requiresPrescription?: boolean;
     requiresColdChain: boolean;
+    packUnit?: string | null;
     hasShippingCharge?: boolean;
     shippingInsideDhaka?: number;
     shippingOutsideDhaka?: number;
@@ -84,11 +85,7 @@ export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) 
 
         {/* Floating badges */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-          {product.requiresPrescription && (
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/90 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
-              Rx
-            </span>
-          )}
+
           {product.requiresColdChain && (
             <span className="px-2 py-0.5 rounded-md bg-sky-500/90 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
               ❄️ Cold
@@ -141,11 +138,20 @@ export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) 
           </p>
         )}
 
-        {/* Pack info */}
+        {/* Pack info & Unit */}
         {(product.dosageForm || product.packSize) && (
-          <p className="text-[11px] text-muted-foreground line-clamp-1">
-            {[product.dosageForm, product.packSize].filter(Boolean).join(' · ')}
-          </p>
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            {product.packSize && (
+              <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold">
+                ⚖️ {product.packSize}
+              </span>
+            )}
+            {product.dosageForm && (
+              <span className="text-[11px] text-muted-foreground">
+                {product.dosageForm}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Spacer */}

@@ -6,12 +6,12 @@ import { env } from '@/lib/env';
 import * as schema from './schema';
 
 // Determine if running under serverless PgBouncer connection pooling (§4.2)
-const isServerless = process.env.VERCEL === '1' || env.QUEUE_DRIVER === 'pg-cron';
+const isServerless = process.env.VERCEL === '1';
 
 export const sql = postgres(env.DATABASE_URL, {
-  max: isServerless ? 1 : env.DB_POOL_MAX,
+  max: isServerless ? 1 : (env.DB_POOL_MAX || 10),
   idle_timeout: isServerless ? 20 : 0,
-  connect_timeout: isServerless ? 3 : 10,
+  connect_timeout: 15,
   prepare: isServerless ? false : true, // PgBouncer transaction mode breaks prepared statements
 });
 

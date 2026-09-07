@@ -87,11 +87,6 @@ export function CartView({ locale }: Props) {
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {item.product.requiresPrescription && (
-                      <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
-                        Rx Required
-                      </span>
-                    )}
                     {isCold && (
                       <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
                         ❄️ Cold Chain

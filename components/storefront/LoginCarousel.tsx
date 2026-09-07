@@ -34,8 +34,8 @@ const SLIDES: Slide[] = [
       ),
     },
     description: {
-      en: 'Direct access to verified pharmaceutical supplies, feed additives, and instant BVC vet prescription approvals.',
-      bn: 'বিভিসি নিবন্ধিত বিশেষজ্ঞ ভেটেরিনারিয়ান দ্বারা প্রেসক্রিপশন নিরীক্ষণ এবং ক্যাশ অন ডেলিভারিতে দ্রুত শিপিং।',
+      en: 'Direct access to verified pharmaceutical supplies, feed additives, and express nationwide cash on delivery.',
+      bn: 'সরাসরি কোম্পানি থেকে ১০০% আসল ভেটেরিনারি ওষুধ, ফিড সাপ্লিমেন্ট এবং ক্যাশ অন ডেলিভারিতে দ্রুত শিপিং।',
     },
     pills: [
       {

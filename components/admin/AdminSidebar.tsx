@@ -56,12 +56,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: '💰',
     permission: 'order.read',
   },
-  {
-    label: { en: 'Prescriptions', bn: 'প্রেসক্রিপশন' },
-    href: '/admin/prescriptions',
-    icon: '📋',
-    permission: 'prescription.read',
-  },
+
   {
     label: { en: 'Customers', bn: 'গ্রাহক তালিকা' },
     href: '/admin/customers',

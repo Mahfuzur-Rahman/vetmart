@@ -119,9 +119,10 @@ describe('guest express orders', () => {
     expect(src).toContain('unitPrice: product.salePrice');
   });
 
-  it('refuses prescription-only products on the guest path (§5.5)', () => {
+  it('applies default free delivery unless delivery charge is enabled in settings', () => {
     const src = readSource('lib/services/checkout.ts');
-    expect(src).toContain('PRESCRIPTION_REQUIRED');
+    expect(src).toContain('getShippingSettings');
+    expect(src).toContain('shippingSettings.deliveryChargeEnabled');
   });
 
   it('writes a stock ledger movement rather than mutating a stock column (§2 rule 3)', () => {

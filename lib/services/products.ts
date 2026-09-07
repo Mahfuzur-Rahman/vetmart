@@ -165,6 +165,7 @@ export async function listProducts(opts: ProductFilterOptions = {}) {
       productType: products.productType,
       dosageForm: products.dosageForm,
       packSize: products.packSize,
+      packUnit: products.packUnit,
       targetSpecies: products.targetSpecies,
       withdrawalMeatDays: products.withdrawalMeatDays,
       withdrawalMilkHours: products.withdrawalMilkHours,

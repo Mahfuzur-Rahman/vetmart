@@ -95,6 +95,7 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
     strength: p.strength,
     dosageForm: p.dosageForm,
     packSize: p.packSize,
+    packUnit: p.packUnit,
     dgdaRegistrationNo: p.dgdaRegNo || p.dgdaRegistrationNo || 'DAR-024-118-059',
     imageUrl: p.imageUrl,
     hasShippingCharge: p.hasShippingCharge,
@@ -123,11 +124,7 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
 
           {/* Badges */}
           <div className="flex flex-wrap items-center gap-2">
-            {product.requiresPrescription && (
-              <span className="px-3 py-1 rounded-lg bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 text-xs font-bold uppercase">
-                ⚠️ Rx Prescription Required
-              </span>
-            )}
+
             {product.requiresColdChain && (
               <span className="px-3 py-1 rounded-lg bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300 text-xs font-bold uppercase">
                 ❄️ Cold-Chain Storage (2-8°C)
@@ -293,10 +290,14 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
                 <span className="font-semibold text-foreground">{product.dosageForm}</span>
               </div>
             )}
-            {product.packSize && (
+            {(product.packSize || product.packUnit) && (
               <div>
-                <span className="text-muted-foreground block">{locale === 'bn' ? 'প্যাক সাইজ' : 'Pack Size'}:</span>
-                <span className="font-semibold text-foreground">{product.packSize}</span>
+                <span className="text-muted-foreground block">{locale === 'bn' ? 'পরিমাপ ও প্যাক সাইজ' : 'Pack Size & Unit'}:</span>
+                <span className="font-semibold text-foreground inline-flex items-center gap-1.5 mt-0.5">
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 text-[11px]">
+                    ⚖️ {product.packSize || product.packUnit}
+                  </span>
+                </span>
               </div>
             )}
             {product.dgdaRegistrationNo && (

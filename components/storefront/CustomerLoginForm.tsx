@@ -71,7 +71,7 @@ export function CustomerLoginForm({ locale }: CustomerLoginFormProps) {
           {isBn ? 'VetMart-এ সাইন ইন করুন' : 'Sign in to VetMart'}
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          {isBn ? 'আপনার খামারের ওষুধ, অর্ডার ও প্রেসক্রিপশন এক জায়গায় ম্যানেজ করুন' : 'Access nationwide vet medicine ordering, prescriptions & farm supplies'}
+          {isBn ? 'আপনার খামারের ওষুধ ও অর্ডার এক জায়গায় পরিচালনা করুন' : 'Access nationwide veterinary medicine ordering and farm supplies'}
         </p>
       </div>
 

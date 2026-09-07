@@ -10,6 +10,7 @@ import { getCartView, clearCart } from './cart';
 import { getProductStockSummary, allocateFEFO, recordStockMovement } from './stock';
 import { calculateOrderTotals, type PricingItem } from './pricing';
 import { getDeliveryQuote } from './delivery';
+import { getShippingSettings } from './settings';
 import { normalizePhone } from '@/lib/i18n/number';
 import type { CouponValidationResult } from './coupons';
 
@@ -83,14 +84,7 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     };
   }
 
-  // Check for Rx products without prescription
-  const rxItems = cart.items.filter((i) => i.product.requiresPrescription);
-  if (rxItems.length > 0 && !input.prescriptionId) {
-    return {
-      success: false,
-      error: 'Cart contains prescription-only products. Please upload a prescription first.',
-    };
-  }
+
 
   // 2. Get address and delivery quote
   const [address] = await db
@@ -103,13 +97,17 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     return { success: false, error: 'Delivery address not found.' };
   }
 
+  const shippingSettings = await getShippingSettings();
+  let shippingFeePaisa = 0;
   const deliveryQuote = await getDeliveryQuote(address.division, address.district);
-  let shippingFeePaisa = deliveryQuote?.rate ?? 13000; // Default ৳130 outside Dhaka
 
-  // Free shipping if ALL products in the cart have hasShippingCharge === false
-  const allFreeShipping = cart.items.every((i) => i.product.hasShippingCharge === false);
-  if (allFreeShipping) {
-    shippingFeePaisa = 0;
+  if (shippingSettings.deliveryChargeEnabled) {
+    shippingFeePaisa = deliveryQuote?.rate ?? shippingSettings.outsideRate;
+    // Free shipping if ALL products in the cart have hasShippingCharge === false
+    const allFreeShipping = cart.items.every((i) => i.product.hasShippingCharge === false);
+    if (allFreeShipping) {
+      shippingFeePaisa = 0;
+    }
   }
 
   // Free shipping from coupon
@@ -180,8 +178,8 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
   const invoiceNo = generateInvoiceNo();
   const paymentMethod = input.paymentMethod ?? 'cod';
 
-  // Determine initial status (§5.5)
-  const initialStatus = rxItems.length > 0 ? 'awaiting_rx_review' : 'placed';
+  // Initial order status
+  const initialStatus = 'placed';
 
   // Address snapshot (§6)
   const addressSnapshot = {
@@ -384,24 +382,21 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
       };
     }
 
-    // §5.5: a guest cannot attach a prescription, so Rx items cannot be bought
-    // through this flow. Easier to relax later than to retrofit.
-    if (product.requiresPrescription) {
-      return {
-        success: false,
-        errorCode: 'PRESCRIPTION_REQUIRED',
-        error: `"${product.nameEn}" is prescription-only and cannot be ordered without an approved prescription.`,
-      };
-    }
+
 
     resolved.push({ product, qty: line.qty });
   }
 
   // 2. Delivery quote and cold-chain serviceability (§5.4).
+  const shippingSettings = await getShippingSettings();
   const deliveryQuote = await getDeliveryQuote(input.division, input.district);
-  // Free shipping if ALL products have hasShippingCharge === false
-  const allFreeShipping = resolved.every((r) => r.product.hasShippingCharge === false);
-  const shippingFeePaisa = allFreeShipping ? 0 : (deliveryQuote?.rate ?? 13000);
+  let shippingFeePaisa = 0;
+
+  if (shippingSettings.deliveryChargeEnabled) {
+    // Free shipping if ALL products have hasShippingCharge === false
+    const allFreeShipping = resolved.every((r) => r.product.hasShippingCharge === false);
+    shippingFeePaisa = allFreeShipping ? 0 : (deliveryQuote?.rate ?? shippingSettings.outsideRate);
+  }
 
   const hasColdChain = resolved.some((r) => r.product.requiresColdChain);
   if (hasColdChain && deliveryQuote && !deliveryQuote.coldChainEnabled) {

@@ -38,6 +38,7 @@ export interface CatalogSearchItem {
   productType: string;
   dosageForm: string | null;
   packSize: string | null;
+  packUnit?: string | null;
   targetSpecies: string[];
   requiresPrescription: boolean;
   requiresColdChain: boolean;
@@ -145,6 +146,7 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
       productType: products.productType,
       dosageForm: products.dosageForm,
       packSize: products.packSize,
+      packUnit: products.packUnit,
       targetSpecies: products.targetSpecies,
       requiresPrescription: products.requiresPrescription,
       requiresColdChain: products.requiresColdChain,

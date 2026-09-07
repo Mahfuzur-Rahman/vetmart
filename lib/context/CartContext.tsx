@@ -55,6 +55,25 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [deliverySettings, setDeliverySettings] = useState<{
+    enabled: boolean;
+    dhakaRate: number;
+  }>({ enabled: false, dhakaRate: 7000 });
+
+  // Fetch live delivery charge settings from server (defaults to free delivery)
+  useEffect(() => {
+    fetch('/api/v1/settings')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.data?.shipping) {
+          setDeliverySettings({
+            enabled: Boolean(json.data.shipping.deliveryChargeEnabled),
+            dhakaRate: json.data.shipping.dhakaRate ?? 7000,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load from localStorage on client mount
   useEffect(() => {
@@ -238,9 +257,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const coldChainFee = hasColdChain ? 3000 : 0; // ৳30.00
 
-  // If ALL items in the cart have hasShippingCharge === false, shipping is free
+  // Delivery fee: Default is 0 (Free Delivery nationwide!).
+  // If delivery charges are turned ON in settings and not all items have free shipping, charge zone rate.
   const allFreeShipping = items.length > 0 && items.every((item) => item.product.hasShippingCharge === false);
-  const estDeliveryFee = items.length === 0 || allFreeShipping ? 0 : 7000; // ৳70.00 Inside Dhaka
+  const estDeliveryFee = (!deliverySettings.enabled || items.length === 0 || allFreeShipping)
+    ? 0
+    : deliverySettings.dhakaRate;
   const grandTotal = subtotal + coldChainFee + estDeliveryFee;
 
   return (

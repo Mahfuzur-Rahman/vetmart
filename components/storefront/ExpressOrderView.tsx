@@ -77,14 +77,34 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   const utmCampaign = searchParams?.get('utm_campaign') || searchParams?.get('campaign') || 'direct_order';
   const utmMedium = searchParams?.get('utm_medium') || searchParams?.get('medium') || 'cpc';
 
+  const [deliverySettings, setDeliverySettings] = useState<{
+    enabled: boolean;
+    dhakaRate: number;
+  }>({ enabled: false, dhakaRate: 7000 });
+
+  useEffect(() => {
+    fetch('/api/v1/settings')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.data?.shipping) {
+          setDeliverySettings({
+            enabled: Boolean(json.data.shipping.deliveryChargeEnabled),
+            dhakaRate: json.data.shipping.dhakaRate ?? 7000,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Financial calculations
   const unitPrice = selectedProduct.salePrice;
   const subtotal = unitPrice * quantity;
   const isCold = selectedProduct.requiresColdChain || selectedProduct.coldChain;
   const coldChainFee = isCold ? 3000 : 0; // ৳30
-  const deliveryFee = selectedProduct.hasShippingCharge === false
+  // Delivery fee: 0 by default (free delivery)
+  const deliveryFee = (!deliverySettings.enabled || selectedProduct.hasShippingCharge === false)
     ? 0
-    : (selectedProduct.shippingInsideDhaka ?? 7000); // paisa — default Dhaka rate, admin adjusts later
+    : (selectedProduct.shippingInsideDhaka ?? deliverySettings.dhakaRate);
   const totalAmount = subtotal + coldChainFee + deliveryFee;
   const savings = Math.max(0, (selectedProduct.mrp - selectedProduct.salePrice) * quantity);
 
@@ -646,8 +666,8 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
               </div>
             </div>
 
-            {/* Server-side rejection: out of stock, unserviceable cold-chain
-                zone, prescription required. Shown instead of a fake receipt. */}
+            {/* Server-side rejection: out of stock, unserviceable cold-chain zone.
+                Shown instead of a fake receipt. */}
             {orderError && (
               <div
                 role="alert"

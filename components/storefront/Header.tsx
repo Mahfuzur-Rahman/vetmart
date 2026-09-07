@@ -24,7 +24,7 @@ interface HeaderProps {
 const SERVICES_LINKS = [
   { href: '/products?category=vaccine', nameEn: 'Cold-Chain Delivery Specs', nameBn: 'কোল্ড-চেইন শিপিং তথ্য', emoji: '❄️', tagEn: '2°C–8°C Icebox', tagBn: '২°-৮° সে. কোল্ড বক্স' },
   { href: 'tel:01353920501', nameEn: 'Emergency Vet Line (01353920501)', nameBn: 'জরুরি ভেট হেল্পলাইন (০১৩৫৩৯২০৫০১)', emoji: '📞', tagEn: '24/7 Live Doctor', tagBn: '২৪/৭ রেজিস্টার্ড ভেট' },
-  { href: '/products', nameEn: 'Upload Vet Prescription', nameBn: 'প্রেসক্রিপশন আপলোড করুন', emoji: '📋', tagEn: 'Pharmacist Review', tagBn: 'ফার্মাসিস্ট ভেরিফিকেশন' },
+  { href: '/products?offers=true', nameEn: 'Exclusive Farm Discounts', nameBn: 'খামারিদের বিশেষ ছাড়', emoji: '🏷️', tagEn: 'Direct From Mfg', tagBn: 'কোম্পানি রেট' },
   { href: '/products', nameEn: 'Bulk Farm Supply Orders', nameBn: 'খামারের পাইকারি অর্ডার', emoji: '📦', tagEn: 'Wholesale Pricing', tagBn: 'পাইকারি রেট সুবিধা' },
 ];
 
@@ -245,17 +245,15 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
           {/* Right Action Icons & Badges */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             
-            {/* Quick Prescription Upload Button (High Value Action - Desktop only) */}
-            <Link
-              href="/products"
+            {/* Quick Helpline Button (Desktop only) */}
+            <a
+              href="tel:01353920501"
               className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-600/20 hover:border-emerald-600/40 transition-all shadow-xs"
-              title={locale === 'bn' ? 'প্রেসক্রিপশন আপলোড করুন' : 'Upload Prescription'}
+              title={locale === 'bn' ? 'জরুরি ভেট হেল্পলাইন' : 'Emergency Vet Helpline'}
             >
-              <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span>{locale === 'bn' ? 'প্রেসক্রিপশন আপলোড' : 'Upload Rx'}</span>
-            </Link>
+              <span className="text-sm">📞</span>
+              <span>{locale === 'bn' ? 'জরুরি হেল্পলাইন' : 'Vet Helpline'}</span>
+            </a>
 
             {/* Account / Login Trigger */}
             {customer ? (
@@ -556,15 +554,15 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                 </svg>
               </form>
 
-              {/* Quick Actions (Prescription & Helpline) */}
+              {/* Quick Actions (Browse & Helpline) */}
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   href="/products"
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-600/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold"
                 >
-                  <span>📋</span>
-                  <span>{locale === 'bn' ? 'প্রেসক্রিপশন আপলোড' : 'Upload Rx'}</span>
+                  <span>📦</span>
+                  <span>{locale === 'bn' ? 'সব পণ্য দেখুন' : 'Browse Products'}</span>
                 </Link>
                 <a
                   href="tel:01353920501"
