@@ -24,28 +24,28 @@ const HERO_SLIDES: HeroSlide[] = [
     title: {
       en: (
         <>
-          Genuine Medicines for <br />
+          Genuine Supplements for <br />
           <span className="text-emerald-300">Animal Health & Farms</span>
         </>
       ),
       bn: (
         <>
           পশু স্বাস্থ্য ও খামারের জন্য <br />
-          <span className="text-emerald-300">১০০% অরিজিনাল ওষুধ</span>
+          <span className="text-emerald-300">১০০% অরিজিনাল সাপ্লিমেন্ট</span>
         </>
       ),
     },
     description: {
-      en: 'DGDA-approved quality drugs, dairy supplements, livestock injections & dewormers directly sourced from manufacturers.',
-      bn: 'ডিজিডিএ অনুমোদিত কোয়ালিটি ড্রাগস, ডেইরি সাপ্লিমেন্ট, গবাদিপশুর ইনজেকশন ও কৃমিনাশক। সরাসরি শীর্ষ প্রস্তুতকারকদের কাছ থেকে সংগ্রহীত।',
+      en: 'High-quality dairy supplements, feed additives, and farm supplies directly sourced from trusted manufacturers.',
+      bn: 'উন্নত মানের ডেইরি সাপ্লিমেন্ট, ফিড অ্যাডিটিভস ও খামারের প্রয়োজনীয় পণ্য সরাসরি প্রস্তুতকারকদের কাছ থেকে সংগ্রহীত।',
     },
-    primaryCta: { text: { en: 'Browse All Products', bn: 'সকল ওষুধ দেখুন' }, href: '/products' },
+    primaryCta: { text: { en: 'Browse All Products', bn: 'সকল পণ্য দেখুন' }, href: '/products' },
     secondaryCta: { text: { en: '🐄 Cattle Corner', bn: '🐄 গবাদিপশু কর্নার' }, href: '/species/cattle' },
   },
   {
     id: 2,
     image: '/images/hero-slide-2.png',
-    badge: { en: 'Dairy & Cattle Care', bn: 'ডেইরি ও গবাদিপশুর ওষুধ' },
+    badge: { en: 'Dairy & Cattle Care', bn: 'ডেইরি ও গবাদিপশুর যত্ন' },
     title: {
       en: (
         <>
@@ -61,36 +61,11 @@ const HERO_SLIDES: HeroSlide[] = [
       ),
     },
     description: {
-      en: 'High-potency calcium solutions, mineral mixtures, and oxytocin alternatives for dairy cows and bulls.',
-      bn: 'দুগ্ধবতী গরুর জন্য উচ্চমানের ক্যালসিয়াম ড্রাফ্ট, মিনারেল মিক্সচার ও প্রজনন স্বাস্থ্য সুরক্ষার ওষুধ।',
+      en: 'High-potency calcium solutions, mineral mixtures, and nutritional additives for dairy cows and bulls.',
+      bn: 'দুগ্ধবতী গরুর জন্য উচ্চমানের ক্যালসিয়াম, মিনারেল মিক্সচার ও স্বাস্থ্য সুরক্ষার পুষ্টি উপাদান।',
     },
-    primaryCta: { text: { en: 'Cattle Products', bn: 'গবাদিপশুর ওষুধ' }, href: '/species/cattle' },
+    primaryCta: { text: { en: 'Cattle Products', bn: 'গবাদিপশুর পণ্য' }, href: '/species/cattle' },
     secondaryCta: { text: { en: '🐄 Cattle Corner', bn: '🐄 ক্যাটল কর্নার' }, href: '/species/cattle' },
-  },
-  {
-    id: 3,
-    image: '/images/hero-slide-3.png',
-    badge: { en: 'Cold-Chain Express Shipping', bn: 'কোল্ড-চেইন এক্সপ্রেস শিপিং' },
-    title: {
-      en: (
-        <>
-          Insulated Temperature Controlled <br />
-          <span className="text-emerald-300">Vaccine & Biological Delivery</span>
-        </>
-      ),
-      bn: (
-        <>
-          নিরাপদ তাপমাত্রায় ভ্যাকসিন ও <br />
-          <span className="text-emerald-300">বায়োলজিক্যালস এক্সপ্রেস শিপিং</span>
-        </>
-      ),
-    },
-    description: {
-      en: 'Specialized cold-chain insulated packaging guaranteeing 100% potency retention nationwide.',
-      bn: 'ভ্যাকসিন ও ইনজেক্টেবল ডিলিউয়েন্টের জন্য বিশেষায়িত তাপমাত্রা নিয়ন্ত্রিত কোল্ড বক্স প্যাকিং।',
-    },
-    primaryCta: { text: { en: 'View Vaccines', bn: 'ভ্যাকসিনসমূহ দেখুন' }, href: '/products?category=vaccine' },
-    secondaryCta: { text: { en: '❄️ Cold-Chain Specs', bn: '❄️ কোল্ড-চেইন সুবিধা' }, href: '/products' },
   },
   {
     id: 7,
@@ -111,60 +86,35 @@ const HERO_SLIDES: HeroSlide[] = [
       ),
     },
     description: {
-      en: 'Efficacy-tested shed spray sanitizers, footbath solutions, and viral outbreak preventatives.',
-      bn: 'ভাইরাস, ব্যাকটেরিয়া ও ছত্রাক দমনে নিবন্ধিত ডিসইনফেক্টেন্ট স্প্রে ও শেড জীবাণুমুক্তকরণ কেমিক্যাল।',
+      en: 'Efficacy-tested shed spray sanitizers, footbath solutions, and farm hygiene maintainers.',
+      bn: 'খামারকে নিরাপদ ও জীবাণুমুক্ত রাখতে মানসম্মত ডিসইনফেক্টেন্ট স্প্রে ও ক্লিনিং কেমিক্যাল।',
     },
     primaryCta: { text: { en: 'Disinfectants', bn: 'ডিসইনফেক্টেন্ট দেখুন' }, href: '/products' },
     secondaryCta: { text: { en: '🛡️ Biosecurity', bn: '🛡️ বায়ো-সিকিউরিটি' }, href: '/products' },
   },
   {
-    id: 8,
-    image: '/images/hero-slide-8.png',
-    badge: { en: 'Strategic Deworming Drives', bn: 'স্ট্র্যাটেজিক কৃমিনাশক ক্যাম্পেইন' },
-    title: {
-      en: (
-        <>
-          Broad Spectrum Dewormers <br />
-          <span className="text-emerald-300">For Fluke & Roundworm Eradication</span>
-        </>
-      ),
-      bn: (
-        <>
-          গরু ও মহিষের লিভার ফ্লুক ও <br />
-          <span className="text-emerald-300">কৃমি দমনে উচ্চক্ষমতাসম্পন্ন বোলুস</span>
-        </>
-      ),
-    },
-    description: {
-      en: 'Triclabendazole, Albendazole, and Levamisole drench and boluses for cattle & dairy cows.',
-      bn: 'গর্ভবতী গরুর জন্য নিরাপদ ট্রাইক্লাবেন্ডাজল ও অ্যালবেন্ডাজল কৃমিনাশক ট্যাবলেট ও ড্রেঞ্চ।',
-    },
-    primaryCta: { text: { en: 'Dewormers List', bn: 'কৃমিনাশক তালিকা' }, href: '/products' },
-    secondaryCta: { text: { en: '🐄 Cattle Deworming', bn: '🐄 গরুর কৃমিনাশক' }, href: '/species/cattle' },
-  },
-  {
     id: 9,
     image: '/images/hero-slide-9.png',
-    badge: { en: '24/7 Registered Vet Consultation', bn: '২৪/৭ নিবন্ধিত ভেটেরিনারি সার্জন' },
+    badge: { en: '24/7 Expert Farm Consultation', bn: '২৪/৭ খামার বিষয়ক পরামর্শ' },
     title: {
       en: (
         <>
-          Direct Genuine Medicine Sourcing <br />
-          <span className="text-emerald-300">By BVC Registered Doctors</span>
+          Direct Genuine Product Sourcing <br />
+          <span className="text-emerald-300">With Expert Guidance</span>
         </>
       ),
       bn: (
         <>
-          জরুরি ভেটেরিনারি হেল্পলাইন ও <br />
-          <span className="text-emerald-300">সরাসরি বিভিসি ডাক্তার পরামর্শ</span>
+          সঠিক পণ্য নির্বাচন ও <br />
+          <span className="text-emerald-300">খামার বিশেষজ্ঞদের সরাসরি পরামর্শ</span>
         </>
       ),
     },
     description: {
-      en: 'Direct manufacturer-sourced authentic veterinary pharmaceuticals, nutritional boluses & vaccines delivered to your doorstep.',
-      bn: 'সরাসরি প্রস্তুতকারক কোম্পানি থেকে ১০০% আসল ভেটেরিনারি ওষুধ, নিউট্রিশন ও ভ্যাকসিন সারা দেশে ডেলিভারি নিন।',
+      en: 'Direct manufacturer-sourced authentic nutritional boluses, feed additives & farm supplies delivered to your doorstep.',
+      bn: 'সরাসরি প্রস্তুতকারক কোম্পানি থেকে ১০০% আসল নিউট্রিশন, ফিড অ্যাডিটিভস ও খামার পণ্য সারা দেশে ডেলিভারি নিন।',
     },
-    primaryCta: { text: { en: 'Order Medicines', bn: 'ওষুধ অর্ডার করুন' }, href: '/products' },
+    primaryCta: { text: { en: 'Order Now', bn: 'অর্ডার করুন' }, href: '/products' },
     secondaryCta: { text: { en: '📞 Call 01353920501', bn: '📞 হেল্পলাইন ০১৩৫৩৯২০৫০১' }, href: 'tel:01353920501' },
   },
   {

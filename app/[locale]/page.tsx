@@ -75,12 +75,12 @@ export default async function HomePage({ params }: Props) {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                  {loc === 'bn' ? 'জনপ্রিয় প্রয়োজনীয় ওষুধ' : 'Featured essentials'}
+                  {loc === 'bn' ? 'জনপ্রিয় প্রয়োজনীয় পণ্য' : 'Featured essentials'}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1.5 max-w-md">
                   {loc === 'bn'
-                    ? 'খামার ও পশুর চিকিৎসায় বহুল ব্যবহৃত নিবন্ধিত ওষুধ'
-                    : 'Widely used registered medicines for farm & animal treatment'}
+                    ? 'খামার ও পশু পালনে বহুল ব্যবহৃত পণ্য ও সাপ্লিমেন্ট'
+                    : 'Widely used supplies and supplements for farm & animal care'}
                 </p>
               </div>
 
@@ -102,7 +102,7 @@ export default async function HomePage({ params }: Props) {
                 href="/products"
                 className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
               >
-                {loc === 'bn' ? 'সব ওষুধ দেখুন →' : 'View all products →'}
+                {loc === 'bn' ? 'সব পণ্য দেখুন →' : 'View all products →'}
               </Link>
             </div>
           </section>
@@ -115,13 +115,13 @@ export default async function HomePage({ params }: Props) {
             <div className="space-y-2">
               <h3 className="font-display font-bold text-lg text-foreground">
                 {loc === 'bn'
-                  ? 'সঠিক ড্রাগ ব্যবহার ও AMR সচেতনতা'
-                  : 'Responsible drug usage & AMR awareness'}
+                  ? 'সঠিক খামার ব্যবস্থাপনা ও হাইজিন সচেতনতা'
+                  : 'Responsible farm management & hygiene awareness'}
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
                 {loc === 'bn'
-                  ? 'গবাদিপশু ও পোল্ট্রির দুগ্ধ ও মাংসে অবশিষ্ট ওষুধ প্রতিরোধে উইথড্রয়াল পিরিয়ড কঠোরভাবে মেনে চলুন। নিবন্ধিত ভেটেরিনারি সার্জনের পরামর্শ ছাড়া কোনো অ্যান্টিবায়োটিক প্রয়োগ করবেন না।'
-                  : 'Strictly adhere to withdrawal periods to prevent drug residue in meat and milk. Never administer antibiotics without consulting a registered veterinary surgeon.'}
+                  ? 'খামারের সর্বোচ্চ উৎপাদনশীলতা ও পশুর সুস্বাস্থ্য নিশ্চিতে সর্বদা ফিড অ্যাডিটিভস এবং সাপ্লিমেন্টের সঠিক নির্দেশিকা অনুসরণ করুন।'
+                  : 'Always follow recommended guidelines for feed additives and supplements to ensure optimal animal health and farm productivity.'}
               </p>
             </div>
           </section>

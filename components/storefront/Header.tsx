@@ -124,12 +124,12 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto scrollbar-hide py-0.5 min-w-0">
             <div className="flex items-center gap-1.5 shrink-0 font-medium text-[11px] sm:text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{locale === 'bn' ? '১০০% ডিজিডিএ ওষুধ' : '100% DGDA-Approved'}</span>
+              <span>{locale === 'bn' ? '১০০% কোয়ালিটি নিশ্চিত' : '100% Quality Assured'}</span>
             </div>
             <span className="hidden md:inline text-emerald-400/50">•</span>
             <div className="hidden md:flex items-center gap-1.5 shrink-0 text-emerald-100 text-xs">
-              <span>❄️</span>
-              <span>{locale === 'bn' ? 'কোল্ড-চেইন ভ্যাকসিন' : 'Cold-Chain Assured'}</span>
+              <span>🚚</span>
+              <span>{locale === 'bn' ? 'দ্রুত ও নিরাপদ ডেলিভারি' : 'Fast & Safe Delivery'}</span>
             </div>
             <span className="hidden lg:inline text-emerald-400/50">•</span>
             <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-emerald-100 text-xs">
@@ -201,14 +201,11 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
             <div className="min-w-0">
               <div className="flex items-center gap-1 leading-none">
                 <span className="font-display text-lg sm:text-2xl font-bold tracking-tight text-foreground">
-                  VetMart
-                </span>
-                <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md bg-emerald-500 text-white font-extrabold text-[9px] sm:text-[10px] tracking-wider uppercase">
-                  BD
+                  VetMartBD
                 </span>
               </div>
               <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium hidden sm:block mt-0.5 truncate">
-                {locale === 'bn' ? 'ভেটেরিনারি ই-ফার্মেসি ও খামার সেবা' : 'Veterinary Pharmacy & Livestock Care'}
+                {locale === 'bn' ? 'খামার ও পশু স্বাস্থ্য সরবরাহ' : 'Livestock & Animal Health Supply'}
               </span>
             </div>
           </Link>
@@ -227,8 +224,8 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                   name="q"
                   placeholder={
                     locale === 'bn'
-                      ? 'ওষুধ, ভ্যাকসিন, প্রজাতি বা জেনেরিক নাম দিয়ে খুঁজুন (উদাঃ Renamycin, Cevac)...'
-                      : 'Search medicines, vaccines, species, or generics (e.g. Renamycin, Cevac)...'
+                      ? 'পণ্য, ফিড অ্যাডিটিভস বা প্রজাতি দিয়ে খুঁজুন...'
+                      : 'Search products, feed supplements, or species...'
                   }
                   className="w-full py-2.5 pr-3 text-sm bg-transparent text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
                 />
@@ -414,8 +411,8 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                   {/* Column 2: Pharmacological Medicine Categories */}
                   <div className="space-y-3">
                     <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-border/70">
-                      <span>💊</span>
-                      <span>{locale === 'bn' ? 'ওষুধের ক্যাটাগরি' : 'Drug Classifications'}</span>
+                      <span>📦</span>
+                      <span>{locale === 'bn' ? 'পণ্যের ক্যাটাগরি' : 'Product Categories'}</span>
                     </div>
                     <div className="space-y-1.5">
                       {pharmaCategories.map((cat) => (
@@ -499,7 +496,7 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
               href="/products"
               className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline whitespace-nowrap"
             >
-              <span>{locale === 'bn' ? 'সকল ওষুধ' : 'All Products'}</span>
+              <span>{locale === 'bn' ? 'সকল পণ্য' : 'All Products'}</span>
               <span>→</span>
             </Link>
           </div>
@@ -524,7 +521,7 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                   V
                 </div>
                 <span className="font-display font-bold text-base text-foreground">
-                  VetMart<span className="text-emerald-600">BD</span>
+                  VetMartBD
                 </span>
               </div>
               
@@ -546,7 +543,7 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
                 <input
                   type="text"
                   name="q"
-                  placeholder={locale === 'bn' ? 'ওষুধ, ভ্যাকসিন বা জেনেরিক খুঁজুন...' : 'Search drugs, vaccines, generics...'}
+                  placeholder={locale === 'bn' ? 'পণ্য, ফিড অ্যাডিটিভস খুঁজুন...' : 'Search products, supplements...'}
                   className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border bg-secondary/50 text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                 />
                 <svg className="absolute left-3.5 top-3 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -576,7 +573,7 @@ export function Header({ locale, cartCount = 0, initialSpecies, initialDrugClass
               {/* Medicine Categories */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider px-1">
-                  {locale === 'bn' ? 'ওষুধের ক্যাটাগরি' : 'Medicine Categories'}
+                  {locale === 'bn' ? 'পণ্যের ক্যাটাগরি' : 'Product Categories'}
                 </span>
                 <div className="grid grid-cols-1 gap-1.5">
                   {pharmaCategories.map((cat) => (

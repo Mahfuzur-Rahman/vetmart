@@ -21,10 +21,10 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'VetMart BD — ভেটেরিনারি মেডিসিন ও পশু স্বাস্থ্য',
-    template: '%s | VetMart BD',
+    default: 'VetMartBD — খামার পণ্য ও পশু স্বাস্থ্য',
+    template: '%s | VetMartBD',
   },
-  description: 'বাংলাদেশের সবচেয়ে বিশ্বস্ত ভেটেরিনারি ওষুধ, ভ্যাকসিন ও পশু স্বাস্থ্য ই-কমার্স প্ল্যাটফর্ম',
+  description: 'বাংলাদেশের সবচেয়ে বিশ্বস্ত খামার পণ্য, ফিড অ্যাডিটিভস ও পশু স্বাস্থ্য সাপ্লিমেন্ট ই-কমার্স প্ল্যাটফর্ম',
 };
 
 type Props = {

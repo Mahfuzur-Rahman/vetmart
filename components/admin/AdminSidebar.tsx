@@ -114,7 +114,7 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
             V
           </div>
           <span className="font-display font-bold text-sm text-[#2F3437]">
-            VetMart <span className="text-emerald-600">Admin</span>
+            VetMartBD <span className="text-emerald-600">Admin</span>
           </span>
         </div>
         <button
@@ -154,7 +154,7 @@ export function AdminSidebar({ locale, adminName, permissions }: AdminSidebarPro
           </div>
           <div>
             <span className="font-display font-bold text-sm text-[#2F3437] block leading-tight">
-              VetMart<span className="text-emerald-600">BD</span>
+              VetMartBD
             </span>
             <span className="text-[10px] text-[#787774] font-medium block leading-tight uppercase tracking-wider">
               Admin Console

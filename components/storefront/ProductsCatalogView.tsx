@@ -147,8 +147,8 @@ export function ProductsCatalogView({
               ? `"${query}" এর অনুসন্ধান ফলাফল`
               : `Search results for "${query}"`
             : locale === 'bn'
-            ? 'সকল ভেটেরিনারি ওষুধ ও পণ্য'
-            : 'All Veterinary Medicines & Products'}
+            ? 'সকল খামার পণ্য ও সাপ্লিমেন্ট'
+            : 'All Farm Supplies & Supplements'}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {locale === 'bn'
@@ -254,7 +254,7 @@ export function ProductsCatalogView({
             <div className="text-center py-16 space-y-4 border border-dashed border-border rounded-3xl bg-card/50">
               <div className="text-4xl">🔍</div>
               <h3 className="font-bold text-lg text-foreground">
-                {locale === 'bn' ? 'কোনো ওষুধ পাওয়া যায়নি' : 'No products found'}
+                {locale === 'bn' ? 'কোনো পণ্য পাওয়া যায়নি' : 'No products found'}
               </h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                 {locale === 'bn'
