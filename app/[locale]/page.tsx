@@ -8,6 +8,7 @@ import { FeaturedProductsGrid } from '@/components/storefront/FeaturedProductsGr
 import { searchCatalog } from '@/lib/services/search';
 import { listSpecies } from '@/lib/services/species-server';
 import { listDrugClassifications } from '@/lib/services/drug-classifications-server';
+import { pickFeatured, FEATURED_FETCH_SIZE } from '@/lib/catalog/featured';
 
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
@@ -24,15 +25,19 @@ export default async function HomePage({ params }: Props) {
   const loc = locale as Locale;
   setRequestLocale(loc);
 
-  // Featured products come from the catalog search, which serves the seed list
-  // in demo mode and the database otherwise. No mock fallback: an empty
-  // homepage must mean an empty catalog, not a hidden query failure.
+  // Featured products come from the catalog search, which only ever returns
+  // active rows. No mock fallback: an empty homepage must mean an empty
+  // catalog, not a hidden query failure.
+  //
+  // Sorted newest-first and widened past the rail size so pickFeatured can
+  // demote out-of-stock rows (§16.1) — see lib/catalog/featured.ts for why the
+  // default alphabetical order was the wrong choice here.
   const [homepageSpecies, menuPharma, featured] = await Promise.all([
     listSpecies({ showOnHomepage: true, isActive: true }),
     listDrugClassifications({ showOnMenu: true, isActive: true }),
-    searchCatalog({ pageSize: 8 }),
+    searchCatalog({ pageSize: FEATURED_FETCH_SIZE, sort: 'newest' }),
   ]);
-  const products = featured.items;
+  const products = pickFeatured(featured.items);
 
   return (
     <div className="min-h-dvh flex flex-col bg-background text-foreground">

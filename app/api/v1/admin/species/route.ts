@@ -3,10 +3,14 @@ import { db } from '@/lib/db';
 import { speciesCategories } from '@/lib/db/schema';
 import { listSpecies } from '@/lib/services/species-server';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { requireAdmin } from '@/lib/api/guard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const guard = await requireAdmin('category.read');
+  if (!guard.ok) return guard.response;
+
   try {
     const items = await listSpecies();
     return apiSuccess(items);
@@ -16,8 +20,16 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Species drive the primary storefront navigation (§5.2); an unauthenticated
+  // POST here let anyone add rows to it.
+  const guard = await requireAdmin('category.write');
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await req.json();
+    if (!body?.nameEn || typeof body.nameEn !== 'string' || !body.nameEn.trim()) {
+      return apiError('VALIDATION_ERROR', 'nameEn is required', 422, 'nameEn');
+    }
     const key = (body.key || body.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '')).trim();
     const slug = (body.slug || body.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')).trim();
 

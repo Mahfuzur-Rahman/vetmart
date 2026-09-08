@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ProductCard } from '@/components/storefront/ProductCard';
 import { PRODUCTS_UPDATED_EVENT } from '@/lib/types/product';
+import { pickFeatured, FEATURED_LIMIT, FEATURED_QUERY } from '@/lib/catalog/featured';
 import { Link } from '@/lib/i18n/navigation';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -23,14 +24,16 @@ export function FeaturedProductsGrid({ locale, initialProducts }: Props) {
     setRefetched(null);
   }
 
-  const products = (refetched ?? initialProducts ?? []).slice(0, 8);
+  // The server already ran pickFeatured over its page; re-running it is
+  // idempotent and keeps a client refetch ordered the same way.
+  const products = pickFeatured(refetched ?? initialProducts ?? [], FEATURED_LIMIT);
 
   useEffect(() => {
     // Re-fetch after an admin write. The catalog is server state: an empty
     // response means the catalog is empty, never a cue to read this browser's
     // localStorage, which is what made products device-local.
     const syncProducts = () => {
-      fetch('/api/v1/products?pageSize=8')
+      fetch(`/api/v1/products?${FEATURED_QUERY}`)
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
           if (Array.isArray(json.data)) setRefetched(json.data);

@@ -1,8 +1,8 @@
 // lib/services/reviews.ts
 // Product Reviews service — CRUD operations & database queries
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { productReviews, products } from '@/lib/db/schema';
+import { productReviews, products, orders, orderItems, users } from '@/lib/db/schema';
 
 import { Review, CreateReviewInput } from '@/lib/types/reviews';
 
@@ -103,6 +103,34 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
   const species = data.speciesTreated || undefined;
   const speciesLabel = species ? SPECIES_LABELS[species] : undefined;
 
+  // Both trust badges are derived server-side from what the database knows
+  // about this reviewer, never from the submitted payload.
+  let isVerifiedPurchase = false;
+  let isVerifiedVet = false;
+
+  if (data.userId && targetProductId) {
+    const [purchase] = await db
+      .select({ id: orderItems.id })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.userId, data.userId),
+          eq(orderItems.productId, targetProductId),
+          inArray(orders.status, ['delivered'])
+        )
+      )
+      .limit(1);
+    isVerifiedPurchase = !!purchase;
+
+    const [author] = await db
+      .select({ isVerifiedVet: users.isVerifiedVet })
+      .from(users)
+      .where(eq(users.id, data.userId))
+      .limit(1);
+    isVerifiedVet = author?.isVerifiedVet === true;
+  }
+
   if (targetProductId) {
     try {
       const [inserted] = await db
@@ -117,8 +145,13 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
           title: data.title || null,
           comment: data.comment,
           speciesTreated: species || null,
-          isVerifiedPurchase: true,
-          isVetRecommended: data.isVetRecommended ?? false,
+          // Earned, not asserted. This was hardcoded `true`, so every anonymous
+          // review carried a "Verified Purchase" badge — a trust signal on a
+          // regulated-goods storefront that nothing backed up.
+          isVerifiedPurchase: isVerifiedPurchase,
+          // Likewise: `isVetRecommended` came straight off the request body, so
+          // anyone could mark their own review as vet-recommended.
+          isVetRecommended: isVerifiedVet,
           helpfulCount: 0,
           isApproved: true,
         })
@@ -170,8 +203,8 @@ export async function createProductReview(data: CreateReviewInput): Promise<Revi
     speciesTreated: species,
     speciesTreatedLabelEn: speciesLabel?.en,
     speciesTreatedLabelBn: speciesLabel?.bn,
-    isVerifiedPurchase: true,
-    isVetRecommended: data.isVetRecommended,
+    isVerifiedPurchase,
+    isVetRecommended: isVerifiedVet,
     helpfulCount: 0,
     createdAt: new Date().toISOString(),
   };

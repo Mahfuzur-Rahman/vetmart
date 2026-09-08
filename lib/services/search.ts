@@ -2,7 +2,15 @@
 // Unified catalog search combining generic name, brand name, Banglish keywords (§6, §20)
 import { eq, and, sql as dSql, ilike, or, arrayOverlaps, asc, desc, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { products, productImages, categories, manufacturers, stockLedger, productBatches } from '@/lib/db/schema';
+import {
+  products,
+  productImages,
+  categories,
+  manufacturers,
+  stockLedger,
+  productBatches,
+  drugClassifications,
+} from '@/lib/db/schema';
 import { normalizeDigits } from '@/lib/i18n/number';
 import { getStorageDriver } from '@/lib/storage';
 
@@ -45,8 +53,12 @@ export interface CatalogSearchItem {
   isActive: boolean;
   mrp: number;
   salePrice: number;
+  categorySlug: string | null;
   categoryNameEn: string | null;
   categoryNameBn: string | null;
+  drugClassificationSlug: string | null;
+  drugClassificationNameEn: string | null;
+  drugClassificationNameBn: string | null;
   manufacturerName: string | null;
   hasShippingCharge: boolean;
   shippingInsideDhaka?: number;
@@ -59,6 +71,20 @@ export interface CatalogSearchItem {
   imageUrl?: string;
 }
 
+export const DEFAULT_PAGE_SIZE = 24;
+
+/**
+ * Largest page the service will serve. The storefront caps itself far lower
+ * (see the public route); admin screens need the whole catalog in one request,
+ * and the previous cap of 48 silently truncated the products table — rows past
+ * the 48th could not be edited, deactivated or deleted because they never
+ * rendered.
+ */
+export const MAX_PAGE_SIZE = 200;
+
+/** Largest page an unauthenticated storefront caller may request. */
+export const PUBLIC_MAX_PAGE_SIZE = 48;
+
 /**
  * Search the product catalog with multi-criteria filtering.
  *
@@ -70,7 +96,8 @@ export interface CatalogSearchItem {
  */
 export async function searchCatalog(params: CatalogSearchParams): Promise<CatalogSearchResult> {
   const page = Math.max(1, params.page ?? 1);
-  const pageSize = Math.min(48, Math.max(1, params.pageSize ?? 24));
+  const requested = Number.isFinite(params.pageSize) ? params.pageSize! : DEFAULT_PAGE_SIZE;
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, requested));
   const offset = (page - 1) * pageSize;
 
   // Build WHERE conditions
@@ -156,13 +183,18 @@ export async function searchCatalog(params: CatalogSearchParams): Promise<Catalo
       hasShippingCharge: products.hasShippingCharge,
       shippingInsideDhaka: products.shippingInsideDhaka,
       shippingOutsideDhaka: products.shippingOutsideDhaka,
+      categorySlug: categories.slug,
       categoryNameEn: categories.nameEn,
       categoryNameBn: categories.nameBn,
+      drugClassificationSlug: drugClassifications.slug,
+      drugClassificationNameEn: drugClassifications.nameEn,
+      drugClassificationNameBn: drugClassifications.nameBn,
       manufacturerName: manufacturers.name,
     })
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .leftJoin(manufacturers, eq(products.manufacturerId, manufacturers.id))
+    .leftJoin(drugClassifications, eq(products.drugClassificationId, drugClassifications.id))
     .where(whereClause)
     .orderBy(orderBy)
     .limit(pageSize)

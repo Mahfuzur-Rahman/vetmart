@@ -20,8 +20,6 @@ export interface ExpressProduct {
   mrp: number; // in paisa
   salePrice: number; // in paisa
   requiresPrescription?: boolean;
-  requiresColdChain?: boolean;
-  coldChain?: boolean;
   imageUrl?: string | null;
   stock?: number;
   manufacturerName?: string | null;
@@ -99,13 +97,11 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
   // Financial calculations
   const unitPrice = selectedProduct.salePrice;
   const subtotal = unitPrice * quantity;
-  const isCold = selectedProduct.requiresColdChain || selectedProduct.coldChain;
-  const coldChainFee = isCold ? 3000 : 0; // ৳30
   // Delivery fee: 0 by default (free delivery)
   const deliveryFee = (!deliverySettings.enabled || selectedProduct.hasShippingCharge === false)
     ? 0
     : (selectedProduct.shippingInsideDhaka ?? deliverySettings.dhakaRate);
-  const totalAmount = subtotal + coldChainFee + deliveryFee;
+  const totalAmount = subtotal + deliveryFee;
   const savings = Math.max(0, (selectedProduct.mrp - selectedProduct.salePrice) * quantity);
 
   // Ref to track last captured state to avoid redundant syncs
@@ -363,9 +359,6 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
           <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-bold tracking-wide">
             ✓ {isBn ? 'ক্যাশ অন ডেলিভারি' : 'Cash on Delivery'}
           </span>
-          <span className="px-3 py-1 rounded-full bg-emerald-950/40 text-emerald-200 text-xs font-bold hidden sm:inline-block">
-            🔒 DGDA Approved
-          </span>
         </div>
       </div>
 
@@ -393,11 +386,6 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                   <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
                     {selectedProduct.manufacturerName || 'Square Pharmaceuticals Ltd.'}
                   </span>
-                  {isCold && (
-                    <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
-                      ❄️ 2-8°C Cold Chain
-                    </span>
-                  )}
                 </div>
 
                 <h1 className="text-lg sm:text-xl font-extrabold text-foreground leading-snug">
@@ -620,13 +608,6 @@ export function ExpressOrderView({ locale, product: initialProduct, allProducts 
                 <span>{isBn ? 'ওষুধের মূল্য' : 'Medicine Subtotal'}</span>
                 <span className="font-bold text-foreground font-display text-sm">{fmtMoney(subtotal, locale)}</span>
               </div>
-
-              {isCold && (
-                <div className="flex justify-between items-center text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-xl border border-blue-500/20">
-                  <span>{isBn ? '❄️ কোল্ড চেইন কুলার বক্স' : '❄️ Cold Chain Packing'}</span>
-                  <span className="font-bold font-display">{fmtMoney(coldChainFee, locale)}</span>
-                </div>
-              )}
 
               <div className="flex justify-between items-center text-muted-foreground">
                 <span>

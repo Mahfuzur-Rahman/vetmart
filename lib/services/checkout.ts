@@ -1,13 +1,18 @@
 // lib/services/checkout.ts
 // Checkout flow: validate → allocate → record → create order (§5.3, §5.5, §6, §11)
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, sql as pgSql } from '@/lib/db';
 import {
   orders, orderItems, orderEvents, invoices,
-  products, productBatches, addresses,
+  products, addresses, carts, cartItems,
 } from '@/lib/db/schema';
-import { getCartView, clearCart } from './cart';
-import { getProductStockSummary, allocateFEFO, recordStockMovement } from './stock';
+import { getCartView } from './cart';
+import {
+  getProductStockSummary,
+  allocateFEFO,
+  lockAndAllocateFEFO,
+  recordStockMovement,
+} from './stock';
 import { calculateOrderTotals, type PricingItem } from './pricing';
 import { getDeliveryQuote } from './delivery';
 import { getShippingSettings } from './settings';
@@ -22,6 +27,8 @@ export interface CheckoutInput {
   couponResult?: CouponValidationResult;
   prescriptionId?: string;
   note?: string;
+  /** §9: replayed rather than duplicated when the same key arrives twice. */
+  idempotencyKey?: string;
 }
 
 export interface CheckoutResult {
@@ -29,30 +36,55 @@ export interface CheckoutResult {
   orderId?: string;
   orderNo?: string;
   total?: number;
+  /** True when this idempotency key was already used and the original is returned. */
+  replayed?: boolean;
   error?: string;
   insufficientItems?: Array<{ productId: string; nameEn: string; requested: number; available: number }>;
 }
 
-/**
- * Generate an order number: ORD-YYMM-NNNN (Western digits always §15.3 rule 4).
- */
-function generateOrderNo(): string {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const seq = String(Math.floor(1000 + Math.random() * 9000));
-  return `ORD-${yy}${mm}-${seq}`;
+/** Dhaka-local YYMM for a document number. §6: stored UTC, rendered Dhaka. */
+function dhakaYearMonth(): string {
+  // Asia/Dhaka is UTC+6 with no DST, so a fixed offset is exact here.
+  const dhaka = new Date(Date.now() + 6 * 60 * 60 * 1000);
+  const yy = String(dhaka.getUTCFullYear()).slice(-2);
+  const mm = String(dhaka.getUTCMonth() + 1).padStart(2, '0');
+  return `${yy}${mm}`;
 }
 
 /**
- * Generate an invoice number: INV-YYMM-NNNN (§11).
+ * Draw the next value from a Postgres sequence (migration 0004).
+ *
+ * These numbers used to be a random four-digit suffix — 9000 possible values a
+ * month written into UNIQUE columns, so past roughly 120 orders in a month a
+ * collision was more likely than not, and it surfaced as a failed checkout
+ * rather than a retry. §11 calls for a sequence: never reused, never gapped.
+ *
+ * Deliberately taken outside any transaction: `nextval` does not roll back, so
+ * a failed order leaves its number unused instead of blocking the next one.
  */
-function generateInvoiceNo(): string {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const seq = String(Math.floor(1000 + Math.random() * 9000));
-  return `INV-${yy}${mm}-${seq}`;
+async function nextSequenceValue(name: 'order_no_seq' | 'invoice_no_seq'): Promise<number> {
+  const rows =
+    name === 'order_no_seq'
+      ? await pgSql<{ value: string }[]>`SELECT nextval('order_no_seq')::bigint AS value`
+      : await pgSql<{ value: string }[]>`SELECT nextval('invoice_no_seq')::bigint AS value`;
+
+  const value = Number(rows[0]?.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Sequence ${name} returned no value. Has migration 0004 been applied?`);
+  }
+  return value;
+}
+
+/** ORD-YYMM-NNNN, Western digits always (§15.3 rule 4). */
+async function generateOrderNo(): Promise<string> {
+  const seq = await nextSequenceValue('order_no_seq');
+  return `ORD-${dhakaYearMonth()}-${String(seq).padStart(4, '0')}`;
+}
+
+/** INV-YYMM-NNNN (§11). */
+async function generateInvoiceNo(): Promise<string> {
+  const seq = await nextSequenceValue('invoice_no_seq');
+  return `INV-${dhakaYearMonth()}-${String(seq).padStart(4, '0')}`;
 }
 
 /**
@@ -69,6 +101,23 @@ function generateInvoiceNo(): string {
  * 9. Clear the cart.
  */
 export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> {
+  // Replay an earlier submit of the same key instead of creating a second order.
+  // Only the guest express flow had this; the authenticated checkout duplicated
+  // the order (and later the courier consignment) on any retry, which on BD
+  // mobile data is routine rather than rare (§9).
+  if (input.idempotencyKey) {
+    const alreadyPlaced = await findOrderByIdempotencyKey(input.idempotencyKey);
+    if (alreadyPlaced) {
+      return {
+        success: true,
+        replayed: true,
+        orderId: alreadyPlaced.id,
+        orderNo: alreadyPlaced.orderNo,
+        total: alreadyPlaced.total,
+      };
+    }
+  }
+
   // 1. Load cart
   const cart = await getCartView(input.cartId);
   if (cart.items.length === 0) {
@@ -86,11 +135,16 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
 
 
 
-  // 2. Get address and delivery quote
+  // 2. Get address and delivery quote.
+  //
+  // Scoped to the buyer. Looking the address up by id alone let any logged-in
+  // customer pass someone else's addressId: the order shipped to that address
+  // and its full snapshot (recipient name, phone, street) came back on their own
+  // order — an address-book read primitive for anyone with a UUID.
   const [address] = await db
     .select()
     .from(addresses)
-    .where(eq(addresses.id, input.addressId))
+    .where(and(eq(addresses.id, input.addressId), eq(addresses.userId, input.userId)))
     .limit(1);
 
   if (!address) {
@@ -115,30 +169,34 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     shippingFeePaisa = 0;
   }
 
-  // Cold chain surcharge check
+  // Cold chain serviceability (§5.4). Fails CLOSED: the old condition required
+  // `deliveryQuote` to exist, so a district with no delivery_zones row skipped
+  // the check entirely and vaccines shipped to an unserviced area.
   const hasColdChain = cart.items.some((i) => i.product.requiresColdChain);
-  if (hasColdChain && deliveryQuote && !deliveryQuote.coldChainEnabled) {
+  if (hasColdChain && !deliveryQuote?.coldChainEnabled) {
     return {
       success: false,
       error: `Cold-chain delivery is not available for ${address.district}. Please select a different address.`,
     };
   }
 
-  // 3. FEFO Batch Allocation for each cart item
-  const allocationMap = new Map<string, Awaited<ReturnType<typeof allocateFEFO>>>();
+  // 3. Unlocked FEFO pre-check, so an obviously out-of-stock basket gets a fast,
+  //    itemised answer. It is NOT the decision: the binding allocation happens
+  //    under `SELECT … FOR UPDATE` inside the order transaction below (§20 —
+  //    "negative stock: impossible by construction").
   const insufficientItems: CheckoutResult['insufficientItems'] = [];
 
   for (const item of cart.items) {
     const stockSummary = await getProductStockSummary(item.productId);
-    const batchesForAlloc = stockSummary.batches.map((b) => ({
-      batchId: b.batchId,
-      batchNo: b.batchNo,
-      expiryDate: new Date(b.expiryDate),
-      availableStock: Number(b.currentStock),
-    }));
-
-    const allocation = allocateFEFO(batchesForAlloc, item.qty);
-    allocationMap.set(item.productId, allocation);
+    const allocation = allocateFEFO(
+      stockSummary.batches.map((b) => ({
+        batchId: b.batchId,
+        batchNo: b.batchNo,
+        expiryDate: new Date(b.expiryDate),
+        availableStock: Number(b.currentStock),
+      })),
+      item.qty
+    );
 
     if (allocation.unfulfilledQty > 0) {
       insufficientItems!.push({
@@ -174,8 +232,8 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
   });
 
   // 5–9. Execute in an ACTUAL database transaction
-  const orderNo = generateOrderNo();
-  const invoiceNo = generateInvoiceNo();
+  const orderNo = await generateOrderNo();
+  const invoiceNo = await generateInvoiceNo();
   const paymentMethod = input.paymentMethod ?? 'cod';
 
   // Initial order status
@@ -192,78 +250,141 @@ export async function placeOrder(input: CheckoutInput): Promise<CheckoutResult> 
     addressLine: address.addressLine,
   };
 
-  const orderId = await db.transaction(async (tx) => {
-    // 5. Insert order
-    const [order] = await tx
-      .insert(orders)
-      .values({
-        orderNo,
-        userId: input.userId,
-        status: initialStatus,
-        subtotal: totals.subtotal,
-        discount: totals.discount,
-        vat: totals.vat,
-        shipping: totals.shipping,
-        total: totals.total,
-        paymentMethod,
-        paymentStatus: 'pending',
-        addressSnapshot,
-        rxId: input.prescriptionId || null,
-      })
-      .returning();
+  /** Thrown to roll the order back when the locked allocation comes up short. */
+  class InsufficientStockError extends Error {
+    constructor(readonly items: NonNullable<CheckoutResult['insufficientItems']>) {
+      super('Insufficient sellable stock');
+    }
+  }
 
-    // 5b. Insert order items with full snapshots (§6)
-    for (const item of cart.items) {
-      const allocation = allocationMap.get(item.productId)!;
+  let orderId: string;
+  try {
+    orderId = await db.transaction(async (tx) => {
+      // 5. Insert order
+      const [order] = await tx
+        .insert(orders)
+        .values({
+          orderNo,
+          userId: input.userId,
+          status: initialStatus,
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          vat: totals.vat,
+          shipping: totals.shipping,
+          total: totals.total,
+          paymentMethod,
+          paymentStatus: 'pending',
+          addressSnapshot,
+          rxId: input.prescriptionId || null,
+          // §12 rule 5: a cold-chain order must never be handed to Steadfast
+          // standard. The guest flow set this; the authenticated one did not, so
+          // vaccines were routed to the standard courier.
+          fulfilmentChannel: hasColdChain ? 'cold_chain' : 'steadfast',
+          idempotencyKey: input.idempotencyKey ?? null,
+        })
+        .returning();
 
-      for (const alloc of allocation.allocations) {
-        await tx.insert(orderItems).values({
-          orderId: order.id,
-          productId: item.productId,
-          batchId: alloc.batchId,
-          nameSnapshotEn: item.product.nameEn,
-          nameSnapshotBn: item.product.nameBn,
-          genericSnapshot: item.product.genericName,
-          batchNo: alloc.batchNo,
-          expiryDate: alloc.expiryDate,
-          qty: alloc.qtyAllocated,
-          unitPrice: item.product.salePrice,
-          vatRate: item.product.vatRate,
-          lineTotal: alloc.qtyAllocated * item.product.salePrice,
-        });
+      // 5b. Insert order items with full snapshots (§6)
+      for (const item of cart.items) {
+        // Binding allocation: locks the batch rows, then re-derives stock from the
+        // ledger inside this transaction.
+        const allocation = await lockAndAllocateFEFO(tx, item.productId, item.qty);
 
-        // 6. Record stock_ledger movements (§2 rule 3)
-        await recordStockMovement({
-          productId: item.productId,
-          batchId: alloc.batchId,
-          delta: -alloc.qtyAllocated, // Negative = outgoing
-          reason: 'sale',
-          refType: 'order',
-          refId: order.id,
-        }, tx);
+        if (allocation.unfulfilledQty > 0) {
+          // Someone else took the stock between the pre-check and here. Abort the
+          // whole order rather than shipping a short line.
+          throw new InsufficientStockError([
+            {
+              productId: item.productId,
+              nameEn: item.product.nameEn,
+              requested: item.qty,
+              available: item.qty - allocation.unfulfilledQty,
+            },
+          ]);
+        }
+
+        for (const alloc of allocation.allocations) {
+          await tx.insert(orderItems).values({
+            orderId: order.id,
+            productId: item.productId,
+            batchId: alloc.batchId,
+            nameSnapshotEn: item.product.nameEn,
+            nameSnapshotBn: item.product.nameBn,
+            genericSnapshot: item.product.genericName,
+            batchNo: alloc.batchNo,
+            expiryDate: alloc.expiryDate,
+            qty: alloc.qtyAllocated,
+            unitPrice: item.product.salePrice,
+            vatRate: item.product.vatRate,
+            lineTotal: alloc.qtyAllocated * item.product.salePrice,
+            // §11: the invoice must print the withdrawal period for any
+            // food-animal drug. These were snapshotted on guest orders only, so an
+            // account holder's invoice silently showed 0 days.
+            withdrawalMeatDays: item.product.withdrawalMeatDays ?? 0,
+            withdrawalMilkHours: item.product.withdrawalMilkHours ?? 0,
+          });
+
+          // 6. Record stock_ledger movements (§2 rule 3)
+          await recordStockMovement({
+            productId: item.productId,
+            batchId: alloc.batchId,
+            delta: -alloc.qtyAllocated, // Negative = outgoing
+            reason: 'sale',
+            refType: 'order',
+            refId: order.id,
+          }, tx);
+        }
+      }
+
+      // 7. Insert initial order event
+      await tx.insert(orderEvents).values({
+        orderId: order.id,
+        fromStatus: null,
+        toStatus: initialStatus,
+        actor: 'customer',
+        note: input.note || null,
+      });
+
+      // 8. Generate invoice record (§11)
+      await tx.insert(invoices).values({
+        orderId: order.id,
+        invoiceNo,
+      });
+
+      // 9. Empty the cart in the same transaction. Done afterwards, a failure here
+      // left the order placed and the basket still full — one tap from a
+      // duplicate order.
+      await tx.delete(cartItems).where(eq(cartItems.cartId, input.cartId));
+      await tx.update(carts).set({ updatedAt: new Date() }).where(eq(carts.id, input.cartId));
+
+      return order.id;
+    });
+  } catch (err) {
+    if (err instanceof InsufficientStockError) {
+      return {
+        success: false,
+        error: 'Some products do not have sufficient sellable stock.',
+        insufficientItems: err.items,
+      };
+    }
+
+    // Two concurrent submits of the same idempotency key: one wins the unique
+    // index, the other returns the winner's order instead of an error.
+    if ((err as { code?: string })?.code === '23505' && input.idempotencyKey) {
+      const replayed = await findOrderByIdempotencyKey(input.idempotencyKey);
+      if (replayed) {
+        return {
+          success: true,
+          replayed: true,
+          orderId: replayed.id,
+          orderNo: replayed.orderNo,
+          total: replayed.total,
+        };
       }
     }
 
-    // 7. Insert initial order event
-    await tx.insert(orderEvents).values({
-      orderId: order.id,
-      fromStatus: null,
-      toStatus: initialStatus,
-      actor: 'customer',
-      note: input.note || null,
-    });
-
-    // 8. Generate invoice record (§11)
-    await tx.insert(invoices).values({
-      orderId: order.id,
-      invoiceNo,
-    });
-
-    return order.id;
-  });
-
-  // 9. Clear cart (can be done outside the transaction)
-  await clearCart(input.cartId);
+    throw err;
+  }
 
   return {
     success: true,
@@ -312,6 +433,13 @@ export interface GuestOrderResult {
   errorCode?: string;
   error?: string;
   insufficientItems?: CheckoutResult['insufficientItems'];
+}
+
+/** Thrown inside a guest order transaction to roll it back on a stock race. */
+class GuestInsufficientStockError extends Error {
+  constructor(readonly items: NonNullable<CheckoutResult['insufficientItems']>) {
+    super('Insufficient sellable stock');
+  }
 }
 
 /** Look up a previously placed order by its Idempotency-Key (§9). */
@@ -398,8 +526,10 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
     shippingFeePaisa = allFreeShipping ? 0 : (deliveryQuote?.rate ?? shippingSettings.outsideRate);
   }
 
+  // Fails CLOSED (§5.4): requiring `deliveryQuote` to exist meant a district
+  // with no delivery_zones row bypassed the check completely.
   const hasColdChain = resolved.some((r) => r.product.requiresColdChain);
-  if (hasColdChain && deliveryQuote && !deliveryQuote.coldChainEnabled) {
+  if (hasColdChain && !deliveryQuote?.coldChainEnabled) {
     return {
       success: false,
       errorCode: 'COLD_CHAIN_UNAVAILABLE',
@@ -407,8 +537,9 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
     };
   }
 
-  // 3. FEFO allocation (§5.3) — checked at confirm time, never at cart time.
-  const allocationMap = new Map<string, ReturnType<typeof allocateFEFO>>();
+  // 3. Unlocked FEFO pre-check (§5.3 — checked at confirm time, never at cart
+  //    time). The binding allocation runs under row locks inside the
+  //    transaction below.
   const insufficientItems: CheckoutResult['insufficientItems'] = [];
 
   for (const { product, qty } of resolved) {
@@ -422,8 +553,6 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
       })),
       qty
     );
-
-    allocationMap.set(product.id, allocation);
 
     if (allocation.unfulfilledQty > 0) {
       insufficientItems!.push({
@@ -455,8 +584,8 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
     discountPaisa: 0,
   });
 
-  const orderNo = generateOrderNo();
-  const invoiceNo = generateInvoiceNo();
+  const orderNo = await generateOrderNo();
+  const invoiceNo = await generateInvoiceNo();
   const canonicalPhone = normalizePhone(input.phone);
 
   const addressSnapshot = {
@@ -496,8 +625,20 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
         })
         .returning();
 
-      for (const { product } of resolved) {
-        const allocation = allocationMap.get(product.id)!;
+      for (const { product, qty } of resolved) {
+        // Binding allocation under SELECT … FOR UPDATE, inside this transaction.
+        const allocation = await lockAndAllocateFEFO(tx, product.id, qty);
+
+        if (allocation.unfulfilledQty > 0) {
+          throw new GuestInsufficientStockError([
+            {
+              productId: product.id,
+              nameEn: product.nameEn,
+              requested: qty,
+              available: qty - allocation.unfulfilledQty,
+            },
+          ]);
+        }
 
         for (const alloc of allocation.allocations) {
           // Snapshot everything: the order must be reconstructible years later
@@ -548,6 +689,15 @@ export async function placeGuestOrder(input: GuestOrderInput): Promise<GuestOrde
 
     return { success: true, orderId, orderNo, total: totals.total };
   } catch (err: any) {
+    if (err instanceof GuestInsufficientStockError) {
+      return {
+        success: false,
+        errorCode: 'OUT_OF_STOCK',
+        error: 'Some products do not have sufficient sellable stock.',
+        insufficientItems: err.items,
+      };
+    }
+
     // Two concurrent submits of the same key: one wins the unique index, the
     // other reads the winner's row rather than reporting a failure.
     if (err?.code === '23505') {

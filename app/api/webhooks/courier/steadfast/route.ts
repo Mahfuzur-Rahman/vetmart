@@ -1,52 +1,64 @@
 // app/api/webhooks/courier/steadfast/route.ts
-// Live Courier Webhook Listener (§12, §14)
+// Courier status callback (§12 rule 2).
+//
+// Authentication and payload handling live in lib/courier/webhook.ts, shared
+// with /api/v1/webhook/steadfast so the two registered paths cannot drift.
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from '@/lib/env';
-import { processSteadfastWebhook } from '@/lib/services/fulfillment';
+import {
+  authenticateCourierWebhook,
+  handleCourierWebhookPayload,
+} from '@/lib/courier/webhook';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  try {
-    const signature = req.headers.get('x-steadfast-signature') || req.headers.get('authorization');
-    // Optional webhook verification against secret
-    if (env.STEADFAST_SECRET_KEY && signature) {
-      // Valid signature check if needed
-    }
-
-    const payload = await req.json();
-    const { consignment_id, tracking_code, status, invoice, collected_amount } = payload;
-
-    const cid = consignment_id ? String(consignment_id) : (tracking_code ? String(tracking_code) : '');
-    if (!cid && !invoice) {
-      return NextResponse.json({ error: 'Missing identifying courier data' }, { status: 400 });
-    }
-
-    const courierStatus = String(status || '').toLowerCase();
-
-    // Call service layer to update database and transition order
-    const result = await processSteadfastWebhook({
-      consignmentId: cid,
-      trackingCode: tracking_code ? String(tracking_code) : undefined,
-      status: courierStatus,
-      raw: payload,
-    });
-
-    // Log the incoming webhook event
-    console.log(
-      `[Courier Webhook] Consignment #${cid} (Invoice: ${invoice}) -> Status: ${courierStatus}, Collected: ৳${collected_amount || 0}, Updated: ${result.success}`
+  const auth = authenticateCourierWebhook(req);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: { code: auth.code, message: auth.message } },
+      { status: auth.status }
     );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'INVALID_JSON', message: 'Body is not valid JSON' } },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const result = await handleCourierWebhookPayload(payload);
+
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_PAYLOAD', message: result.error } },
+        { status: 400 }
+      );
+    }
+
+    const outcome = result.outcome!;
+    if (!outcome.applied) {
+      // Unknown consignment. 200 on purpose: the courier retries on non-2xx and
+      // a payload we can never match would retry forever.
+      console.error(
+        `[courier webhook] Consignment ${outcome.consignmentId} not matched to a shipment:`,
+        outcome.error
+      );
+    }
 
     return NextResponse.json({
-      success: true,
-      received: {
-        consignmentId: cid,
-        trackingCode: tracking_code,
-        courierStatus,
-        applied: result.success,
-        processedAt: new Date().toISOString(),
-      },
+      received: true,
+      consignmentId: outcome.consignmentId,
+      courierStatus: outcome.courierStatus,
+      applied: outcome.applied,
     });
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown webhook error';
-    return NextResponse.json({ error: 'Webhook processing failed', details: errorMessage }, { status: 500 });
+  } catch (err) {
+    console.error('[courier webhook] Unhandled error:', err);
+    // 200 so the courier stops retrying; the error is ours to fix from the log.
+    return NextResponse.json({ received: true, error: 'internal' });
   }
 }

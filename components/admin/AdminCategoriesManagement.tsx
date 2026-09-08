@@ -57,8 +57,11 @@ export function AdminCategoriesManagement({
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmSpecies, setDeleteConfirmSpecies] = useState<SpeciesInfo | null>(null);
+  const [isDeletingSpecies, setIsDeletingSpecies] = useState(false);
   const [deleteConfirmDrugClass, setDeleteConfirmDrugClass] = useState<DrugClassificationInfo | null>(null);
+  const [isDeletingDrugClass, setIsDeletingDrugClass] = useState(false);
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<CategoryItem | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
 
   // Species Form States
   const [spKey, setSpKey] = useState('');
@@ -135,6 +138,7 @@ export function AdminCategoriesManagement({
 
   const handleDeleteSpecies = async () => {
     if (!deleteConfirmSpecies) return;
+    setIsDeletingSpecies(true);
     try {
       const res = await fetch(`/api/v1/admin/species/${deleteConfirmSpecies.id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -147,11 +151,14 @@ export function AdminCategoriesManagement({
       }
     } catch (err: any) {
       showToast(err.message || 'Delete failed');
+    } finally {
+      setIsDeletingSpecies(false);
     }
   };
 
   const handleDeleteDrugClass = async () => {
     if (!deleteConfirmDrugClass) return;
+    setIsDeletingDrugClass(true);
     try {
       const res = await fetch(`/api/v1/admin/drug-classifications/${deleteConfirmDrugClass.slug}`, { method: 'DELETE' });
       if (res.ok) {
@@ -164,11 +171,14 @@ export function AdminCategoriesManagement({
       }
     } catch (err: any) {
       showToast(err.message || 'Delete failed');
+    } finally {
+      setIsDeletingDrugClass(false);
     }
   };
 
   const handleDeleteCategory = async () => {
     if (!deleteConfirmCategory) return;
+    setIsDeletingCategory(true);
     try {
       const res = await fetch(`/api/v1/admin/categories/${deleteConfirmCategory.id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -181,6 +191,8 @@ export function AdminCategoriesManagement({
       }
     } catch (err: any) {
       showToast(err.message || 'Delete failed');
+    } finally {
+      setIsDeletingCategory(false);
     }
   };
 
@@ -1294,8 +1306,7 @@ export function AdminCategoriesManagement({
                   <input
                     type="text"
                     value={dcDescEn}
-                    onChange={(e) => setDcDescEn(e.target.value)}
-                    placeholder="Cold-chain guaranteed vaccines"
+                    onChange={(e) => setDcDescEn(e.target.value)}placeholder="Vaccines"
                     className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA]"
                   />
                 </div>
@@ -1519,9 +1530,20 @@ export function AdminCategoriesManagement({
                 <button
                   type="button"
                   onClick={handleDeleteSpecies}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                  disabled={isDeletingSpecies}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                  {isDeletingSpecies ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {isBn ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...'}
+                    </>
+                  ) : (
+                    isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'
+                  )}
                 </button>
               </div>
             </div>
@@ -1557,9 +1579,20 @@ export function AdminCategoriesManagement({
                 <button
                   type="button"
                   onClick={handleDeleteDrugClass}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                  disabled={isDeletingDrugClass}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                  {isDeletingDrugClass ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {isBn ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...'}
+                    </>
+                  ) : (
+                    isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'
+                  )}
                 </button>
               </div>
             </div>
@@ -1595,9 +1628,20 @@ export function AdminCategoriesManagement({
                 <button
                   type="button"
                   onClick={handleDeleteCategory}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                  disabled={isDeletingCategory}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                  {isDeletingCategory ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {isBn ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...'}
+                    </>
+                  ) : (
+                    isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'
+                  )}
                 </button>
               </div>
             </div>

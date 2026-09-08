@@ -6,7 +6,9 @@ import { checkDbConnection } from '@/lib/db';
 import { signJwt } from '@/lib/auth/jwt';
 import { setCustomerSession } from '@/lib/auth/session';
 import { apiSuccess, apiError } from '@/lib/api/response';
-import { normalizeDigits } from '@/lib/i18n/number';
+import { normalizeDigits, normalizePhone } from '@/lib/i18n/number';
+import { getClientIp } from '@/lib/api/client-ip';
+import { rateLimitOrAllow } from '@/lib/auth/rate-limit';
 
 const verifySchema = z.object({
   phone: z.string().transform(normalizeDigits),
@@ -24,6 +26,26 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.success) {
       return apiError('VALIDATION_ERROR', 'Phone and 6-digit OTP code are required.', 422);
+    }
+
+    // The per-row attempt counter resets every time a new code is requested, so
+    // on its own it allowed OTP_MAX_ATTEMPTS guesses per cooldown window
+    // indefinitely. Cap the guessing per IP and per phone as well.
+    const ip = getClientIp(req);
+    const canonicalPhone = normalizePhone(parsed.data.phone);
+
+    const [ipLimit, phoneLimit] = await Promise.all([
+      rateLimitOrAllow(`otp-verify:ip:${ip}`, 20, 600),
+      rateLimitOrAllow(`otp-verify:phone:${canonicalPhone}`, 10, 600),
+    ]);
+
+    if (!ipLimit.success || !phoneLimit.success) {
+      return apiError(
+        'TOO_MANY_REQUESTS',
+        'Too many verification attempts. Please request a new code shortly.',
+        429,
+        'code'
+      );
     }
 
     const result = await verifyOtp(parsed.data.phone, parsed.data.code);

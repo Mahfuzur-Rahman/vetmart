@@ -16,8 +16,6 @@ export function CartView({ locale }: Props) {
     updateQty,
     removeFromCart,
     subtotal,
-    hasColdChain,
-    coldChainFee,
     estDeliveryFee,
     grandTotal,
     isHydrated,
@@ -62,7 +60,6 @@ export function CartView({ locale }: Props) {
       <div className="lg:col-span-2 space-y-4">
         {items.map((item) => {
           const maxStock = item.product.sellableStock ?? item.product.stock ?? 999;
-          const isCold = item.product.requiresColdChain || item.product.coldChain;
 
           return (
             <div
@@ -87,11 +84,7 @@ export function CartView({ locale }: Props) {
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {isCold && (
-                      <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-[10px] font-bold">
-                        ❄️ Cold Chain
-                      </span>
-                    )}
+
                     {item.product.hasShippingCharge === false && (
                       <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
                         🚚 {isBn ? 'ফ্রি ডেলিভারি' : 'Free Delivery'}
@@ -171,13 +164,6 @@ export function CartView({ locale }: Props) {
             <span>{isBn ? 'পণ্যের মোট মূল্য' : 'Subtotal'}</span>
             <span className="font-bold text-foreground font-display">{fmtMoney(subtotal, locale)}</span>
           </div>
-
-          {hasColdChain && (
-            <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 text-xs bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-lg">
-              <span>{isBn ? '❄️ কোল্ড চেইন কুলার প্যাক' : '❄️ Cold Chain Packing'}</span>
-              <span className="font-bold font-display">{fmtMoney(coldChainFee, locale)}</span>
-            </div>
-          )}
 
           <div className="flex items-center justify-between text-muted-foreground text-xs">
             <span>{isBn ? 'আনুমানিক ডেলিভারি ফি' : 'Est. Delivery Fee'}</span>

@@ -5,10 +5,14 @@ import { db } from '@/lib/db';
 import { drugClassifications } from '@/lib/db/schema';
 import { listDrugClassifications, ensureDrugClassificationsTable } from '@/lib/services/drug-classifications-server';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { requireAdmin } from '@/lib/api/guard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const guard = await requireAdmin('category.read');
+  if (!guard.ok) return guard.response;
+
   try {
     const items = await listDrugClassifications();
     return apiSuccess(items);
@@ -18,6 +22,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin('category.write');
+  if (!guard.ok) return guard.response;
+
   try {
     await ensureDrugClassificationsTable();
     const body = await req.json();

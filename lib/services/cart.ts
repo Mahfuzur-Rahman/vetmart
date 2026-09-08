@@ -21,6 +21,9 @@ export interface CartItemView {
     vatRate: string;
     requiresPrescription: boolean;
     requiresColdChain: boolean;
+    /** Snapshotted onto the order line and printed on the invoice (§5.2, §11). */
+    withdrawalMeatDays: number | null;
+    withdrawalMilkHours: number | null;
     hasShippingCharge: boolean;
     shippingInsideDhaka?: number;
     shippingOutsideDhaka?: number;
@@ -149,6 +152,8 @@ export async function getCartView(cartId: string): Promise<CartView> {
         vatRate: products.vatRate,
         requiresPrescription: products.requiresPrescription,
         requiresColdChain: products.requiresColdChain,
+        withdrawalMeatDays: products.withdrawalMeatDays,
+        withdrawalMilkHours: products.withdrawalMilkHours,
         hasShippingCharge: products.hasShippingCharge,
         shippingInsideDhaka: products.shippingInsideDhaka,
         shippingOutsideDhaka: products.shippingOutsideDhaka,

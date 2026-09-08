@@ -20,6 +20,12 @@ async function readApiError(res: Response): Promise<string> {
   }
   return `Request failed with HTTP ${res.status}`;
 }
+
+/** ISO timestamp or plain date string -> the `yyyy-mm-dd` an <input type="date"> needs. */
+function toDateInputValue(value: string | undefined | null): string {
+  if (!value) return '';
+  return value.includes('T') ? value.split('T')[0] : value;
+}
 import { type DrugClassificationInfo, DEFAULT_DRUG_CLASSIFICATIONS } from '@/lib/services/drug-classifications';
 import { SPECIES, type SpeciesInfo } from '@/lib/services/species';
 
@@ -37,6 +43,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<MockProduct | null>(null);
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<MockProduct | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
   const [campaignModalProduct, setCampaignModalProduct] = useState<MockProduct | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<'facebook' | 'instagram' | 'tiktok' | 'whatsapp' | 'youtube'>('facebook');
   const [campaignName, setCampaignName] = useState('poultry_boost_august');
@@ -63,21 +70,27 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
   const [genericName, setGenericName] = useState('Calcium + Magnesium + Vitamin D3');
   const [category, setCategory] = useState('vitamins-minerals');
   const [manufacturer, setManufacturer] = useState('Beximco Pharmaceuticals Ltd');
-  const [targetSpecies, setTargetSpecies] = useState(['cattle', 'poultry', 'goat-sheep']);
+  const [targetSpecies, setTargetSpecies] = useState(['cattle', 'poultry', 'goat_sheep']);
   const [mrp, setMrp] = useState('520');
   const [salePrice, setSalePrice] = useState('475');
   const [batchNo, setBatchNo] = useState('B-BEX-9042');
   const [expiryDate, setExpiryDate] = useState('2027-10-31');
   const [mfgDate, setMfgDate] = useState('2025-10-01');
-  const [dgdaRegNo, setDgdaRegNo] = useState('DAR-012-441-098');
   const [initialStock, setInitialStock] = useState('60');
   const [packUnit, setPackUnit] = useState('litre');
   const [packSize, setPackSize] = useState('1 Litre');
   const [requiresRx, setRequiresRx] = useState(false);
-  const [coldChain, setColdChain] = useState(false);
   const [hasShippingCharge, setHasShippingCharge] = useState(true);
   const [shippingInsideDhaka, setShippingInsideDhaka] = useState('70');
   const [shippingOutsideDhaka, setShippingOutsideDhaka] = useState('130');
+  /**
+   * Stock as it was when the edit modal opened. The payload only carries
+   * `stockQty` when the operator actually changed it — resending the same
+   * number would still write a stock_ledger adjustment row, because the derived
+   * "sellable" figure shown here excludes batches inside the 60-day expiry
+   * window while the ledger total does not (§5.3).
+   */
+  const [loadedStockQty, setLoadedStockQty] = useState<string | null>(null);
 
   // Image upload states
   const [imageUrl, setImageUrl] = useState('/images/cal-d-mag.jpg');
@@ -98,10 +111,28 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
    */
   const refreshProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/products?pageSize=100&includeInactive=true');
-      if (!res.ok) throw new Error(await readApiError(res));
-      const json = await res.json();
-      setProducts(Array.isArray(json.data) ? json.data : []);
+      // Paged, not a single oversized request. The catalog endpoint caps a page
+      // at 200 rows, so asking for "100" and hoping used to leave every product
+      // past the cap invisible here — and an invisible row cannot be edited,
+      // deactivated or deleted, which is what made this table look broken.
+      const PAGE = 200;
+      const MAX_PAGES = 25;
+      const all: MockProduct[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const res = await fetch(
+          `/api/v1/products?includeInactive=true&pageSize=${PAGE}&page=${page}`
+        );
+        if (!res.ok) throw new Error(await readApiError(res));
+        const json = await res.json();
+        if (Array.isArray(json.data)) all.push(...json.data);
+        totalPages = Number(json?.meta?.totalPages) || 1;
+        page += 1;
+      } while (page <= totalPages && page <= MAX_PAGES);
+
+      setProducts(all);
       setLoadError(null);
     } catch (err) {
       console.error('Could not load products:', err);
@@ -159,33 +190,43 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
     };
   }, [refreshProducts]);
 
-  // Open Edit modal with selected product's values
+  // Open Edit modal with the selected product's real values.
+  //
+  // Nothing here invents a fallback. Seeding "B-BATCH-001" / "2027-12-31" /
+  // "1 Litre" for a product that has no batch or pack size wrote that invented
+  // data straight back to the database on save — for regulated goods the batch
+  // and expiry must come from the row or stay empty (§2 rule 4).
   const handleOpenEdit = (prod: MockProduct) => {
     setEditingProduct(prod);
     setErrorMessage(null);
     setNameEn(prod.nameEn);
     setNameBn(prod.nameBn || prod.nameEn);
     setGenericName(prod.genericName || '');
-    setCategory(prod.categorySlug || 'vitamins-minerals');
-    setDrugClassification(prod.drugClassificationSlug || 'vitamins');
+    setCategory(prod.categorySlug || '');
+    setDrugClassification(prod.drugClassificationSlug || '');
     setManufacturer(prod.manufacturerName || '');
-    setTargetSpecies(prod.targetSpecies || ['cattle', 'poultry']);
+    setTargetSpecies(prod.targetSpecies || []);
     setMrp((prod.mrp / 100).toFixed(2));
     setSalePrice((prod.salePrice / 100).toFixed(2));
-    setBatchNo(prod.batchNo || 'B-BATCH-001');
-    setExpiryDate(prod.expiryDate ? (prod.expiryDate.includes('T') ? prod.expiryDate.split('T')[0] : prod.expiryDate) : '2027-12-31');
-    setMfgDate(prod.mfgDate ? (prod.mfgDate.includes('T') ? prod.mfgDate.split('T')[0] : prod.mfgDate) : '2025-01-01');
-    setDgdaRegNo(prod.dgdaRegNo || '');
-    setInitialStock(String(prod.stockQty ?? 50));
-    setPackUnit(prod.packUnit || (prod.packSize?.toLowerCase().includes('kg') ? 'kg' : prod.packSize?.toLowerCase().includes('g') ? 'g' : prod.packSize?.toLowerCase().includes('ml') ? 'ml' : 'litre'));
-    setPackSize(prod.packSize || '1 Litre');
-    setRequiresRx(false);
-    setColdChain(!!(prod.coldChain || prod.requiresColdChain));
+    setBatchNo(prod.batchNo || '');
+    setExpiryDate(toDateInputValue(prod.expiryDate));
+    setMfgDate(toDateInputValue(prod.mfgDate));
+
+    const stock = String(prod.stockQty ?? 0);
+    setInitialStock(stock);
+    setLoadedStockQty(stock);
+
+    setPackUnit(prod.packUnit || '');
+    setPackSize(prod.packSize || '');
+    setRequiresRx(prod.requiresPrescription === true);
     setHasShippingCharge(prod.hasShippingCharge !== false);
-    setShippingInsideDhaka(((prod.shippingInsideDhaka ?? 7000) / 100).toString());
-    setShippingOutsideDhaka(((prod.shippingOutsideDhaka ?? 13000) / 100).toString());
+    setShippingInsideDhaka(((prod.shippingInsideDhaka ?? 7000) / 100).toFixed(2));
+    setShippingOutsideDhaka(((prod.shippingOutsideDhaka ?? 13000) / 100).toFixed(2));
+
+    // Leave imageKey null so the PUT only touches product_images when the
+    // operator actually uploads a replacement.
     setImageUrl(prod.imageUrl || '');
-    setImageKey((prod as any).imageKey || null);
+    setImageKey(null);
     setImageFileName(null);
   };
 
@@ -199,18 +240,17 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
     setCategory('vitamins-minerals');
     setDrugClassification('vitamins');
     setManufacturer('Beximco Pharmaceuticals Ltd');
-    setTargetSpecies(['cattle', 'poultry', 'goat-sheep']);
+    setTargetSpecies(['cattle', 'poultry', 'goat_sheep']);
     setMrp('520');
     setSalePrice('475');
     setBatchNo('B-BEX-9042');
     setExpiryDate('2027-10-31');
     setMfgDate('2025-10-01');
-    setDgdaRegNo('DAR-012-441-098');
     setInitialStock('60');
     setPackUnit('litre');
     setPackSize('1 Litre');
     setRequiresRx(false);
-    setColdChain(false);
+    setLoadedStockQty(null);
     setHasShippingCharge(true);
     setShippingInsideDhaka('70');
     setShippingOutsideDhaka('130');
@@ -275,23 +315,38 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
 
   const handleDeleteProduct = async () => {
     if (!deleteConfirmProduct) return;
+    setIsDeletingProduct(true);
     try {
       const res = await fetch(`/api/v1/admin/products/${deleteConfirmProduct.id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        setProducts((prev) => prev.filter((p) => p.id !== deleteConfirmProduct.id));
+        const name = isBn ? deleteConfirmProduct.nameBn : deleteConfirmProduct.nameEn;
         setDeleteConfirmProduct(null);
+        // Re-read from the server rather than trusting a local filter: the row
+        // is gone for every operator, and a failed refresh must show as an
+        // error banner instead of a list that only looks right on this device.
+        await refreshProducts();
+        window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
+        setToastMessage(
+          isBn ? `পণ্য '${name}' স্থায়ীভাবে মুছে ফেলা হয়েছে।` : `Product '${name}' was permanently deleted.`
+        );
+        setTimeout(() => setToastMessage(null), 4000);
       } else {
         const errorText = await readApiError(res);
+        // A 409 means order history depends on the product; keep the dialog
+        // open so the operator can read why and reach for Deactivate instead.
+        if (res.status !== 409) setDeleteConfirmProduct(null);
         setErrorMessage(errorText);
         setTimeout(() => {
           setErrorMessage(null);
-        }, 5000);
+        }, 8000);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Delete failed');
       setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -330,20 +385,35 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
           vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
           packUnit,
           packSize,
-          requiresPrescription: false,
-          requiresColdChain: coldChain,
-          coldChain,
+          // Preserved, not reset. Hardcoding `false` here silently cleared the
+          // prescription requirement on every Rx product an operator renamed,
+          // which is a §17 compliance break, not a cosmetic one.
+          requiresPrescription: requiresRx,
           hasShippingCharge,
           shippingInsideDhaka: Math.round(parseFloat(shippingInsideDhaka || '70') * 100),
           shippingOutsideDhaka: Math.round(parseFloat(shippingOutsideDhaka || '130') * 100),
-          dgdaRegNo,
           batchNo,
           expiryDate,
           mfgDate,
-          stockQty: parseInt(initialStock || '0', 10),
           imageUrl: imageUrl || editingProduct.imageUrl,
           banglishKeywords: `${nameEn.toLowerCase()} ${genericName.toLowerCase()}`,
         };
+
+        // Stock only travels when the operator actually changed the field.
+        // updateProduct turns any `stockQty` into a stock_ledger adjustment
+        // (§2 rule 3); resending the unchanged sellable figure logged a phantom
+        // movement whenever a batch sat inside the 60-day expiry window, where
+        // the sellable total is deliberately lower than the ledger total.
+        const stockChanged = loadedStockQty !== null && initialStock !== loadedStockQty;
+        const editPayload: Record<string, unknown> = {
+          ...updatedProduct,
+          imageKey,
+        };
+        if (stockChanged) {
+          editPayload.stockQty = parseInt(initialStock || '0', 10);
+        } else {
+          delete editPayload.stockQty;
+        }
 
         // No optimistic localStorage write. The row is only replaced once the
         // server confirms it, so what the admin sees matches what customers see.
@@ -351,10 +421,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
           const res = await fetch(`/api/v1/admin/products/${editingProduct.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...updatedProduct,
-              imageKey,
-            }),
+            body: JSON.stringify(editPayload),
           });
           if (!res.ok) {
             setErrorMessage(await readApiError(res));
@@ -397,13 +464,10 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
           salePrice: Math.round(parseFloat(salePrice || '0') * 100),
           vetPrice: Math.round(parseFloat(salePrice || '0') * 90),
           requiresPrescription: false,
-          requiresColdChain: coldChain,
           isAntimicrobial: false,
-          coldChain,
           hasShippingCharge,
           shippingInsideDhaka: Math.round(parseFloat(shippingInsideDhaka || '70') * 100),
           shippingOutsideDhaka: Math.round(parseFloat(shippingOutsideDhaka || '130') * 100),
-          dgdaRegNo,
           batchNo,
           expiryDate,
           mfgDate,
@@ -480,8 +544,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
     const matchesType =
       typeFilter === 'all' ||
       (typeFilter === 'active' && p.isActive !== false) ||
-      (typeFilter === 'inactive' && p.isActive === false) ||
-      (typeFilter === 'cold' && p.coldChain);
+      (typeFilter === 'inactive' && p.isActive === false);
 
     const matchesUnit =
       unitFilter === 'all' ||
@@ -557,7 +620,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
             {isBn ? 'পণ্য ব্যবস্থাপনা' : 'Product Management'}
           </h1>
           <p className="text-sm text-[#787774] mt-0.5">
-            {isBn ? 'DGDA নিবন্ধিত ওষুধ ও পশু স্বাস্থ্য পণ্য পরিচালনা' : 'Manage DGDA-registered drugs and animal health products'}
+            {isBn ? 'পণ্য পরিচালনা করুন' : 'Manage your products'}
           </p>
         </div>
 
@@ -600,7 +663,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
             <option value="all">{isBn ? 'সকল ধরন' : 'All Products'} ({products.length})</option>
             <option value="active">{isBn ? 'সক্রিয় পণ্য' : 'Active Only'}</option>
             <option value="inactive">{isBn ? 'নিষ্ক্রিয় পণ্য' : 'Inactive Only'}</option>
-            <option value="cold">❄️ Cold Chain</option>
           </select>
         </div>
       </div>
@@ -696,12 +758,14 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#F7F6F3] text-[#2F3437] font-mono text-xs font-bold border border-[#EAEAEA]">
-                        {prod.stockQty ?? 50}
+                        {prod.stockQty ?? 0}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-center text-xs text-[#787774] font-mono">
-                      <div>{prod.batchNo || 'B-BATCH-001'}</div>
-                      <div className="text-[10px] text-amber-700">{prod.expiryDate || '2027-12-31'}</div>
+                      <div>{prod.batchNo || '—'}</div>
+                      <div className="text-[10px] text-amber-700">
+                        {prod.expiryDate ? toDateInputValue(prod.expiryDate) : '—'}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-1 flex-wrap">
@@ -710,11 +774,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                             {isBn ? 'নিষ্ক্রিয়' : 'Inactive'}
                           </span>
                         )}
-                        {prod.coldChain && (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold" title="Cold Chain">
-                            ❄️
-                          </span>
-                        )}
+                        
                       </div>
                     </td>
                     <td className="px-4 py-3.5 text-center">
@@ -801,8 +861,8 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                 </h3>
                 <p className="text-[11px] sm:text-xs text-[#787774] mt-0.5">
                   {editingProduct
-                    ? `SKU: ${editingProduct.sku} • DGDA: ${editingProduct.dgdaRegNo || 'DAR-024-118-059'}`
-                    : 'DGDA Compliance: Batch, Expiry & Temperature Chain (§2 rule 4)'}
+                    ? `SKU: ${editingProduct.sku}`
+                    : 'Manage Product Data'}
                 </p>
               </div>
               <button
@@ -838,7 +898,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     setPackUnit('ml');
                     setPackSize('500 ml');
                     setRequiresRx(false);
-                    setColdChain(false);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold border border-emerald-200 transition-colors cursor-pointer"
                 >
@@ -859,7 +918,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     setPackUnit('g');
                     setPackSize('100 g');
                     setRequiresRx(false);
-                    setColdChain(false);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-semibold border border-sky-200 transition-colors cursor-pointer"
                 >
@@ -880,7 +938,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                     setPackUnit('ml');
                     setPackSize('100 ml');
                     setRequiresRx(false);
-                    setColdChain(true);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-semibold border border-purple-200 transition-colors cursor-pointer"
                 >
@@ -890,118 +947,7 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
             )}
 
             <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Product Name (EN) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={nameEn}
-                    onChange={(e) => setNameEn(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-medium focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">পণ্যের নাম (বাংলা) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={nameBn}
-                    onChange={(e) => setNameBn(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-medium focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Generic Composition *</label>
-                  <input
-                    type="text"
-                    required
-                    value={genericName}
-                    onChange={(e) => setGenericName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Manufacturer *</label>
-                  <input
-                    type="text"
-                    required
-                    value={manufacturer}
-                    onChange={(e) => setManufacturer(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-medium focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">MRP (৳) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={mrp}
-                    onChange={(e) => setMrp(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono font-bold focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Sale Price (৳) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={salePrice}
-                    onChange={(e) => setSalePrice(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Initial Stock *</label>
-                  <input
-                    type="number"
-                    required
-                    value={initialStock}
-                    onChange={(e) => setInitialStock(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono font-bold focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Batch Number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={batchNo}
-                    onChange={(e) => setBatchNo(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">Expiry Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={expiryDate}
-                    onChange={(e) => setExpiryDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#5F6368] font-bold mb-1">DGDA Reg No</label>
-                  <input
-                    type="text"
-                    value={dgdaRegNo}
-                    onChange={(e) => setDgdaRegNo(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] text-[#2F3437] font-mono focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                </div>
-              </div>
 
               {/* ═══ DRUG CLASSIFICATION & CATEGORY DROPDOWNS ═══ */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
@@ -1378,8 +1324,6 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={coldChain}
-                      onChange={(e) => setColdChain(e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded"
                     />
                     <span className="font-semibold text-xs text-[#2F3437]">❄️ Cold Chain Required (২-৮° সে. কুলার বক্স)</span>
@@ -1683,9 +1627,20 @@ export function AdminProductsTable({ locale, isSuperadmin }: Props) {
                 <button
                   type="button"
                   onClick={handleDeleteProduct}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer"
+                  disabled={isDeletingProduct}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors shadow-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'}
+                  {isDeletingProduct ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {isBn ? 'মুছে ফেলা হচ্ছে...' : 'Deleting...'}
+                    </>
+                  ) : (
+                    isBn ? 'হ্যাঁ, মুছে ফেলুন' : 'Yes, Delete'
+                  )}
                 </button>
               </div>
             </div>

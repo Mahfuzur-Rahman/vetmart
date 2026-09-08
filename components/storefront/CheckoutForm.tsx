@@ -13,7 +13,7 @@ interface Props {
 
 export function CheckoutForm({ locale }: Props) {
   const isBn = locale === 'bn';
-  const { items, subtotal, coldChainFee, estDeliveryFee, grandTotal, clearCart, isHydrated } =
+  const { items, subtotal, estDeliveryFee, grandTotal, clearCart, isHydrated } =
     useCart();
 
   // Contact & Shipping Form State — only Phone, Name, Address collected from customer.
@@ -391,13 +391,6 @@ export function CheckoutForm({ locale }: Props) {
               </span>
               <span className="font-semibold text-foreground font-display">{fmtMoney(subtotal, locale)}</span>
             </div>
-
-            {coldChainFee > 0 && (
-              <div className="flex justify-between text-blue-600 dark:text-blue-400 text-xs">
-                <span>{isBn ? '❄️ কোল্ড চেইন কুলার বক্স' : '❄️ Cold Chain Cooler Box'}</span>
-                <span className="font-bold font-display">{fmtMoney(coldChainFee, locale)}</span>
-              </div>
-            )}
 
             <div className="flex justify-between text-muted-foreground text-xs">
               <span>{isBn ? 'ডেলিভারি চার্জ' : 'Shipping Fee'}</span>

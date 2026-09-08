@@ -33,8 +33,6 @@ interface CartContextType {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  hasColdChain: boolean;
-  coldChainFee: number;
   estDeliveryFee: number;
   grandTotal: number;
   addToCart: (product: CartProduct, qty?: number) => void;
@@ -263,7 +261,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const estDeliveryFee = (!deliverySettings.enabled || items.length === 0 || allFreeShipping)
     ? 0
     : deliverySettings.dhakaRate;
-  const grandTotal = subtotal + coldChainFee + estDeliveryFee;
+  const grandTotal = subtotal+ estDeliveryFee;
 
   return (
     <CartContext.Provider
@@ -271,8 +269,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         items,
         itemCount,
         subtotal,
-        hasColdChain,
-        coldChainFee,
         estDeliveryFee,
         grandTotal,
         addToCart,

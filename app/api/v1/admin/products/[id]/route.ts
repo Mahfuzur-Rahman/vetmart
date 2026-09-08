@@ -8,6 +8,7 @@ import {
   updateProduct,
   deleteProduct,
   ProductNotFoundError,
+  ProductInUseError,
 } from '@/lib/services/products';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { requireAdmin } from '@/lib/api/guard';
@@ -30,6 +31,10 @@ function toErrorResponse(err: unknown, fallbackCode: string, fallbackMessage: st
 
   if (err instanceof ProductNotFoundError) {
     return apiError(err.code, err.message, 404);
+  }
+
+  if (err instanceof ProductInUseError) {
+    return apiError(err.code, err.message, 409);
   }
 
   console.error(`[${fallbackCode}]`, err);
@@ -71,9 +76,15 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     const result = await deleteProduct(id);
     return apiSuccess(result);
   } catch (err: any) {
-    // If it's a foreign key constraint error (e.g. order_items depend on this product)
+    // deleteProduct refuses an ordered product up front (ProductInUseError), so
+    // a raw 23503 here means some other table gained a reference to `products`
+    // without a cascade. Report it in the same operator-readable terms.
     if (err?.code === '23503') {
-      return apiError('CANNOT_DELETE', 'Cannot delete product because it has been ordered. Please deactivate it instead.', 409);
+      return apiError(
+        'PRODUCT_IN_USE',
+        'Cannot delete this product because other records still reference it. Deactivate it instead.',
+        409
+      );
     }
     return toErrorResponse(err, 'PRODUCT_DELETE_FAILED', 'Failed to delete product');
   }

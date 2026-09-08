@@ -73,7 +73,17 @@ export function ProductsCatalogView({
     // it never falls back to this browser's localStorage (that fallback is what
     // made a product visible only on the device that created it).
     const syncProducts = () => {
-      fetch('/api/v1/products?pageSize=48')
+      // Carry the same filters the server page used. Refetching the unfiltered
+      // catalog and then re-filtering in the client compared a 48-row window
+      // against filters the query had already applied, so a species or
+      // category page could empty itself after an admin write.
+      const params = new URLSearchParams({ pageSize: '48' });
+      if (query) params.set('q', query);
+      if (speciesFilter) params.set('species', speciesFilter);
+      if (categoryFilter) params.set('category', categoryFilter);
+      if (selectedSort) params.set('sort', selectedSort);
+
+      fetch(`/api/v1/products?${params.toString()}`)
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then((json) => {
           if (Array.isArray(json.data)) setRefetched(json.data);
@@ -85,7 +95,7 @@ export function ProductsCatalogView({
 
     window.addEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
     return () => window.removeEventListener(PRODUCTS_UPDATED_EVENT, syncProducts);
-  }, []);
+  }, [query, speciesFilter, categoryFilter, selectedSort]);
 
 
   // Filter and sort products client-side

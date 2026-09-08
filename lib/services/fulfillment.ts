@@ -1,8 +1,16 @@
 // lib/services/fulfillment.ts
 // Order fulfillment: status transitions, shipping, Rx approval, webhook processing (§5.5, §12, §14.1)
-import { eq, desc } from 'drizzle-orm';
+import { and, eq, sql as dSql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { orders, orderEvents, shipments, prescriptions, invoices } from '@/lib/db/schema';
+import {
+  orders,
+  orderItems,
+  orderEvents,
+  shipments,
+  prescriptions,
+  invoices,
+  stockLedger,
+} from '@/lib/db/schema';
 import { getCourierDriver, type CreateShipmentInput } from '@/lib/courier';
 import { getPdfDriver } from '@/lib/pdf';
 import { getStorageDriver } from '@/lib/storage';
@@ -28,63 +36,151 @@ export interface TransitionResult {
   error?: string;
 }
 
+/** Statuses that release the stock an order was holding. */
+const STOCK_RELEASING_STATUSES: ReadonlySet<OrderStatus> = new Set(['cancelled', 'returned']);
+
+/** `stock_ledger.ref_type` used for the reversal, so it can be recognised again. */
+const RESTOCK_REF_TYPE = 'order_release';
+
+/**
+ * Put an order's allocated stock back on the shelf.
+ *
+ * Cancelling or returning an order previously left the `sale` ledger rows
+ * standing with nothing to offset them, so every cancellation permanently
+ * destroyed that stock on paper — the batch looked sold out and the shop stopped
+ * offering goods it still had. §2 rule 3 means the correction is a new positive
+ * row, never an edit or a delete of the original.
+ *
+ * Idempotent: a second call finds the existing reversal rows and does nothing,
+ * which matters because the courier can deliver the same `returned` webhook
+ * twice.
+ */
+async function releaseOrderStock(
+  tx: any,
+  orderId: string,
+  reason: 'return' | 'adjust'
+): Promise<void> {
+  const [already] = await tx
+    .select({ count: dSql<number>`count(*)::int` })
+    .from(stockLedger)
+    .where(and(eq(stockLedger.refType, RESTOCK_REF_TYPE), eq(stockLedger.refId, orderId)));
+
+  if ((already?.count ?? 0) > 0) return;
+
+  const lines = await tx
+    .select({
+      productId: orderItems.productId,
+      batchId: orderItems.batchId,
+      qty: orderItems.qty,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, orderId));
+
+  for (const line of lines as Array<{ productId: string; batchId: string; qty: number }>) {
+    if (line.qty <= 0) continue;
+    await tx.insert(stockLedger).values({
+      productId: line.productId,
+      batchId: line.batchId,
+      delta: line.qty, // positive = back into the batch
+      reason,
+      refType: RESTOCK_REF_TYPE,
+      refId: orderId,
+    });
+  }
+}
+
+export interface TransitionOptions {
+  /** Who is making the change; recorded on the order event. */
+  actor?: 'admin' | 'system' | 'customer' | 'steadfast_webhook';
+  /** Present for an operator-driven change, so the audit log has an author. */
+  adminId?: string;
+  note?: string;
+}
+
 /**
  * Transition an order to a new status with audit trail (§5.5).
+ *
+ * Everything below runs in one transaction: the status, the order event and any
+ * stock reversal have to land together or not at all.
  */
 export async function transitionOrderStatus(
   orderId: string,
   toStatus: OrderStatus,
-  adminId: string,
+  adminIdOrOptions?: string | TransitionOptions,
   note?: string
 ): Promise<TransitionResult> {
-  const [order] = await db
-    .select()
-    .from(orders)
-    .where(eq(orders.id, orderId))
-    .limit(1);
+  const options: TransitionOptions =
+    typeof adminIdOrOptions === 'string'
+      ? { actor: 'admin', adminId: adminIdOrOptions, note }
+      : { actor: 'admin', ...(adminIdOrOptions ?? {}), note: adminIdOrOptions?.note ?? note };
 
-  if (!order) {
-    return { success: false, error: 'Order not found.' };
-  }
+  const result = await db.transaction(async (tx) => {
+    // Lock the order row so two concurrent transitions cannot both pass the
+    // validity check and both release stock.
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1)
+      .for('update');
 
-  const currentStatus = order.status as OrderStatus;
+    if (!order) {
+      return { success: false as const, error: 'Order not found.' };
+    }
 
-  // Idempotent: transitioning to current status is a no-op success
-  if (currentStatus === toStatus) {
-    return { success: true };
-  }
+    const currentStatus = order.status as OrderStatus;
 
-  const allowed = VALID_TRANSITIONS[currentStatus];
-  if (!allowed || !allowed.includes(toStatus)) {
-    return {
-      success: false,
-      error: `Cannot transition from "${order.status}" to "${toStatus}". Allowed: ${allowed?.join(', ') || 'none'}.`,
-    };
-  }
+    // Idempotent: transitioning to current status is a no-op success
+    if (currentStatus === toStatus) {
+      return { success: true as const, from: currentStatus };
+    }
 
-  // Update order status
-  await db
-    .update(orders)
-    .set({ status: toStatus })
-    .where(eq(orders.id, orderId));
+    const allowed = VALID_TRANSITIONS[currentStatus];
+    if (!allowed || !allowed.includes(toStatus)) {
+      return {
+        success: false as const,
+        error: `Cannot transition from "${order.status}" to "${toStatus}". Allowed: ${allowed?.join(', ') || 'none'}.`,
+      };
+    }
 
-  // Record immutable order event
-  await db.insert(orderEvents).values({
-    orderId,
-    fromStatus: order.status,
-    toStatus,
-    actor: 'admin',
-    note: note || null,
+    // Stamp the lifecycle timestamps the schema declares. They were never
+    // written, so every reporting query keyed on confirmed_at / cancelled_at
+    // saw NULL (§6, §14.2 Reports).
+    const patch: Record<string, unknown> = { status: toStatus };
+    if (toStatus === 'confirmed' && !order.confirmedAt) patch.confirmedAt = new Date();
+    if (toStatus === 'cancelled' && !order.cancelledAt) patch.cancelledAt = new Date();
+
+    await tx.update(orders).set(patch).where(eq(orders.id, orderId));
+
+    if (STOCK_RELEASING_STATUSES.has(toStatus)) {
+      await releaseOrderStock(tx, orderId, toStatus === 'returned' ? 'return' : 'adjust');
+    }
+
+    // Record immutable order event
+    await tx.insert(orderEvents).values({
+      orderId,
+      fromStatus: order.status,
+      toStatus,
+      actor: options.actor ?? 'admin',
+      note: options.note || null,
+    });
+
+    return { success: true as const, from: currentStatus };
   });
 
-  // Audit log
-  await logAdminAction({
-    adminId,
-    action: 'status_change',
-    entity: 'order',
-    entityId: orderId,
-    after: { from: order.status, to: toStatus, note },
-  });
+  if (!result.success) return result;
+
+  // Audit outside the transaction: a logging failure must not roll back a
+  // completed state change (logAdminAction already swallows its own errors).
+  if (options.adminId && result.from !== toStatus) {
+    await logAdminAction({
+      adminId: options.adminId,
+      action: 'status_change',
+      entity: 'order',
+      entityId: orderId,
+      after: { from: result.from, to: toStatus, note: options.note },
+    });
+  }
 
   return { success: true };
 }
@@ -133,6 +229,18 @@ export async function createShipmentForOrder(
     return { success: false, error: 'Order must be in "processing" status to create shipment.' };
   }
 
+  // §12 rule 5: cold-chain orders never go to Steadfast standard, and the rule
+  // belongs here rather than in the UI. Without this check the driver was called
+  // unconditionally and vaccines were handed to the standard courier.
+  if (order.fulfilmentChannel && order.fulfilmentChannel !== 'steadfast') {
+    return {
+      success: false,
+      error:
+        `This order is routed to "${order.fulfilmentChannel}" fulfilment and cannot be handed to the ` +
+        'standard courier. Assign it to own-rider or a cold-chain partner instead.',
+    };
+  }
+
   const addr = order.addressSnapshot as any;
   const codAmount = order.paymentMethod === 'cod' ? order.total : 0;
 
@@ -146,7 +254,9 @@ export async function createShipmentForOrder(
       .join(', '),
     codAmount,
     note: `VetMart Order ${order.orderNo}`,
-    itemDescription: 'Veterinary Medicine',
+    // §12 rule 4: neutral description plus the invoice number — never the drug
+    // names, which invites tampering in transit.
+    itemDescription: `Animal health supplies — ${order.orderNo}`,
   };
 
   try {
@@ -393,33 +503,20 @@ export async function processSteadfastWebhook(
   const targetOrderStatus = STEADFAST_TO_ORDER_STATUS[input.status];
 
   if (targetOrderStatus) {
-    // Fetch current order to validate transition
-    const [order] = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, shipment.orderId))
-      .limit(1);
+    // Route through transitionOrderStatus rather than updating `orders`
+    // directly. The inline update here skipped the stock reversal and the
+    // cancelled_at stamp, so a courier-reported return lost the goods on paper.
+    // An invalid transition is not an error for the caller — the courier is
+    // simply reporting a state we have already moved past.
+    const transition = await transitionOrderStatus(shipment.orderId, targetOrderStatus, {
+      actor: 'steadfast_webhook',
+      note: `Auto-transitioned via Steadfast webhook (consignment: ${input.consignmentId})`,
+    });
 
-    if (order) {
-      const currentStatus = order.status as OrderStatus;
-      const allowed = VALID_TRANSITIONS[currentStatus];
-
-      if (allowed?.includes(targetOrderStatus)) {
-        // Perform the transition
-        await db
-          .update(orders)
-          .set({ status: targetOrderStatus })
-          .where(eq(orders.id, shipment.orderId));
-
-        // Record the official order transition event
-        await db.insert(orderEvents).values({
-          orderId: shipment.orderId,
-          fromStatus: currentStatus,
-          toStatus: targetOrderStatus,
-          actor: 'steadfast_webhook',
-          note: `Auto-transitioned via Steadfast webhook (consignment: ${input.consignmentId})`,
-        });
-      }
+    if (!transition.success) {
+      console.warn(
+        `[SteadfastWebhook] Order ${shipment.orderId} not transitioned to "${targetOrderStatus}": ${transition.error}`
+      );
     }
   }
 

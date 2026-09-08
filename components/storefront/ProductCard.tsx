@@ -18,7 +18,6 @@ export interface ProductCardProps {
     mrp: number; // in paisa
     salePrice: number; // in paisa
     requiresPrescription?: boolean;
-    requiresColdChain: boolean;
     packUnit?: string | null;
     hasShippingCharge?: boolean;
     shippingInsideDhaka?: number;
@@ -85,12 +84,6 @@ export function ProductCard({ locale, product, onAddToCart }: ProductCardProps) 
 
         {/* Floating badges */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-
-          {product.requiresColdChain && (
-            <span className="px-2 py-0.5 rounded-md bg-sky-500/90 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
-              ❄️ Cold
-            </span>
-          )}
           {product.hasShippingCharge === false && (
             <span className="px-2 py-0.5 rounded-md bg-emerald-600/95 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm shadow-xs">
               🚚 {locale === 'bn' ? 'ফ্রি ডেলিভারি' : 'Free Delivery'}

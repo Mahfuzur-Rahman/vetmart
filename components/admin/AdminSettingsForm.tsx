@@ -12,7 +12,6 @@ export function AdminSettingsForm({ locale }: Props) {
   const [deliveryChargeEnabled, setDeliveryChargeEnabled] = useState(false);
   const [dhakaRate, setDhakaRate] = useState('70');
   const [outsideRate, setOutsideRate] = useState('130');
-  const [coldChainFee, setColdChainFee] = useState('30');
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,7 +30,6 @@ export function AdminSettingsForm({ locale }: Props) {
             setDeliveryChargeEnabled(Boolean(s.deliveryChargeEnabled));
             setDhakaRate(((s.dhakaRate ?? 7000) / 100).toString());
             setOutsideRate(((s.outsideRate ?? 13000) / 100).toString());
-            setColdChainFee(((s.coldChainFee ?? 3000) / 100).toString());
           }
         }
       } catch (err) {
@@ -54,7 +52,6 @@ export function AdminSettingsForm({ locale }: Props) {
         deliveryChargeEnabled,
         dhakaRate: Math.round(parseFloat(dhakaRate || '0') * 100),
         outsideRate: Math.round(parseFloat(outsideRate || '0') * 100),
-        coldChainFee: Math.round(parseFloat(coldChainFee || '0') * 100),
       },
     };
 
@@ -205,21 +202,7 @@ export function AdminSettingsForm({ locale }: Props) {
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#F7F6F3] border border-[#EAEAEA] space-y-2">
-            <div className="flex justify-between items-center font-bold text-[#2F3437]">
-              <span>❄️ Cold-Chain Cooler Box Charge</span>
-              <span className="text-blue-700 font-mono">2-8°C Temp Control</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[#787774] font-medium">{isBn ? 'কুলার বক্স চার্জ (৳):' : 'Packing Fee (৳):'}</span>
-              <input
-                type="number"
-                value={coldChainFee}
-                onChange={(e) => setColdChainFee(e.target.value)}
-                className="w-24 px-2.5 py-1 rounded-lg bg-white border border-[#EAEAEA] font-mono text-blue-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
-            </div>
-          </div>
+
 
           {errorMessage && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">

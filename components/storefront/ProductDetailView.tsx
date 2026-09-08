@@ -84,7 +84,6 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
     mrp: p.mrp,
     salePrice: p.salePrice,
     requiresPrescription: p.requiresPrescription,
-    requiresColdChain: p.coldChain || p.requiresColdChain,
     isAntimicrobial: p.isAntimicrobial,
     isOutOfStock: (p.stockQty ?? p.stock ?? 1) <= 0,
     stock: p.stockQty ?? p.stock ?? 100,
@@ -96,7 +95,6 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
     dosageForm: p.dosageForm,
     packSize: p.packSize,
     packUnit: p.packUnit,
-    dgdaRegistrationNo: p.dgdaRegNo || p.dgdaRegistrationNo || 'DAR-024-118-059',
     imageUrl: p.imageUrl,
     hasShippingCharge: p.hasShippingCharge,
     shippingInsideDhaka: p.shippingInsideDhaka,
@@ -125,11 +123,7 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
           {/* Badges */}
           <div className="flex flex-wrap items-center gap-2">
 
-            {product.requiresColdChain && (
-              <span className="px-3 py-1 rounded-lg bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300 text-xs font-bold uppercase">
-                ❄️ Cold-Chain Storage (2-8°C)
-              </span>
-            )}
+
             {product.isAntimicrobial && (
               <span className="px-3 py-1 rounded-lg bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-300 text-xs font-bold uppercase">
                 🧬 Antimicrobial
@@ -300,12 +294,7 @@ export function ProductDetailView({ locale, slug, initialProduct }: Props) {
                 </span>
               </div>
             )}
-            {product.dgdaRegistrationNo && (
-              <div>
-                <span className="text-muted-foreground block">{locale === 'bn' ? 'ডিজিডিএ রেজি নম্বর' : 'DGDA Reg. No'}:</span>
-                <span className="font-mono font-semibold text-foreground">{product.dgdaRegistrationNo}</span>
-              </div>
-            )}
+
           </div>
         </div>
       </div>

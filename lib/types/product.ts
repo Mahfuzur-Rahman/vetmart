@@ -25,14 +25,11 @@ export interface Product {
   salePrice: number; // in integer paisa
   vetPrice?: number;
   requiresPrescription: boolean;
-  requiresColdChain: boolean;
   isActive: boolean;
   hasShippingCharge: boolean;
   shippingInsideDhaka: number; // in integer paisa
   shippingOutsideDhaka: number; // in integer paisa
   isAntimicrobial: boolean;
-  coldChain: boolean;
-  dgdaRegNo: string;
   batchNo: string;
   expiryDate: string;
   mfgDate: string;

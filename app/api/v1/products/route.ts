@@ -1,7 +1,13 @@
 // app/api/v1/products/route.ts
 // GET /api/v1/products — Catalog search & listing (§9)
 import { NextRequest } from 'next/server';
-import { searchCatalog, type SortOption } from '@/lib/services/search';
+import {
+  searchCatalog,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  PUBLIC_MAX_PAGE_SIZE,
+  type SortOption,
+} from '@/lib/services/search';
 import { apiSuccess, apiError } from '@/lib/api/response';
 import { getAdminSessionId } from '@/lib/auth/session';
 
@@ -19,6 +25,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // An admin screen needs the whole catalog in one request; an anonymous
+    // storefront caller stays capped so the endpoint cannot be used to dump it.
+    const requestedPageSize = Number.parseInt(url.searchParams.get('pageSize') || '', 10);
+    const pageSize = Number.isFinite(requestedPageSize)
+      ? Math.min(includeInactive ? MAX_PAGE_SIZE : PUBLIC_MAX_PAGE_SIZE, Math.max(1, requestedPageSize))
+      : DEFAULT_PAGE_SIZE;
+
+    const requestedPage = Number.parseInt(url.searchParams.get('page') || '', 10);
+
     const result = await searchCatalog({
       q: url.searchParams.get('q') || undefined,
       species: url.searchParams.get('species') || undefined,
@@ -26,8 +41,8 @@ export async function GET(req: NextRequest) {
       manufacturerId: url.searchParams.get('manufacturer') || undefined,
       productType: url.searchParams.get('type') || undefined,
       sort: (url.searchParams.get('sort') as SortOption) || undefined,
-      page: parseInt(url.searchParams.get('page') || '1', 10),
-      pageSize: parseInt(url.searchParams.get('pageSize') || '24', 10),
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+      pageSize,
       includeInactive,
     });
 

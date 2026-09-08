@@ -93,7 +93,6 @@ const SLIDES: Slide[] = [
       en: (
         <>
           Strict Temperature-Controlled <br />
-          <span className="text-emerald-300">Cold-Chain Express Delivery</span>
         </>
       ),
       bn: (

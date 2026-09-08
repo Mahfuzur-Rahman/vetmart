@@ -10,6 +10,7 @@ import {
   productBatches,
   stockLedger,
   drugClassifications,
+  orderItems,
 } from '@/lib/db/schema';
 import { getStorageDriver } from '@/lib/storage';
 import { getProductStockSummary } from './stock';
@@ -224,6 +225,22 @@ export class ProductNotFoundError extends Error {
   constructor(idOrSlug: string) {
     super(`No product found for "${idOrSlug}"`);
     this.name = 'ProductNotFoundError';
+  }
+}
+
+/**
+ * Thrown when a delete is refused because order history depends on the row.
+ * Order lines must stay reconstructible years later (§6, "snapshot everything
+ * on the order"), so the product is deactivated instead of removed.
+ */
+export class ProductInUseError extends Error {
+  readonly code = 'PRODUCT_IN_USE';
+  constructor(readonly orderLineCount: number) {
+    super(
+      `This product appears on ${orderLineCount} order line(s) and cannot be deleted. ` +
+        'Deactivate it instead so order history stays intact.'
+    );
+    this.name = 'ProductInUseError';
   }
 }
 
@@ -533,13 +550,24 @@ export async function updateProduct(idOrSlug: string, rawInput: unknown) {
 
 
 /**
- * Permanently delete a product, its associated images, and ledger entries.
- * Note: If the product is linked to existing order_items, PostgreSQL will reject the deletion 
- * to preserve order history (foreign key constraint without cascade).
+ * Permanently delete a product together with its images, batches and ledger
+ * rows (all cascading from `products`).
+ *
+ * Two ordering rules matter here:
+ *
+ * 1. **Refuse up front if order history references the product.** `order_items`
+ *    points at both `products` and `product_batches` without a cascade, so the
+ *    delete would fail deep inside the statement with a raw 23503 naming
+ *    whichever constraint tripped first. Checking first produces an accurate
+ *    message and leaves nothing half-done.
+ * 2. **Delete the stored images only after the transaction has committed.**
+ *    Storage is not transactional. Removing blobs inside the transaction meant a
+ *    rejected delete rolled the database back while the product's images were
+ *    already gone from Cloudinary/disk — the product survived with no artwork
+ *    and no way to recover it.
  */
 export async function deleteProduct(id: string) {
-  return db.transaction(async (tx) => {
-    // Check existence
+  const basePaths = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({ id: products.id })
       .from(products)
@@ -550,25 +578,38 @@ export async function deleteProduct(id: string) {
       throw new ProductNotFoundError(id);
     }
 
-    // 1. Delete associated images from Storage Driver
+    const [used] = await tx
+      .select({ count: dSql<number>`count(*)::int` })
+      .from(orderItems)
+      .where(eq(orderItems.productId, id));
+
+    if ((used?.count ?? 0) > 0) {
+      throw new ProductInUseError(used!.count);
+    }
+
     const images = await tx
       .select({ basePath: productImages.basePath })
       .from(productImages)
       .where(eq(productImages.productId, id));
 
-    const storage = getStorageDriver();
-    for (const img of images) {
-      if (img.basePath) {
-        await storage.delete(img.basePath);
-      }
-    }
-
-    // 2. Delete the product. Because productImages, productBatches, stockLedger, 
-    // and productReviews have onDelete: 'cascade', they will be deleted automatically.
-    // If orderItems exist, this will throw a constraint error.
+    // productImages, productBatches, stockLedger and productReviews all declare
+    // onDelete: 'cascade', so this one statement clears them too.
     await tx.delete(products).where(eq(products.id, id));
 
-    return { success: true, deletedId: id };
+    return images.map((img) => img.basePath).filter((p): p is string => !!p);
   });
-}
 
+  // Past the commit point: the row is gone for good, so orphaned blobs are the
+  // only thing left to clean up. A storage failure is logged, never thrown — it
+  // must not report a successful delete as a failure.
+  const storage = getStorageDriver();
+  for (const basePath of basePaths) {
+    try {
+      await storage.delete(basePath);
+    } catch (err) {
+      console.error(`[deleteProduct] Product ${id} deleted but image "${basePath}" could not be removed from storage:`, err);
+    }
+  }
+
+  return { success: true, deletedId: id };
+}

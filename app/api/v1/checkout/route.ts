@@ -22,6 +22,18 @@ export async function POST(req: NextRequest) {
       return apiError('SERVICE_UNAVAILABLE', 'Service is currently unavailable', 503);
     }
 
+    // §9: mandatory on POST /orders. The guest express route already required
+    // it; this one did not, so any retry on a dropped mobile connection created
+    // a second order and later a second courier consignment.
+    const idempotencyKey = req.headers.get('idempotency-key')?.trim();
+    if (!idempotencyKey) {
+      return apiError(
+        'IDEMPOTENCY_KEY_REQUIRED',
+        'An Idempotency-Key header is required when placing an order.',
+        400
+      );
+    }
+
     const user = await resolveUser(req);
     if (!user) {
       return apiError('UNAUTHORIZED', 'Login required to place an order.', 401);
@@ -69,6 +81,7 @@ export async function POST(req: NextRequest) {
       paymentMethod: parsed.data.paymentMethod,
       couponResult,
       note: parsed.data.note,
+      idempotencyKey,
     });
 
     if (!result.success) {
@@ -87,8 +100,8 @@ export async function POST(req: NextRequest) {
         orderNo: result.orderNo,
         total: result.total,
       },
-      undefined,
-      201
+      { replayed: !!result.replayed },
+      result.replayed ? 200 : 201
     );
   } catch (err: any) {
     return apiError('CHECKOUT_ERROR', err?.message || 'Checkout failed', 500);

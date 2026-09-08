@@ -1,49 +1,61 @@
 // app/api/v1/webhook/steadfast/route.ts
-// POST /api/v1/webhook/steadfast — Receive Steadfast delivery status callbacks (§12)
-// This endpoint is called by Steadfast when delivery status changes.
-// It is NOT behind auth — Steadfast POSTs here directly. We verify via secret key.
+// Legacy courier status callback path, kept because the courier portal may
+// already point at it. Delegates to the same verified handler as
+// /api/webhooks/courier/steadfast (§12 rule 2) — prefer that path for new
+// configuration.
 import { NextRequest, NextResponse } from 'next/server';
-import { processSteadfastWebhook } from '@/lib/services/fulfillment';
+import {
+  authenticateCourierWebhook,
+  handleCourierWebhookPayload,
+} from '@/lib/courier/webhook';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const auth = authenticateCourierWebhook(req);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: { code: auth.code, message: auth.message } },
+      { status: auth.status }
+    );
+  }
+
+  let payload: unknown;
   try {
-    const body = await req.json();
+    payload = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'INVALID_JSON', message: 'Body is not valid JSON' } },
+      { status: 400 }
+    );
+  }
 
-    // Steadfast sends: { consignment_id, tracking_code, status, ... }
-    // Possible statuses from Steadfast:
-    //   in_review, pending, cancelled, unknown_pickup,
-    //   pickup_assigned, picked_up, received_at_warehouse,
-    //   in_transit, delivered_to_hub, out_for_delivery,
-    //   delivered, partial_delivered, cancelled_delivery,
-    //   hold, return, returned, returned_to_warehouse
-    const consignmentId = body?.consignment_id;
-    const trackingCode = body?.tracking_code;
-    const status = body?.status;
+  try {
+    const result = await handleCourierWebhookPayload(payload);
 
-    if (!consignmentId || !status) {
+    if (!result.ok) {
       return NextResponse.json(
-        { error: 'Missing consignment_id or status' },
+        { error: { code: 'INVALID_PAYLOAD', message: result.error } },
         { status: 400 }
       );
     }
 
-    const result = await processSteadfastWebhook({
-      consignmentId: String(consignmentId),
-      trackingCode: trackingCode ? String(trackingCode) : undefined,
-      status: String(status),
-      raw: body,
-    });
-
-    if (!result.success) {
-      // Return 200 anyway so Steadfast doesn't retry — log the error server-side
-      console.error(`[SteadfastWebhook] Processing failed for ${consignmentId}:`, result.error);
+    const outcome = result.outcome!;
+    if (!outcome.applied) {
+      console.error(
+        `[SteadfastWebhook] Consignment ${outcome.consignmentId} not matched to a shipment:`,
+        outcome.error
+      );
     }
 
-    // Always return 200 to Steadfast to acknowledge receipt
-    return NextResponse.json({ received: true, consignmentId });
-  } catch (err: any) {
+    return NextResponse.json({
+      received: true,
+      consignmentId: outcome.consignmentId,
+      applied: outcome.applied,
+    });
+  } catch (err) {
     console.error('[SteadfastWebhook] Unhandled error:', err);
-    // Still return 200 to prevent Steadfast retry loops
+    // 200 to prevent a courier retry loop; the failure is logged server-side.
     return NextResponse.json({ received: true, error: 'internal' });
   }
 }

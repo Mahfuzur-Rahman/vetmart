@@ -8,7 +8,8 @@ import { admins } from '@/lib/db/schema';
 import { verifyPassword } from '@/lib/auth/hash';
 import { setAdminSession } from '@/lib/auth/session';
 import { getAdminPermissions } from '@/lib/auth/permissions';
-import { rateLimit } from '@/lib/auth/rate-limit';
+import { rateLimitOrAllow } from '@/lib/auth/rate-limit';
+import { getClientIp } from '@/lib/api/client-ip';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 export const dynamic = 'force-dynamic';
@@ -40,14 +41,20 @@ export async function POST(req: NextRequest) {
 
   // Throttle credential stuffing. Keyed by IP; a shared office NAT is an
   // acceptable cost here given how few admin accounts exist.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  try {
-    const limit = await rateLimit(`admin-login:${ip}`, 10, 300);
-    if (!limit.success) {
-      return apiError('RATE_LIMITED', 'Too many login attempts. Try again in a few minutes.', 429);
-    }
-  } catch (err) {
-    console.warn('[admin login] Rate limiter unavailable, continuing:', err);
+  //
+  // getClientIp reads the proxy-written end of X-Forwarded-For. Taking the
+  // leftmost entry, as this did, let an attacker vary the header per request and
+  // sidestep the limit entirely.
+  const ip = getClientIp(req);
+  const ipLimit = await rateLimitOrAllow(`admin-login:ip:${ip}`, 10, 300);
+  if (!ipLimit.success) {
+    return apiError('RATE_LIMITED', 'Too many login attempts. Try again in a few minutes.', 429);
+  }
+
+  // Also per account, so rotating source addresses cannot grind one mailbox.
+  const emailLimit = await rateLimitOrAllow(`admin-login:email:${parsed.data.email}`, 10, 300);
+  if (!emailLimit.success) {
+    return apiError('RATE_LIMITED', 'Too many login attempts for this account. Try again in a few minutes.', 429);
   }
 
   try {

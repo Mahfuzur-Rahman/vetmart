@@ -1,25 +1,37 @@
 // app/api/v1/courier/fraud-check/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+// GET /api/v1/courier/fraud-check — Courier return-rate score for a phone (§12 rule 3)
+import { NextRequest } from 'next/server';
 import { checkCustomerFraudRisk, normalizeBdPhone } from '@/lib/courier/fraud-check';
+import { apiSuccess, apiError } from '@/lib/api/response';
+import { requireAdmin } from '@/lib/api/guard';
 
 export async function GET(req: NextRequest) {
+  // A customer's courier history is operator-only data, and the upstream lookup
+  // is a metered call. Unauthenticated, this was a free phone-number oracle.
+  const guard = await requireAdmin('order.read');
+  if (!guard.ok) return guard.response;
+
   const { searchParams } = new URL(req.url);
   const phone = searchParams.get('phone');
 
   if (!phone) {
-    return NextResponse.json({ error: 'Phone parameter required' }, { status: 400 });
+    return apiError('VALIDATION_ERROR', 'A phone parameter is required.', 422, 'phone');
   }
 
   const cleanPhone = normalizeBdPhone(phone);
   if (!cleanPhone || cleanPhone.length < 11) {
-    return NextResponse.json({ error: 'Invalid Bangladeshi phone number' }, { status: 400 });
+    return apiError('INVALID_PHONE', 'Enter a valid Bangladeshi mobile number.', 422, 'phone');
   }
 
   try {
     const report = await checkCustomerFraudRisk(cleanPhone);
-    return NextResponse.json({ success: true, data: report });
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: 'Fraud check failed', details: errorMessage }, { status: 500 });
+    return apiSuccess(report);
+  } catch (err) {
+    console.error('[GET /api/v1/courier/fraud-check] Failed:', err);
+    return apiError(
+      'FRAUD_CHECK_FAILED',
+      err instanceof Error ? err.message : 'Fraud check failed',
+      500
+    );
   }
 }
